@@ -351,6 +351,27 @@ var selfUpdateCheckCmd = &cobra.Command{
 	RunE:  runSelfUpdateCheck,
 }
 
+var newCmd = &cobra.Command{
+	Use:   "new [directory]",
+	Short: "Create a new Magento/MageOS project",
+	Long: `Creates a new Magento or MageOS project with interactive setup wizard.
+
+This command will guide you through:
+  1. Selecting Magento or MageOS distribution
+  2. Choosing the version to install
+  3. Configuring Composer authentication
+  4. Selecting PHP version
+  5. Choosing services (MySQL, Redis, OpenSearch, etc.)
+  6. Optional sample data installation
+  7. Database setup
+
+Example:
+  magebox new mystore        # Create new project in ./mystore
+  magebox new .              # Create in current directory`,
+	Args: cobra.ExactArgs(1),
+	RunE: runNew,
+}
+
 var bootstrapCmd = &cobra.Command{
 	Use:   "bootstrap",
 	Short: "Initialize MageBox environment",
@@ -436,6 +457,7 @@ func init() {
 	rootCmd.AddCommand(selfUpdateCmd)
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(bootstrapCmd)
+	rootCmd.AddCommand(newCmd)
 }
 
 // Helper function to get platform
@@ -2034,6 +2056,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	cli.PrintLogoSmall(version)
+	fmt.Println()
 	cli.PrintTitle("MageBox Bootstrap")
 	fmt.Println()
 	fmt.Println("Setting up MageBox development environment...")
@@ -2263,6 +2287,521 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println(cli.Bullet("cd into your Magento project directory"))
 	fmt.Println(cli.Bullet("Run " + cli.Command("magebox init") + " to create .magebox config"))
 	fmt.Println(cli.Bullet("Run " + cli.Command("magebox start") + " to start your project"))
+	fmt.Println()
+
+	return nil
+}
+
+// MagentoVersion represents a Magento/MageOS version
+type MagentoVersion struct {
+	Name        string
+	Version     string
+	Package     string
+	PHPVersions []string
+	Default     bool
+}
+
+// Distribution types
+const (
+	DistMagento = "magento"
+	DistMageOS  = "mageos"
+)
+
+// Available Magento versions
+var magentoVersions = []MagentoVersion{
+	{Name: "Magento 2.4.7-p3 (Latest)", Version: "2.4.7-p3", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
+	{Name: "Magento 2.4.7-p2", Version: "2.4.7-p2", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
+	{Name: "Magento 2.4.7-p1", Version: "2.4.7-p1", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
+	{Name: "Magento 2.4.7", Version: "2.4.7", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
+	{Name: "Magento 2.4.6-p7", Version: "2.4.6-p7", Package: "magento/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
+	{Name: "Magento 2.4.6-p6", Version: "2.4.6-p6", Package: "magento/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
+	{Name: "Magento 2.4.5-p9", Version: "2.4.5-p9", Package: "magento/project-community-edition", PHPVersions: []string{"8.1"}},
+}
+
+// Available MageOS versions
+var mageosVersions = []MagentoVersion{
+	{Name: "MageOS 1.0.4 (Latest)", Version: "1.0.4", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
+	{Name: "MageOS 1.0.3", Version: "1.0.3", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
+	{Name: "MageOS 1.0.2", Version: "1.0.2", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
+	{Name: "MageOS 1.0.1", Version: "1.0.1", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
+}
+
+// runNew creates a new Magento/MageOS project with interactive setup
+func runNew(cmd *cobra.Command, args []string) error {
+	targetDir := args[0]
+	reader := bufio.NewReader(os.Stdin)
+
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	cli.PrintLogoSmall(version)
+	fmt.Println()
+	cli.PrintTitle("Create New Magento/MageOS Project")
+	fmt.Println()
+
+	// Check prerequisites
+	if !platform.CommandExists("composer") {
+		cli.PrintError("Composer is not installed!")
+		fmt.Println()
+		cli.PrintInfo("Install Composer first:")
+		fmt.Println("  curl -sS https://getcomposer.org/installer | php")
+		fmt.Println("  sudo mv composer.phar /usr/local/bin/composer")
+		return nil
+	}
+
+	// Step 1: Choose distribution
+	fmt.Println(cli.Header("Step 1: Choose Distribution"))
+	fmt.Println()
+	fmt.Println("  [1] Magento Open Source (Adobe)")
+	fmt.Println("  [2] MageOS (Community Fork)")
+	fmt.Println()
+	fmt.Print("Select distribution [1]: ")
+
+	distChoice, _ := reader.ReadString('\n')
+	distChoice = strings.TrimSpace(distChoice)
+	if distChoice == "" {
+		distChoice = "1"
+	}
+
+	var distribution string
+	var versions []MagentoVersion
+	if distChoice == "2" {
+		distribution = DistMageOS
+		versions = mageosVersions
+		fmt.Println("  → MageOS selected")
+	} else {
+		distribution = DistMagento
+		versions = magentoVersions
+		fmt.Println("  → Magento Open Source selected")
+	}
+	fmt.Println()
+
+	// Step 2: Choose version
+	fmt.Println(cli.Header("Step 2: Choose Version"))
+	fmt.Println()
+	defaultIdx := 0
+	for i, v := range versions {
+		marker := "  "
+		if v.Default {
+			marker = "→ "
+			defaultIdx = i + 1
+		}
+		fmt.Printf("  [%d] %s%s\n", i+1, marker, v.Name)
+	}
+	fmt.Println()
+	fmt.Printf("Select version [%d]: ", defaultIdx)
+
+	versionChoice, _ := reader.ReadString('\n')
+	versionChoice = strings.TrimSpace(versionChoice)
+	if versionChoice == "" {
+		versionChoice = fmt.Sprintf("%d", defaultIdx)
+	}
+
+	versionIdx := 0
+	fmt.Sscanf(versionChoice, "%d", &versionIdx)
+	if versionIdx < 1 || versionIdx > len(versions) {
+		versionIdx = defaultIdx
+	}
+	selectedVersion := versions[versionIdx-1]
+	fmt.Printf("  → %s selected\n", selectedVersion.Name)
+	fmt.Println()
+
+	// Step 3: PHP Version
+	fmt.Println(cli.Header("Step 3: PHP Version"))
+	fmt.Println()
+	fmt.Printf("  Compatible versions: %s\n", strings.Join(selectedVersion.PHPVersions, ", "))
+	fmt.Println()
+	for i, phpV := range selectedVersion.PHPVersions {
+		marker := "  "
+		if i == 0 {
+			marker = "→ "
+		}
+		fmt.Printf("  [%d] %sPHP %s\n", i+1, marker, phpV)
+	}
+	fmt.Println()
+	fmt.Print("Select PHP version [1]: ")
+
+	phpChoice, _ := reader.ReadString('\n')
+	phpChoice = strings.TrimSpace(phpChoice)
+	if phpChoice == "" {
+		phpChoice = "1"
+	}
+
+	phpIdx := 0
+	fmt.Sscanf(phpChoice, "%d", &phpIdx)
+	if phpIdx < 1 || phpIdx > len(selectedVersion.PHPVersions) {
+		phpIdx = 1
+	}
+	selectedPHP := selectedVersion.PHPVersions[phpIdx-1]
+	fmt.Printf("  → PHP %s selected\n", selectedPHP)
+	fmt.Println()
+
+	// Check if PHP version is installed
+	detector := php.NewDetector(p)
+	phpVersion := detector.Detect(selectedPHP)
+	if !phpVersion.Installed {
+		cli.PrintWarning("PHP %s is not installed!", selectedPHP)
+		fmt.Printf("  Install: %s\n", cli.Command(p.PHPInstallCommand(selectedPHP)))
+		fmt.Println()
+		fmt.Print("Continue anyway? [y/N]: ")
+		continueChoice, _ := reader.ReadString('\n')
+		if strings.ToLower(strings.TrimSpace(continueChoice)) != "y" {
+			return nil
+		}
+	}
+
+	// Step 4: Composer Authentication (for Magento only)
+	var composerUser, composerPass string
+	if distribution == DistMagento {
+		fmt.Println(cli.Header("Step 4: Composer Authentication"))
+		fmt.Println()
+		fmt.Println("  Magento requires authentication keys from marketplace.magento.com")
+		fmt.Println("  Get your keys at: " + cli.URL("https://marketplace.magento.com/customer/accessKeys/"))
+		fmt.Println()
+
+		// Check for existing auth.json
+		homeDir, _ := os.UserHomeDir()
+		authFile := filepath.Join(homeDir, ".composer", "auth.json")
+		hasAuth := false
+		if _, err := os.Stat(authFile); err == nil {
+			// Check if repo.magento.com exists in auth.json
+			authContent, _ := os.ReadFile(authFile)
+			if strings.Contains(string(authContent), "repo.magento.com") {
+				hasAuth = true
+				fmt.Println("  " + cli.Success("✓") + " Found existing Composer authentication")
+			}
+		}
+
+		if !hasAuth {
+			fmt.Print("Public Key (username): ")
+			composerUser, _ = reader.ReadString('\n')
+			composerUser = strings.TrimSpace(composerUser)
+
+			fmt.Print("Private Key (password): ")
+			composerPass, _ = reader.ReadString('\n')
+			composerPass = strings.TrimSpace(composerPass)
+
+			if composerUser == "" || composerPass == "" {
+				cli.PrintError("Composer keys are required for Magento installation")
+				return nil
+			}
+		}
+		fmt.Println()
+	} else {
+		fmt.Println(cli.Header("Step 4: Composer Authentication"))
+		fmt.Println()
+		fmt.Println("  " + cli.Success("✓") + " MageOS does not require authentication keys")
+		fmt.Println()
+	}
+
+	// Step 5: Services
+	fmt.Println(cli.Header("Step 5: Database & Services"))
+	fmt.Println()
+
+	// MySQL version
+	fmt.Println("  Database:")
+	fmt.Println("  [1] → MySQL 8.0 (recommended)")
+	fmt.Println("  [2]   MySQL 8.4")
+	fmt.Println("  [3]   MariaDB 10.6")
+	fmt.Println("  [4]   MariaDB 11.4")
+	fmt.Println()
+	fmt.Print("Select database [1]: ")
+
+	dbChoice, _ := reader.ReadString('\n')
+	dbChoice = strings.TrimSpace(dbChoice)
+	if dbChoice == "" {
+		dbChoice = "1"
+	}
+
+	var dbService, dbVersion string
+	switch dbChoice {
+	case "2":
+		dbService, dbVersion = "mysql", "8.4"
+	case "3":
+		dbService, dbVersion = "mariadb", "10.6"
+	case "4":
+		dbService, dbVersion = "mariadb", "11.4"
+	default:
+		dbService, dbVersion = "mysql", "8.0"
+	}
+	fmt.Printf("  → %s %s selected\n", strings.Title(dbService), dbVersion)
+	fmt.Println()
+
+	// Search engine
+	fmt.Println("  Search Engine:")
+	fmt.Println("  [1] → OpenSearch 2.12 (recommended)")
+	fmt.Println("  [2]   Elasticsearch 8.11")
+	fmt.Println("  [3]   None (use MySQL for catalog search)")
+	fmt.Println()
+	fmt.Print("Select search engine [1]: ")
+
+	searchChoice, _ := reader.ReadString('\n')
+	searchChoice = strings.TrimSpace(searchChoice)
+	if searchChoice == "" {
+		searchChoice = "1"
+	}
+
+	var searchEngine, searchVersion string
+	switch searchChoice {
+	case "2":
+		searchEngine, searchVersion = "elasticsearch", "8.11"
+	case "3":
+		searchEngine, searchVersion = "", ""
+	default:
+		searchEngine, searchVersion = "opensearch", "2.12"
+	}
+	if searchEngine != "" {
+		fmt.Printf("  → %s %s selected\n", strings.Title(searchEngine), searchVersion)
+	} else {
+		fmt.Println("  → No search engine (MySQL search)")
+	}
+	fmt.Println()
+
+	// Additional services
+	fmt.Println("  Additional Services:")
+	fmt.Print("  Enable Redis cache? [Y/n]: ")
+	redisChoice, _ := reader.ReadString('\n')
+	enableRedis := strings.ToLower(strings.TrimSpace(redisChoice)) != "n"
+
+	fmt.Print("  Enable RabbitMQ? [y/N]: ")
+	rabbitChoice, _ := reader.ReadString('\n')
+	enableRabbitMQ := strings.ToLower(strings.TrimSpace(rabbitChoice)) == "y"
+
+	fmt.Print("  Enable Mailpit (email testing)? [Y/n]: ")
+	mailChoice, _ := reader.ReadString('\n')
+	enableMailpit := strings.ToLower(strings.TrimSpace(mailChoice)) != "n"
+	fmt.Println()
+
+	// Step 6: Sample Data
+	fmt.Println(cli.Header("Step 6: Sample Data"))
+	fmt.Println()
+	fmt.Println("  Sample data includes demo products, categories, and CMS content.")
+	fmt.Print("  Install sample data? [y/N]: ")
+	sampleChoice, _ := reader.ReadString('\n')
+	installSampleData := strings.ToLower(strings.TrimSpace(sampleChoice)) == "y"
+	fmt.Println()
+
+	// Step 7: Project Details
+	fmt.Println(cli.Header("Step 7: Project Details"))
+	fmt.Println()
+
+	// Determine project name from directory
+	var projectDir string
+	if targetDir == "." {
+		projectDir, _ = os.Getwd()
+	} else {
+		if filepath.IsAbs(targetDir) {
+			projectDir = targetDir
+		} else {
+			cwd, _ := os.Getwd()
+			projectDir = filepath.Join(cwd, targetDir)
+		}
+	}
+	projectName := filepath.Base(projectDir)
+
+	fmt.Printf("  Project directory: %s\n", cli.Highlight(projectDir))
+	fmt.Printf("  Project name [%s]: ", projectName)
+	nameInput, _ := reader.ReadString('\n')
+	nameInput = strings.TrimSpace(nameInput)
+	if nameInput != "" {
+		projectName = nameInput
+	}
+
+	// Domain
+	defaultDomain := projectName + ".test"
+	fmt.Printf("  Domain [%s]: ", defaultDomain)
+	domainInput, _ := reader.ReadString('\n')
+	domainInput = strings.TrimSpace(domainInput)
+	if domainInput == "" {
+		domainInput = defaultDomain
+	}
+	fmt.Println()
+
+	// Summary
+	fmt.Println(cli.Header("Summary"))
+	fmt.Println()
+	fmt.Printf("  Distribution:    %s\n", cli.Highlight(distribution))
+	fmt.Printf("  Version:         %s\n", cli.Highlight(selectedVersion.Version))
+	fmt.Printf("  PHP:             %s\n", cli.Highlight(selectedPHP))
+	fmt.Printf("  Database:        %s %s\n", cli.Highlight(dbService), cli.Highlight(dbVersion))
+	if searchEngine != "" {
+		fmt.Printf("  Search:          %s %s\n", cli.Highlight(searchEngine), cli.Highlight(searchVersion))
+	}
+	fmt.Printf("  Redis:           %s\n", cli.Status(enableRedis))
+	fmt.Printf("  RabbitMQ:        %s\n", cli.Status(enableRabbitMQ))
+	fmt.Printf("  Mailpit:         %s\n", cli.Status(enableMailpit))
+	fmt.Printf("  Sample Data:     %s\n", cli.Status(installSampleData))
+	fmt.Printf("  Project:         %s\n", cli.Highlight(projectName))
+	fmt.Printf("  Domain:          %s\n", cli.URL("https://"+domainInput))
+	fmt.Println()
+
+	fmt.Print("Proceed with installation? [Y/n]: ")
+	proceedChoice, _ := reader.ReadString('\n')
+	if strings.ToLower(strings.TrimSpace(proceedChoice)) == "n" {
+		fmt.Println("Installation cancelled.")
+		return nil
+	}
+	fmt.Println()
+
+	// Create directory if needed
+	if targetDir != "." {
+		if err := os.MkdirAll(projectDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// Set up Composer auth if needed
+	if composerUser != "" && composerPass != "" {
+		cli.PrintInfo("Configuring Composer authentication...")
+		authCmd := exec.Command("composer", "config", "--global", "http-basic.repo.magento.com", composerUser, composerPass)
+		if err := authCmd.Run(); err != nil {
+			cli.PrintWarning("Failed to configure Composer auth: %v", err)
+		}
+	}
+
+	// Run Composer create-project
+	cli.PrintTitle("Installing " + selectedVersion.Name)
+	fmt.Println()
+
+	composerArgs := []string{
+		"create-project",
+		"--repository-url=https://repo.magento.com/",
+		selectedVersion.Package,
+		projectDir,
+		selectedVersion.Version,
+	}
+
+	// MageOS doesn't need repo.magento.com
+	if distribution == DistMageOS {
+		composerArgs = []string{
+			"create-project",
+			selectedVersion.Package,
+			projectDir,
+			selectedVersion.Version,
+		}
+	}
+
+	composerCmd := exec.Command("composer", composerArgs...)
+	composerCmd.Stdout = os.Stdout
+	composerCmd.Stderr = os.Stderr
+	composerCmd.Stdin = os.Stdin
+
+	fmt.Println(cli.Command("composer " + strings.Join(composerArgs, " ")))
+	fmt.Println()
+
+	if err := composerCmd.Run(); err != nil {
+		cli.PrintError("Composer installation failed: %v", err)
+		return err
+	}
+	fmt.Println()
+
+	// Create .magebox file
+	cli.PrintInfo("Creating MageBox configuration...")
+
+	mageboxConfig := fmt.Sprintf(`name: %s
+domains:
+  - host: %s
+    root: pub
+    ssl: true
+php: "%s"
+services:
+`, projectName, domainInput, selectedPHP)
+
+	// Add database
+	if dbService == "mysql" {
+		mageboxConfig += fmt.Sprintf("  mysql: \"%s\"\n", dbVersion)
+	} else {
+		mageboxConfig += fmt.Sprintf("  mariadb: \"%s\"\n", dbVersion)
+	}
+
+	// Add search
+	if searchEngine == "opensearch" {
+		mageboxConfig += fmt.Sprintf("  opensearch: \"%s\"\n", searchVersion)
+	} else if searchEngine == "elasticsearch" {
+		mageboxConfig += fmt.Sprintf("  elasticsearch: \"%s\"\n", searchVersion)
+	}
+
+	// Add other services
+	if enableRedis {
+		mageboxConfig += "  redis: true\n"
+	}
+	if enableRabbitMQ {
+		mageboxConfig += "  rabbitmq: true\n"
+	}
+	if enableMailpit {
+		mageboxConfig += "  mailpit: true\n"
+	}
+
+	// Add common commands
+	mageboxConfig += `
+commands:
+  setup:
+    description: "Run Magento setup"
+    run: "php bin/magento setup:upgrade && php bin/magento cache:flush"
+  reindex:
+    description: "Reindex all indexes"
+    run: "php bin/magento indexer:reindex"
+  deploy:
+    description: "Deploy static content"
+    run: "php bin/magento setup:static-content:deploy -f"
+  cache:
+    description: "Flush all caches"
+    run: "php bin/magento cache:flush"
+`
+
+	mageboxFile := filepath.Join(projectDir, ".magebox")
+	if err := os.WriteFile(mageboxFile, []byte(mageboxConfig), 0644); err != nil {
+		cli.PrintWarning("Failed to create .magebox file: %v", err)
+	} else {
+		fmt.Printf("  Created %s\n", cli.Highlight(".magebox"))
+	}
+
+	// Install sample data if requested
+	if installSampleData {
+		fmt.Println()
+		cli.PrintInfo("Installing sample data...")
+
+		sampleCmd := exec.Command("composer", "require", "magento/module-bundle-sample-data",
+			"magento/module-catalog-sample-data", "magento/module-catalog-rule-sample-data",
+			"magento/module-cms-sample-data", "magento/module-configurable-sample-data",
+			"magento/module-customer-sample-data", "magento/module-downloadable-sample-data",
+			"magento/module-grouped-sample-data", "magento/module-msrp-sample-data",
+			"magento/module-offline-shipping-sample-data", "magento/module-product-links-sample-data",
+			"magento/module-review-sample-data", "magento/module-sales-rule-sample-data",
+			"magento/module-sales-sample-data", "magento/module-swatches-sample-data",
+			"magento/module-tax-sample-data", "magento/module-theme-sample-data",
+			"magento/module-widget-sample-data", "magento/module-wishlist-sample-data",
+			"magento/sample-data-media", "--no-update")
+		sampleCmd.Dir = projectDir
+		sampleCmd.Stdout = os.Stdout
+		sampleCmd.Stderr = os.Stderr
+
+		if err := sampleCmd.Run(); err != nil {
+			cli.PrintWarning("Sample data require failed: %v", err)
+		}
+
+		// Run composer update
+		updateCmd := exec.Command("composer", "update")
+		updateCmd.Dir = projectDir
+		updateCmd.Stdout = os.Stdout
+		updateCmd.Stderr = os.Stderr
+		updateCmd.Run()
+	}
+
+	// Success!
+	fmt.Println()
+	cli.PrintTitle("Installation Complete!")
+	fmt.Println()
+	cli.PrintSuccess("Project created successfully!")
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println(cli.Bullet("cd " + cli.Highlight(projectDir)))
+	fmt.Println(cli.Bullet("Run " + cli.Command("magebox start") + " to start services"))
+	fmt.Println(cli.Bullet("Run " + cli.Command("magebox cli setup:install") + " to complete Magento setup"))
+	fmt.Println()
+	fmt.Println("After setup, access your store at: " + cli.URL("https://"+domainInput))
 	fmt.Println()
 
 	return nil

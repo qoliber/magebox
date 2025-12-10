@@ -33,6 +33,9 @@ const (
 	BrightCyan    = "\033[96m"
 	BrightWhite   = "\033[97m"
 
+	// 256 color mode - Orange
+	Orange = "\033[38;5;208m"
+
 	// Background colors
 	BgRed    = "\033[41m"
 	BgGreen  = "\033[42m"
@@ -294,4 +297,70 @@ func PrintTitle(format string, a ...interface{}) {
 // PrintHeader prints a section header
 func PrintHeader(format string, a ...interface{}) {
 	fmt.Println(Header(fmt.Sprintf(format, a...)))
+}
+
+// PrintLogo prints the MageBox logo with version
+func PrintLogo(version string) {
+	orange := Orange
+	white := BrightWhite
+	reset := Reset
+	dim := Dim
+
+	if !colorsEnabled {
+		orange = ""
+		white = ""
+		reset = ""
+		dim = ""
+	}
+
+	logo := `
+` + orange + `    ╭───────────────────────────────────────╮` + reset + `
+` + orange + `    │` + reset + `                                       ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `███╗   ███╗` + reset + ` ` + white + `█████╗  ██████╗ ███████╗` + reset + `  ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `████╗ ████║` + reset + ` ` + white + `██╔══██╗██╔════╝ ██╔════╝` + reset + `  ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██╔████╔██║` + reset + ` ` + white + `███████║██║  ███╗█████╗` + reset + `    ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██║╚██╔╝██║` + reset + ` ` + white + `██╔══██║██║   ██║██╔══╝` + reset + `    ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██║ ╚═╝ ██║` + reset + ` ` + white + `██║  ██║╚██████╔╝███████╗` + reset + `  ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `╚═╝     ╚═╝` + reset + ` ` + white + `╚═╝  ╚═╝ ╚═════╝ ╚══════╝` + reset + `  ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `                                       ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██████╗  ██████╗ ██╗  ██╗` + reset + `             ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██╔══██╗██╔═══██╗╚██╗██╔╝` + reset + `             ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██████╔╝██║   ██║ ╚███╔╝` + reset + `              ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██╔══██╗██║   ██║ ██╔██╗` + reset + `              ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `██████╔╝╚██████╔╝██╔╝ ██╗` + reset + `             ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + orange + `╚═════╝  ╚═════╝ ╚═╝  ╚═╝` + reset + `             ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `                                       ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + dim + `Modern Magento Development` + reset + `            ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `   ` + dim + `Version ` + white + version + reset + `                         ` + orange + `│` + reset + `
+` + orange + `    │` + reset + `                                       ` + orange + `│` + reset + `
+` + orange + `    ╰───────────────────────────────────────╯` + reset + `
+`
+	fmt.Print(logo)
+}
+
+// PrintLogoSmall prints a compact MageBox logo
+func PrintLogoSmall(version string) {
+	orange := Orange
+	white := BrightWhite
+	reset := Reset
+
+	if !colorsEnabled {
+		orange = ""
+		white = ""
+		reset = ""
+	}
+
+	// 3D cube logo
+	logo := orange + `
+      ___________
+     /          /|
+    /  ` + white + `MAGE` + orange + `   / |
+   /   ` + white + `BOX` + orange + `   /  |
+  /__________/   |
+  |          |   /
+  |  ` + reset + version + orange + `   |  /
+  |__________|_/
+` + reset
+
+	fmt.Print(logo)
 }

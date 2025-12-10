@@ -32,6 +32,9 @@ mkcert -install
 
 # Install Docker Desktop
 brew install --cask docker
+
+# Install Composer (required for `magebox new`)
+brew install composer
 ```
 
 ### Linux (Ubuntu/Debian)
@@ -69,6 +72,10 @@ mkcert -install
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker $USER
 # Log out and back in for group changes to take effect
+
+# Install Composer (required for `magebox new`)
+curl -sS https://getcomposer.org/installer | php
+sudo mv composer.phar /usr/local/bin/composer
 ```
 
 ## Installation
@@ -246,10 +253,29 @@ Add `.magebox.local` to your `.gitignore`.
 
 ## Commands
 
+### Create New Project
+
+```bash
+magebox new mystore       # Create new Magento/MageOS project in ./mystore
+magebox new .             # Create in current directory
+```
+
+The `new` command launches an interactive wizard that guides you through:
+
+1. **Distribution** - Choose between Magento Open Source or MageOS
+2. **Version** - Select from available versions (2.4.7-p3, 2.4.6-p7, etc.)
+3. **PHP Version** - Pick compatible PHP version (shows only compatible options)
+4. **Composer Auth** - Enter marketplace keys (Magento) or skip (MageOS)
+5. **Database** - MySQL 8.0/8.4 or MariaDB 10.6/11.4
+6. **Search Engine** - OpenSearch, Elasticsearch, or none
+7. **Services** - Redis, RabbitMQ, Mailpit
+8. **Sample Data** - Optional demo products and content
+9. **Project Details** - Name and domain
+
 ### Project Commands
 
 ```bash
-magebox init              # Initialize new project (creates .magebox)
+magebox init              # Initialize existing project (creates .magebox)
 magebox start             # Start project services
 magebox stop              # Stop project services
 magebox status            # Show project status
