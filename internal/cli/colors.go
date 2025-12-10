@@ -350,22 +350,27 @@ func PrintLogoSmall(version string) {
 		reset = ""
 	}
 
-	// 3D isometric cube - edge facing forward, 3 visible faces
+	// 3D rotated cube - edge facing viewer, 3 visible faces
 	w := white
 	o := orange
 	r := reset
 
 	logo := `
-` + w + `      /` + o + `\` + r + `
-` + w + `     /` + o + `##` + w + `\` + r + `
-` + w + `    /` + o + `####` + w + `\` + r + `
-` + w + `   /` + o + `##` + w + `/\` + o + `##` + w + `\` + r + `
-` + w + `  /` + o + `##` + w + `/` + o + `##` + w + `\` + o + `##` + w + `\` + r + `       ` + w + `MageBox` + r + ` ` + version + `
-` + w + `  \` + o + `##` + w + `\` + o + `##` + w + `/` + o + `##` + w + `/` + r + `       Modern Magento Development
-` + w + `   \` + o + `##` + w + `\/` + o + `##` + w + `/` + r + `
-` + w + `    \` + o + `####` + w + `/` + r + `
-` + w + `     \` + o + `##` + w + `/` + r + `
-` + w + `      \/` + r + `
+` + w + `       /|` + o + `\` + r + `
+` + w + `      / |` + o + ` \` + r + `
+` + w + `     /  |` + o + `  \` + r + `
+` + w + `    /   |` + o + `   \` + r + `
+` + w + `   /` + o + `    ` + w + `|` + o + `    ` + w + `\` + r + `        ` + w + `MageBox` + r + ` ` + version + `
+` + w + `  |` + o + `    ` + w + `/|\` + o + `    ` + w + `|` + r + `       Modern Magento Development
+` + w + `  |` + o + `   ` + w + `/ | \` + o + `   ` + w + `|` + r + `
+` + w + `  |` + o + `  ` + w + `/  |  \` + o + `  ` + w + `|` + r + `
+` + w + `  |` + o + ` ` + w + `/   |   \` + o + ` ` + w + `|` + r + `
+` + w + `  |/    |    \|` + r + `
+` + w + `   \` + o + `    ` + w + `|` + o + `    ` + w + `/` + r + `
+` + w + `    \   |   /` + r + `
+` + w + `     \  |  /` + r + `
+` + w + `      \ | /` + r + `
+` + w + `       \|/` + r + `
 `
 
 	fmt.Print(logo)
