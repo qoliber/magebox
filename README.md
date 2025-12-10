@@ -15,7 +15,7 @@ A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx
 
 ## Why MageBox?
 
-Unlike Docker-based solutions (Warden, DDEV), MageBox runs PHP and Nginx natively on your machine:
+Unlike Docker-based solutions (Warden, DDEV) or Laravel Herd, MageBox runs PHP and Nginx natively on your machine:
 
 - **No file sync overhead** - Native filesystem access means instant file changes
 - **Native performance** - PHP runs at full speed, not inside a container
@@ -65,6 +65,8 @@ magebox cli setup:install \
 **That's it!** Open https://mystore.test in your browser.
 
 > **Note:** The `--quick` flag installs MageOS (no Adobe auth required) with sample data, PHP 8.3, MySQL 8.0, Redis, and OpenSearch - perfect for learning or testing.
+
+> **Migrating from Herd?** See our [Migration Guide](docs/MIGRATING_FROM_HERD.md) for step-by-step instructions to switch from Laravel Herd to MageBox.
 
 ---
 
