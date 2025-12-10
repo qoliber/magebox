@@ -59,6 +59,41 @@ func (m *Manager) EnsureCAInstalled() error {
 	return nil
 }
 
+// IsCAInstalled checks if the mkcert CA is already installed
+func (m *Manager) IsCAInstalled() bool {
+	if !m.IsMkcertInstalled() {
+		return false
+	}
+
+	caRoot, err := m.getCARoot()
+	if err != nil {
+		return false
+	}
+
+	// Check if CA files exist
+	if _, err := os.Stat(filepath.Join(caRoot, "rootCA.pem")); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
+// InstallCA installs the mkcert CA (runs mkcert -install)
+func (m *Manager) InstallCA() error {
+	if !m.IsMkcertInstalled() {
+		return &MkcertNotInstalledError{Platform: m.platform}
+	}
+
+	cmd := exec.Command("mkcert", "-install")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to install CA: %w\nOutput: %s", err, output)
+	}
+
+	m.caInstalled = true
+	return nil
+}
+
 // IsMkcertInstalled checks if mkcert is installed
 func (m *Manager) IsMkcertInstalled() bool {
 	return platform.CommandExists("mkcert")

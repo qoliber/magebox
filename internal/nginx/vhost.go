@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/qoliber/magebox/internal/config"
@@ -375,4 +376,118 @@ func (c *Controller) IsRunning() bool {
 // GetIncludeDirective returns the include directive to add to nginx.conf
 func (g *VhostGenerator) GetIncludeDirective() string {
 	return fmt.Sprintf("include %s/*.conf;", g.vhostsDir)
+}
+
+// SetupNginxConfig ensures nginx.conf includes MageBox vhosts directory
+func (c *Controller) SetupNginxConfig() error {
+	// Determine nginx.conf location based on platform
+	var nginxConf string
+	switch c.platform.Type {
+	case platform.Darwin:
+		// Check Homebrew ARM first, then Intel
+		if _, err := os.Stat("/opt/homebrew/etc/nginx/nginx.conf"); err == nil {
+			nginxConf = "/opt/homebrew/etc/nginx/nginx.conf"
+		} else {
+			nginxConf = "/usr/local/etc/nginx/nginx.conf"
+		}
+	case platform.Linux:
+		nginxConf = "/etc/nginx/nginx.conf"
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	// Read current nginx.conf
+	content, err := os.ReadFile(nginxConf)
+	if err != nil {
+		return fmt.Errorf("failed to read nginx.conf: %w", err)
+	}
+
+	// MageBox include line
+	mageboxDir := c.platform.MageBoxDir()
+	includeLine := fmt.Sprintf("    include %s/nginx/vhosts/*.conf;", mageboxDir)
+	marker := "# MageBox vhosts"
+
+	// Check if already configured
+	if strings.Contains(string(content), marker) {
+		return nil // Already configured
+	}
+
+	// Find the http block and add our include
+	// We look for "include /etc/nginx/conf.d/*.conf;" or similar and add after it
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	inserted := false
+
+	for i, line := range lines {
+		newLines = append(newLines, line)
+
+		// Look for existing include directive in http block, or the http { line itself
+		trimmed := strings.TrimSpace(line)
+		if !inserted && (strings.HasPrefix(trimmed, "include ") && strings.Contains(trimmed, ".conf") ||
+			(trimmed == "http {" && i+1 < len(lines))) {
+
+			// If this is "http {", find a good spot after the opening
+			if trimmed == "http {" {
+				// Add after some initial http block content
+				continue
+			}
+
+			// Add our include after existing includes
+			newLines = append(newLines, "")
+			newLines = append(newLines, "    "+marker)
+			newLines = append(newLines, includeLine)
+			inserted = true
+		}
+	}
+
+	// If we couldn't find a good spot, try to add before the closing brace of http block
+	if !inserted {
+		for i := len(newLines) - 1; i >= 0; i-- {
+			if strings.TrimSpace(newLines[i]) == "}" {
+				// Insert before this closing brace
+				newContent := append(newLines[:i], "", "    "+marker, includeLine)
+				newContent = append(newContent, newLines[i:]...)
+				newLines = newContent
+				inserted = true
+				break
+			}
+		}
+	}
+
+	if !inserted {
+		return fmt.Errorf("could not find suitable location in nginx.conf to add MageBox include")
+	}
+
+	// Write back with sudo
+	newContent := strings.Join(newLines, "\n")
+	tmpFile := "/tmp/nginx.conf.magebox"
+	if err := os.WriteFile(tmpFile, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write temp nginx.conf: %w", err)
+	}
+
+	// Use sudo to copy the file
+	cmd := exec.Command("sudo", "cp", tmpFile, nginxConf)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to update nginx.conf: %w\nOutput: %s", err, output)
+	}
+
+	// Clean up temp file
+	os.Remove(tmpFile)
+
+	return nil
+}
+
+// GetNginxConfPath returns the path to nginx.conf
+func (c *Controller) GetNginxConfPath() string {
+	switch c.platform.Type {
+	case platform.Darwin:
+		if _, err := os.Stat("/opt/homebrew/etc/nginx/nginx.conf"); err == nil {
+			return "/opt/homebrew/etc/nginx/nginx.conf"
+		}
+		return "/usr/local/etc/nginx/nginx.conf"
+	case platform.Linux:
+		return "/etc/nginx/nginx.conf"
+	default:
+		return "/etc/nginx/nginx.conf"
+	}
 }

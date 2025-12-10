@@ -471,3 +471,103 @@ func (c *DockerController) DatabaseExists(serviceName, dbName string) bool {
 	output, err := cmd.Output()
 	return err == nil && strings.Contains(string(output), dbName)
 }
+
+// GenerateDefaultServices generates a default docker-compose.yml with common services
+// This is used during bootstrap when no projects exist yet
+func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfig) error {
+	if err := os.MkdirAll(g.composeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create compose directory: %w", err)
+	}
+
+	compose := ComposeConfig{
+		Services: make(map[string]ComposeService),
+		Networks: map[string]ComposeNetwork{
+			"magebox": {Driver: "bridge"},
+		},
+		Volumes: make(map[string]ComposeVolume),
+	}
+
+	// Add default MySQL 8.0
+	if globalCfg.DefaultServices.MySQL != "" {
+		version := globalCfg.DefaultServices.MySQL
+		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(version, ".", ""))
+		compose.Services[serviceName] = g.getMySQLService(version)
+		compose.Volumes[fmt.Sprintf("mysql%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+	} else {
+		// Default to MySQL 8.0
+		compose.Services["mysql80"] = g.getMySQLService("8.0")
+		compose.Volumes["mysql80_data"] = ComposeVolume{}
+	}
+
+	// Add Redis
+	if globalCfg.DefaultServices.Redis {
+		compose.Services["redis"] = g.getRedisService()
+	} else {
+		// Default to including Redis
+		compose.Services["redis"] = g.getRedisService()
+	}
+
+	// Add OpenSearch if configured
+	if globalCfg.DefaultServices.OpenSearch != "" {
+		version := globalCfg.DefaultServices.OpenSearch
+		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(version, ".", ""))
+		compose.Services[serviceName] = g.getOpenSearchService(version)
+		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+	}
+
+	// Add Mailpit (useful for all projects)
+	compose.Services["mailpit"] = g.getMailpitService()
+
+	// Add Portainer if enabled
+	if globalCfg.Portainer {
+		compose.Services["portainer"] = g.getPortainerService()
+		compose.Volumes["portainer_data"] = ComposeVolume{}
+	}
+
+	// Write compose file
+	data, err := yaml.Marshal(compose)
+	if err != nil {
+		return fmt.Errorf("failed to marshal compose config: %w", err)
+	}
+
+	composeFile := filepath.Join(g.composeDir, "docker-compose.yml")
+	if err := os.WriteFile(composeFile, data, 0644); err != nil {
+		return fmt.Errorf("failed to write compose file: %w", err)
+	}
+
+	return nil
+}
+
+// GetRunningServices returns a list of running services
+func (c *DockerController) GetRunningServices() ([]string, error) {
+	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "ps", "--services", "--filter", "status=running")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var services []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line != "" {
+			services = append(services, line)
+		}
+	}
+	return services, nil
+}
+
+// GetAllServices returns a list of all defined services
+func (c *DockerController) GetAllServices() ([]string, error) {
+	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "ps", "--services")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var services []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line != "" {
+			services = append(services, line)
+		}
+	}
+	return services, nil
+}

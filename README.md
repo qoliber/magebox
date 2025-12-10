@@ -128,7 +128,28 @@ magebox self-update check
 
 ## Quick Start
 
-### 1. Initialize a project
+### 1. Bootstrap MageBox (First-Time Setup)
+
+After installing dependencies and MageBox binary, run the bootstrap command:
+
+```bash
+magebox bootstrap
+```
+
+This performs a one-time setup:
+- ✓ Checks all required dependencies (Docker, Nginx, mkcert, PHP)
+- ✓ Initializes global configuration (`~/.magebox/config.yaml`)
+- ✓ Sets up mkcert CA for HTTPS support (all `.test` domains will have valid SSL)
+- ✓ Configures Nginx to include MageBox vhosts
+- ✓ Creates and starts Docker services (MySQL 8.0, Redis, Mailpit)
+- ✓ Sets up DNS resolution
+
+After bootstrap, the following services are available:
+- **MySQL 8.0:** `localhost:33080` (root password: `magebox`)
+- **Redis:** `localhost:6379`
+- **Mailpit:** http://localhost:8025 (catch-all email testing)
+
+### 2. Initialize a project
 
 ```bash
 cd /path/to/your/magento/project
@@ -143,11 +164,11 @@ domains:
   - host: mystore.test
 php: "8.2"
 services:
-  mysql: "8.1"
+  mysql: "8.0"
   redis: true
 ```
 
-### 2. Start the project
+### 3. Start the project
 
 ```bash
 magebox start
@@ -158,13 +179,13 @@ This will:
 - Generate SSL certificates for mystore.test
 - Create PHP-FPM pool configuration
 - Create Nginx vhost configuration
-- Start MySQL and Redis containers
+- Ensure MySQL and Redis containers are running
 - Create the database
-- Add mystore.test to /etc/hosts
+- Add mystore.test to /etc/hosts (or use dnsmasq)
 
-### 3. Access your site
+### 4. Access your site
 
-Open https://mystore.test in your browser.
+Open https://mystore.test in your browser - HTTPS works out of the box!
 
 ## Configuration
 
@@ -289,7 +310,8 @@ magebox varnish flush     # Flush all cached content
 ### Global Commands
 
 ```bash
-magebox global start      # Start global services (Nginx, Docker)
+magebox bootstrap         # First-time setup (run once after install)
+magebox global start      # Start global services (Nginx, Docker containers)
 magebox global stop       # Stop all MageBox services
 magebox global status     # Show all projects and services
 ```
