@@ -251,7 +251,7 @@ func (g *ComposeGenerator) getRedisService() ComposeService {
 		Image:         "redis:7-alpine",
 		Ports:         []string{"6379:6379"},
 		Networks:      []string{"magebox"},
-		Restart:  "unless-stopped",
+		Restart:       "unless-stopped",
 		HealthCheck: &HealthCheck{
 			Test:     []string{"CMD", "redis-cli", "ping"},
 			Interval: "10s",
@@ -307,7 +307,7 @@ func (g *ComposeGenerator) getRabbitMQService() ComposeService {
 	return ComposeService{
 		ContainerName: "magebox-rabbitmq",
 		Image:         "rabbitmq:3-management-alpine",
-		Ports:         []string{
+		Ports: []string{
 			"5672:5672",
 			"15672:15672",
 		},
@@ -328,7 +328,7 @@ func (g *ComposeGenerator) getMailpitService() ComposeService {
 	return ComposeService{
 		ContainerName: "magebox-mailpit",
 		Image:         "axllent/mailpit:latest",
-		Ports:         []string{
+		Ports: []string{
 			"1025:1025",
 			"8025:8025",
 		},
@@ -342,7 +342,7 @@ func (g *ComposeGenerator) getPortainerService() ComposeService {
 	return ComposeService{
 		ContainerName: "magebox-portainer",
 		Image:         "portainer/portainer-ce:latest",
-		Ports:         []string{
+		Ports: []string{
 			"9000:9000",
 			"9443:9443",
 		},

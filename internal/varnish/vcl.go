@@ -160,7 +160,6 @@ func sanitizeName(name string) string {
 	return string(result)
 }
 
-
 // Controller manages Varnish service
 type Controller struct {
 	platform *platform.Platform

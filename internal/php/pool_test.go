@@ -321,12 +321,12 @@ func TestRenderPool_WithPHPINI(t *testing.T) {
 		MinSpareServers: 1,
 		MaxSpareServers: 3,
 		MaxRequests:     500,
-		Env: map[string]string{},
+		Env:             map[string]string{},
 		PHPINI: map[string]string{
-			"opcache.enable":            "0",
-			"display_errors":            "On",
-			"xdebug.mode":               "debug",
-			"max_execution_time":        "3600",
+			"opcache.enable":     "0",
+			"display_errors":     "On",
+			"xdebug.mode":        "debug",
+			"max_execution_time": "3600",
 		},
 	}
 

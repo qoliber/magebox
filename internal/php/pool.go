@@ -184,7 +184,6 @@ func getCurrentGroup() string {
 	return user
 }
 
-
 // FPMController manages PHP-FPM service for a specific version
 type FPMController struct {
 	platform *platform.Platform

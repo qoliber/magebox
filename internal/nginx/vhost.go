@@ -152,7 +152,6 @@ func sanitizeDomain(domain string) string {
 	return domain // Domains are already safe for filenames
 }
 
-
 // Controller manages Nginx service
 type Controller struct {
 	platform *platform.Platform

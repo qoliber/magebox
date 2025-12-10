@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	pfRulesFile      = "/etc/pf.anchors/com.magebox"
-	pfConfFragment   = "/etc/pf.anchors/com.magebox.conf"
+	pfRulesFile       = "/etc/pf.anchors/com.magebox"
+	pfConfFragment    = "/etc/pf.anchors/com.magebox.conf"
 	launchDaemonPlist = "/Library/LaunchDaemons/com.magebox.portforward.plist"
 	launchDaemonLabel = "com.magebox.portforward"
 )
