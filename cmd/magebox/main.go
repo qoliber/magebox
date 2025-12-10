@@ -42,6 +42,12 @@ var rootCmd = &cobra.Command{
 It uses native PHP-FPM, Nginx, and Varnish for maximum performance,
 with Docker only for stateless services like MySQL, Redis, and OpenSearch.`,
 	Version: version,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Show logo when running without subcommand
+		cli.PrintLogoSmall(version)
+		fmt.Println()
+		cmd.Help()
+	},
 }
 
 var initCmd = &cobra.Command{

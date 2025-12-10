@@ -354,8 +354,8 @@ func PrintLogoSmall(version string) {
 	logo := orange + `
       ___________
      /          /|
-    /  ` + white + `MAGE` + orange + `   / |
-   /   ` + white + `BOX` + orange + `   /  |
+    /  ` + white + `MAGE` + orange + `   /  |
+   /   ` + white + `BOX` + orange + `   /   |
   /__________/   |
   |          |   /
   |  ` + reset + version + orange + `   |  /
