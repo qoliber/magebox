@@ -338,7 +338,7 @@ func PrintLogo(version string) {
 	fmt.Print(logo)
 }
 
-// PrintLogoSmall prints a compact MageBox logo
+// PrintLogoSmall prints a compact MageBox logo with braille cube
 func PrintLogoSmall(version string) {
 	orange := Orange
 	white := BrightWhite
@@ -350,17 +350,21 @@ func PrintLogoSmall(version string) {
 		reset = ""
 	}
 
-	// 3D cube logo
-	logo := orange + `
-      ___________
-     /          /|
-    /  ` + white + `MAGE` + orange + `    / |
-   /   ` + white + `BOX` + orange + `    /  |
-  /__________/   |
-  |          |   /
-  |  ` + reset + version + orange + `   |  /
-  |__________|_/
-` + reset
+	// Small braille cube - white edges, orange fill
+	// w = white (edges), o = orange (fill)
+	w := white
+	o := orange
+	r := reset
+
+	logo := `
+` + w + `    ⢀⣀⣤⣤⣤⣤⣀⡀` + r + `
+` + w + `  ⢀⣴` + o + `⣿⣿⣿⣿⣿⣿` + w + `⣦⡀` + r + `
+` + w + ` ⢸⣿` + o + `⣿⣿⣿⣿⣿⣿` + w + `⣿⡇` + r + `    ` + w + `MageBox` + r + ` ` + version + `
+` + w + ` ⢸⣿` + o + `⣿⣿⣿⣿⣿⣿` + w + `⣿⡇` + r + `    Modern Magento Development
+` + w + ` ⢸⣿` + o + `⣿⣿⣿⣿⣿⣿` + w + `⣿⡇` + r + `
+` + w + `  ⠻⣿` + o + `⣿⣿⣿⣿⣿` + w + `⡿⠃` + r + `
+` + w + `    ⠉⠛⠛⠛⠛⠉` + r + `
+`
 
 	fmt.Print(logo)
 }
