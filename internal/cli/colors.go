@@ -348,8 +348,7 @@ func PrintLogoSmall(version string) {
 		reset = ""
 	}
 
-	logo := orange + `
-                            _
+	logo := orange + `                            _
                            | |
  _ __ ___   __ _  __ _  ___| |__   _____  __
 | '_ ` + "`" + ` _ \ / _` + "`" + ` |/ _` + "`" + ` |/ _ \ '_ \ / _ \ \/ /
