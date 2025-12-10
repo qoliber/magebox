@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.2.2
+                 |___/  0.2.3
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
@@ -21,7 +21,7 @@ Unlike Docker-based solutions (Warden, DDEV), MageBox runs PHP and Nginx nativel
 - **Native performance** - PHP runs at full speed, not inside a container
 - **Simple architecture** - Docker only for databases and search engines
 - **Multi-project support** - Run multiple Magento projects simultaneously
-- **Easy PHP switching** - Change PHP versions per project with one command
+- **Automatic PHP switching** - Smart wrapper automatically uses the right PHP version per project
 - **No sudo required** - After one-time setup, all commands run as your user (macOS uses port forwarding)
 
 ---
@@ -216,6 +216,7 @@ This performs:
 5. **Nginx Config** - Configures Nginx to include MageBox vhosts
 6. **Docker Services** - Starts MySQL 8.0, Redis, Mailpit containers
 7. **DNS Setup** - Configures DNS resolution for `.test` domains
+8. **PHP Wrapper** - Installs smart PHP wrapper that automatically uses the correct version
 
 After bootstrap, these services are running:
 
@@ -337,10 +338,37 @@ magebox cli indexer:reindex
 
 ### PHP Version Management
 
+MageBox provides two ways to ensure you're using the correct PHP version:
+
+**1. PHP Wrapper (Recommended)**
+
+After running `magebox bootstrap`, add MageBox bin to your PATH:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/.magebox/bin:$PATH"
+
+# Reload shell
+source ~/.zshrc  # or source ~/.bashrc
+```
+
+Now the `php` command automatically uses the version from `.magebox.yaml`:
+
+```bash
+cd /path/to/your/project
+php -v                              # Automatically uses PHP 8.1 (from .magebox.yaml)
+composer install                    # Uses correct PHP version
+bin/magento cache:flush             # Uses correct PHP version
+
+cd /path/to/another/project
+php -v                              # Automatically uses PHP 8.2 (from that project's config)
+```
+
+**2. Manual Switching**
+
 ```bash
 magebox php                          # Show current PHP version
-magebox php 8.3                      # Switch to PHP 8.3
-magebox shell                        # Open shell with correct PHP in PATH
+magebox php 8.3                      # Switch to PHP 8.3 (updates .magebox.local.yaml)
 ```
 
 ### Database Operations
@@ -871,6 +899,26 @@ This is possible because:
 - MySQL: 33080 (not standard 3306)
 - Redis: 6379 (standard, may conflict)
 - OpenSearch: 9200 (standard, may conflict)
+
+### How does the PHP version wrapper work?
+
+MageBox installs a smart PHP wrapper at `~/.magebox/bin/php` that:
+
+1. **Walks up the directory tree** looking for `.magebox.yaml` or `.magebox.local.yaml`
+2. **Extracts the PHP version** from the config file
+3. **Executes the correct PHP binary** (e.g., `/opt/homebrew/opt/php@8.1/bin/php`)
+4. **Falls back to system PHP** if no config file is found
+
+This means:
+- `php -v` automatically uses the right version
+- `composer install` uses the right PHP
+- `bin/magento` commands use the right PHP
+- Works in any subdirectory of your project
+
+**To enable**, add this to your `~/.zshrc` or `~/.bashrc`:
+```bash
+export PATH="$HOME/.magebox/bin:$PATH"
+```
 
 ### Can I run MageBox alongside ddev/Lando/Warden?
 

@@ -24,6 +24,7 @@ type PoolConfig struct {
 	ProjectName     string
 	PHPVersion      string
 	SocketPath      string
+	LogPath         string
 	User            string
 	Group           string
 	MaxChildren     int
@@ -54,10 +55,17 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 		return fmt.Errorf("failed to create run directory: %w", err)
 	}
 
+	// Create logs directory
+	logsDir := filepath.Join(g.platform.MageBoxDir(), "logs", "php-fpm")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create logs directory: %w", err)
+	}
+
 	cfg := PoolConfig{
 		ProjectName:     projectName,
 		PHPVersion:      phpVersion,
 		SocketPath:      g.GetSocketPath(projectName, phpVersion),
+		LogPath:         filepath.Join(logsDir, projectName+"-error.log"),
 		User:            getCurrentUser(),
 		Group:           getCurrentGroup(),
 		MaxChildren:     10,
@@ -183,7 +191,7 @@ pm.status_path = /status
 catch_workers_output = yes
 decorate_workers_output = no
 
-php_admin_value[error_log] = /var/log/php-fpm/{{.ProjectName}}-error.log
+php_admin_value[error_log] = {{.LogPath}}
 php_admin_flag[log_errors] = on
 
 ; Magento recommended settings

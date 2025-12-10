@@ -25,7 +25,7 @@ import (
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
-var version = "0.2.2"
+var version = "0.2.3"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -702,17 +702,53 @@ func runPhp(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Write to .magebox.local
-	localConfigPath := filepath.Join(cwd, ".magebox.local")
+	// Write to .magebox.local.yaml
+	localConfigPath := filepath.Join(cwd, config.LocalConfigFileName)
 	content := fmt.Sprintf("php: \"%s\"\n", newVersion)
 
 	if err := os.WriteFile(localConfigPath, []byte(content), 0644); err != nil {
-		cli.PrintError("Failed to write .magebox.local: %v", err)
+		cli.PrintError("Failed to write %s: %v", config.LocalConfigFileName, err)
 		return nil
 	}
 
 	cli.PrintSuccess("Switched to PHP %s", newVersion)
-	cli.PrintInfo("Run '%s' to apply the change", cli.Command("magebox start"))
+	fmt.Println()
+
+	// Reload config with new PHP version
+	cfg, ok = loadProjectConfig(cwd)
+	if !ok {
+		return nil
+	}
+
+	// Restart the project to apply the PHP version change
+	fmt.Println("Applying PHP version change...")
+	fmt.Println()
+
+	mgr := project.NewManager(p)
+
+	// Stop current services
+	fmt.Print("Stopping services... ")
+	if err := mgr.Stop(cwd); err != nil {
+		fmt.Println(cli.Error("failed"))
+		cli.PrintWarning("Failed to stop: %v", err)
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+
+	// Start with new PHP version
+	fmt.Printf("Starting with PHP %s... ", newVersion)
+	result, err := mgr.Start(cwd)
+	if err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to start: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+	fmt.Println()
+
+	cli.PrintSuccess("Project is now running with PHP %s", newVersion)
+	if len(result.Domains) > 0 {
+		fmt.Printf("  Domain: %s\n", cli.URL("https://"+result.Domains[0]))
+	}
 
 	return nil
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/qoliber/magebox/internal/docker"
 	"github.com/qoliber/magebox/internal/nginx"
 	"github.com/qoliber/magebox/internal/php"
+	"github.com/qoliber/magebox/internal/phpwrapper"
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/portforward"
 	"github.com/qoliber/magebox/internal/ssl"
@@ -40,6 +41,7 @@ This command performs the following steps:
   5. Configures Nginx to include MageBox vhosts
   6. Creates and starts Docker services (MySQL, Redis, Mailpit)
   7. Sets up DNS resolution (dnsmasq or /etc/hosts)
+  8. Installs PHP version wrapper for automatic version switching
 
 Run this once after installing MageBox to prepare your system.`,
 	RunE: runBootstrap,
@@ -280,6 +282,23 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
+	// Step 8: Install PHP wrapper
+	fmt.Println(cli.Header("Step 8: PHP Version Wrapper"))
+
+	wrapperMgr := phpwrapper.NewManager(p)
+	if wrapperMgr.IsInstalled() {
+		fmt.Println("  PHP wrapper already installed " + cli.Success("✓"))
+	} else {
+		fmt.Print("  Installing PHP wrapper script... ")
+		if err := wrapperMgr.Install(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("PHP wrapper installation failed: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+	fmt.Println()
+
 	// Summary
 	cli.PrintTitle("Bootstrap Complete!")
 	fmt.Println()
@@ -303,8 +322,12 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 	fmt.Println("Next steps:")
+	fmt.Println(cli.Bullet("Add MageBox bin to your PATH (recommended):"))
+	fmt.Println()
+	fmt.Println(wrapperMgr.GetInstructions())
+	fmt.Println()
 	fmt.Println(cli.Bullet("cd into your Magento project directory"))
-	fmt.Println(cli.Bullet("Run " + cli.Command("magebox init") + " to create .magebox config"))
+	fmt.Println(cli.Bullet("Run " + cli.Command("magebox init") + " to create .magebox.yaml config"))
 	fmt.Println(cli.Bullet("Run " + cli.Command("magebox start") + " to start your project"))
 	fmt.Println()
 
