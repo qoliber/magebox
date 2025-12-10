@@ -470,6 +470,25 @@ func getCwd() (string, error) {
 	return os.Getwd()
 }
 
+// loadProjectConfig loads the project config and handles errors nicely
+// Returns (config, shouldContinue) - if shouldContinue is false, the command should return nil
+func loadProjectConfig(cwd string) (*config.Config, bool) {
+	cfg, err := config.LoadFromPath(cwd)
+	if err != nil {
+		// Check if it's a "not found" error - print nicely and don't return error
+		if _, ok := err.(*config.ConfigNotFoundError); ok {
+			cli.PrintError("Configuration file not found: %s/.magebox", cwd)
+			fmt.Println()
+			cli.PrintInfo("Run " + cli.Command("magebox init") + " to create one")
+			return nil, false
+		}
+		// Other errors - print and return
+		cli.PrintError("%v", err)
+		return nil, false
+	}
+	return cfg, true
+}
+
 // runInit initializes a new MageBox project
 func runInit(cmd *cobra.Command, args []string) error {
 	cwd, err := getCwd()
@@ -667,9 +686,8 @@ func runPhp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load current config
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		cli.PrintError("%v", err)
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
 		return nil
 	}
 
@@ -732,9 +750,9 @@ func runShell(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	// Get PHP binary path
@@ -774,9 +792,9 @@ func runCli(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	// Get PHP binary
@@ -806,9 +824,9 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	// Determine service name
@@ -818,7 +836,8 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 	} else if cfg.Services.HasMariaDB() {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
-		return fmt.Errorf("no database service configured")
+		cli.PrintError("No database service configured in .magebox")
+		return nil
 	}
 
 	composeGen := docker.NewComposeGenerator(p)
@@ -861,9 +880,9 @@ func runDbExport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	// Determine output file
@@ -922,9 +941,9 @@ func runDbShell(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	// Determine service name
@@ -934,7 +953,8 @@ func runDbShell(cmd *cobra.Command, args []string) error {
 	} else if cfg.Services.HasMariaDB() {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
-		return fmt.Errorf("no database service configured")
+		cli.PrintError("No database service configured in .magebox")
+		return nil
 	}
 
 	composeGen := docker.NewComposeGenerator(p)
@@ -1136,9 +1156,9 @@ func runSslGenerate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	sslMgr := ssl.NewManager(p)
@@ -1255,9 +1275,9 @@ func runVarnishPurge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	vclGen := varnish.NewVCLGenerator(p)
@@ -1361,9 +1381,9 @@ func runCustomCommand(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, cfgOk := loadProjectConfig(cwd)
+	if !cfgOk {
+		return nil
 	}
 
 	cmdName := args[0]
@@ -1519,9 +1539,9 @@ func runRedisFlush(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	if !cfg.Services.HasRedis() {
@@ -1564,9 +1584,9 @@ func runRedisShell(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	if !cfg.Services.HasRedis() {
@@ -1601,9 +1621,9 @@ func runRedisInfo(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadFromPath(cwd)
-	if err != nil {
-		return err
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
 	}
 
 	if !cfg.Services.HasRedis() {
