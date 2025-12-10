@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - goos: linux
+            goarch: amd64
+            suffix: ''
+          - goos: linux
+            goarch: arm64
+            suffix: ''
+          # macOS
+          - goos: darwin
+            goarch: amd64
+            suffix: ''
+          - goos: darwin
+            goarch: arm64
+            suffix: ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          BINARY_NAME=magebox-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+
+          go build -ldflags="-s -w -X main.version=${VERSION}" \
+            -o ${BINARY_NAME} \
+            ./cmd/magebox
+
+          # Create checksum
+          sha256sum ${BINARY_NAME} > ${BINARY_NAME}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: magebox-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            magebox-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+            magebox-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}.sha256
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          cat << 'EOF' > release_notes.md
+          ## MageBox ${{ steps.version.outputs.VERSION }}
+
+          ### Installation
+
+          **macOS (Apple Silicon):**
+          ```bash
+          curl -L https://github.com/qoliber/magebox/releases/download/${VERSION}/magebox-darwin-arm64 -o /usr/local/bin/magebox
+          chmod +x /usr/local/bin/magebox
+          ```
+
+          **macOS (Intel):**
+          ```bash
+          curl -L https://github.com/qoliber/magebox/releases/download/${VERSION}/magebox-darwin-amd64 -o /usr/local/bin/magebox
+          chmod +x /usr/local/bin/magebox
+          ```
+
+          **Linux (x86_64):**
+          ```bash
+          curl -L https://github.com/qoliber/magebox/releases/download/${VERSION}/magebox-linux-amd64 -o /usr/local/bin/magebox
+          chmod +x /usr/local/bin/magebox
+          ```
+
+          **Linux (ARM64):**
+          ```bash
+          curl -L https://github.com/qoliber/magebox/releases/download/${VERSION}/magebox-linux-arm64 -o /usr/local/bin/magebox
+          chmod +x /usr/local/bin/magebox
+          ```
+
+          ### Verify Installation
+          ```bash
+          magebox --version
+          ```
+
+          ### Update Existing Installation
+          ```bash
+          magebox self-update
+          ```
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

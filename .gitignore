@@ -1,0 +1,29 @@
+# Binaries (in root directory only)
+/magebox
+/magebox-*
+*.exe
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+
+# Local config files (for testing)
+.magebox.local
+
+# Temporary files
+*.tmp
+*.bak
