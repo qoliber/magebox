@@ -23,9 +23,9 @@ const (
 
 // Platform contains information about the current platform
 type Platform struct {
-	Type         Type
-	Arch         string
-	HomeDir      string
+	Type           Type
+	Arch           string
+	HomeDir        string
 	IsAppleSilicon bool
 }
 

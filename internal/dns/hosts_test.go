@@ -46,8 +46,8 @@ func TestHostsManager_extractMageBoxDomains(t *testing.T) {
 			expected: []string{},
 		},
 		{
-			name: "empty file",
-			content: "",
+			name:     "empty file",
+			content:  "",
 			expected: []string{},
 		},
 		{
@@ -125,8 +125,8 @@ func TestGenerateMageBoxSection(t *testing.T) {
 		contains []string
 	}{
 		{
-			name:    "empty domains",
-			domains: []string{},
+			name:     "empty domains",
+			domains:  []string{},
 			contains: []string{},
 		},
 		{

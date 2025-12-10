@@ -20,17 +20,17 @@ type PoolGenerator struct {
 
 // PoolConfig contains all data needed to generate a PHP-FPM pool
 type PoolConfig struct {
-	ProjectName    string
-	PHPVersion     string
-	SocketPath     string
-	User           string
-	Group          string
-	MaxChildren    int
-	StartServers   int
+	ProjectName     string
+	PHPVersion      string
+	SocketPath      string
+	User            string
+	Group           string
+	MaxChildren     int
+	StartServers    int
 	MinSpareServers int
 	MaxSpareServers int
-	MaxRequests    int
-	Env            map[string]string
+	MaxRequests     int
+	Env             map[string]string
 }
 
 // NewPoolGenerator creates a new pool generator
@@ -53,17 +53,17 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 	}
 
 	cfg := PoolConfig{
-		ProjectName:    projectName,
-		PHPVersion:     phpVersion,
-		SocketPath:     g.GetSocketPath(projectName, phpVersion),
-		User:           getCurrentUser(),
-		Group:          getCurrentGroup(),
-		MaxChildren:    10,
-		StartServers:   2,
+		ProjectName:     projectName,
+		PHPVersion:      phpVersion,
+		SocketPath:      g.GetSocketPath(projectName, phpVersion),
+		User:            getCurrentUser(),
+		Group:           getCurrentGroup(),
+		MaxChildren:     10,
+		StartServers:    2,
 		MinSpareServers: 1,
 		MaxSpareServers: 3,
-		MaxRequests:    500,
-		Env:            env,
+		MaxRequests:     500,
+		Env:             env,
 	}
 
 	content, err := g.renderPool(cfg)

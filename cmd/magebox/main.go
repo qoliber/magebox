@@ -46,7 +46,7 @@ with Docker only for stateless services like MySQL, Redis, and OpenSearch.`,
 		// Show logo when running without subcommand
 		cli.PrintLogoSmall(version)
 		fmt.Println()
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -856,9 +856,9 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 
 	// Determine service name
 	var serviceName string
-	if cfg.Services.HasMySQL() {
+	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
 		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-	} else if cfg.Services.HasMariaDB() {
+	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
 		cli.PrintError("No database service configured in .magebox")
@@ -920,9 +920,9 @@ func runDbExport(cmd *cobra.Command, args []string) error {
 
 	// Determine service name
 	var serviceName string
-	if cfg.Services.HasMySQL() {
+	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
 		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-	} else if cfg.Services.HasMariaDB() {
+	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
 		return fmt.Errorf("no database service configured")
@@ -973,9 +973,9 @@ func runDbShell(cmd *cobra.Command, args []string) error {
 
 	// Determine service name
 	var serviceName string
-	if cfg.Services.HasMySQL() {
+	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
 		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-	} else if cfg.Services.HasMariaDB() {
+	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
 		cli.PrintError("No database service configured in .magebox")
@@ -1765,7 +1765,7 @@ func runDnsSetup(cmd *cobra.Command, args []string) error {
 	homeDir, _ := os.UserHomeDir()
 	globalCfg, _ := config.LoadGlobalConfig(homeDir)
 	globalCfg.DNSMode = "dnsmasq"
-	config.SaveGlobalConfig(homeDir, globalCfg)
+	_ = config.SaveGlobalConfig(homeDir, globalCfg)
 
 	cli.PrintSuccess("dnsmasq configured successfully!")
 	fmt.Println()
@@ -2451,7 +2451,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	}
 
 	versionIdx := 0
-	fmt.Sscanf(versionChoice, "%d", &versionIdx)
+	_, _ = fmt.Sscanf(versionChoice, "%d", &versionIdx)
 	if versionIdx < 1 || versionIdx > len(versions) {
 		versionIdx = defaultIdx
 	}
@@ -2481,7 +2481,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	}
 
 	phpIdx := 0
-	fmt.Sscanf(phpChoice, "%d", &phpIdx)
+	_, _ = fmt.Sscanf(phpChoice, "%d", &phpIdx)
 	if phpIdx < 1 || phpIdx > len(selectedVersion.PHPVersions) {
 		phpIdx = 1
 	}
@@ -2577,7 +2577,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	default:
 		dbService, dbVersion = "mysql", "8.0"
 	}
-	fmt.Printf("  → %s %s selected\n", strings.Title(dbService), dbVersion)
+	fmt.Printf("  → %s %s selected\n", titleCase(dbService), dbVersion)
 	fmt.Println()
 
 	// Search engine
@@ -2604,7 +2604,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 		searchEngine, searchVersion = "opensearch", "2.12"
 	}
 	if searchEngine != "" {
-		fmt.Printf("  → %s %s selected\n", strings.Title(searchEngine), searchVersion)
+		fmt.Printf("  → %s %s selected\n", titleCase(searchEngine), searchVersion)
 	} else {
 		fmt.Println("  → No search engine (MySQL search)")
 	}
@@ -2691,7 +2691,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	fmt.Print("Proceed with installation? [Y/n]: ")
 	proceedChoice, _ := reader.ReadString('\n')
 	if strings.ToLower(strings.TrimSpace(proceedChoice)) == "n" {
-		fmt.Println("Installation cancelled.")
+		fmt.Println("Installation canceled.")
 		return nil
 	}
 	fmt.Println()
@@ -2838,7 +2838,7 @@ commands:
 		updateCmd.Dir = projectDir
 		updateCmd.Stdout = os.Stdout
 		updateCmd.Stderr = os.Stderr
-		updateCmd.Run()
+		_ = updateCmd.Run()
 	}
 
 	// Success!
@@ -3036,7 +3036,7 @@ commands:
 	updateCmd.Dir = projectDir
 	updateCmd.Stdout = os.Stdout
 	updateCmd.Stderr = os.Stderr
-	updateCmd.Run()
+	_ = updateCmd.Run()
 
 	// Success!
 	fmt.Println()
@@ -3081,4 +3081,13 @@ commands:
 	fmt.Println()
 
 	return nil
+}
+
+// titleCase converts a string to title case (first letter uppercase)
+// Used instead of deprecated strings.Title
+func titleCase(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

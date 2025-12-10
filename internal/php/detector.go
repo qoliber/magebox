@@ -268,7 +268,7 @@ func FormatNotInstalledMessage(version string, p *platform.Platform) string {
 	case platform.Darwin:
 		sb.WriteString(fmt.Sprintf("    brew install php@%s\n", version))
 	case platform.Linux:
-		sb.WriteString(fmt.Sprintf("    sudo add-apt-repository ppa:ondrej/php\n"))
+		sb.WriteString("    sudo add-apt-repository ppa:ondrej/php\n")
 		sb.WriteString(fmt.Sprintf("    sudo apt install php%s-fpm php%s-cli php%s-common \\\n", version, version, version))
 		sb.WriteString(fmt.Sprintf("      php%s-mysql php%s-xml php%s-curl php%s-mbstring \\\n", version, version, version, version))
 		sb.WriteString(fmt.Sprintf("      php%s-zip php%s-gd php%s-intl php%s-bcmath php%s-soap\n", version, version, version, version, version))

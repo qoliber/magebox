@@ -244,19 +244,19 @@ func TestRenderPool_WithEnv(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	cfg := PoolConfig{
-		ProjectName:    "mystore",
-		PHPVersion:     "8.2",
-		SocketPath:     "/tmp/mystore.sock",
-		User:           "testuser",
-		Group:          "testgroup",
-		MaxChildren:    10,
-		StartServers:   2,
+		ProjectName:     "mystore",
+		PHPVersion:      "8.2",
+		SocketPath:      "/tmp/mystore.sock",
+		User:            "testuser",
+		Group:           "testgroup",
+		MaxChildren:     10,
+		StartServers:    2,
 		MinSpareServers: 1,
 		MaxSpareServers: 3,
-		MaxRequests:    500,
+		MaxRequests:     500,
 		Env: map[string]string{
-			"MAGE_MODE":    "developer",
-			"REDIS_HOST":   "localhost",
+			"MAGE_MODE":  "developer",
+			"REDIS_HOST": "localhost",
 		},
 	}
 

@@ -282,8 +282,8 @@ func (t *LogTailer) watchLoop() {
 			} else if event.Has(fsnotify.Create) {
 				// New file created - check if it matches our pattern
 				if matched, _ := filepath.Match(t.pattern, filepath.Base(event.Name)); matched {
-					t.initFile(event.Name)
-					t.watcher.Add(event.Name)
+					_ = t.initFile(event.Name)
+					_ = t.watcher.Add(event.Name)
 				}
 			}
 
@@ -348,7 +348,7 @@ func (t *LogTailer) readNewContent(tf *tailedFile) {
 	}
 
 	// Seek to last position
-	tf.file.Seek(tf.offset, io.SeekStart)
+	_, _ = tf.file.Seek(tf.offset, io.SeekStart)
 
 	// Read new content
 	reader := bufio.NewReader(tf.file)
@@ -361,7 +361,7 @@ func (t *LogTailer) readNewContent(tf *tailedFile) {
 			// Partial line - don't print yet, wait for newline
 			if line != "" {
 				// Seek back to before the partial line
-				tf.file.Seek(tf.offset, io.SeekStart)
+				_, _ = tf.file.Seek(tf.offset, io.SeekStart)
 				return
 			}
 			break

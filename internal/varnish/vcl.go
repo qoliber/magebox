@@ -14,25 +14,25 @@ import (
 
 // VCLGenerator generates Varnish VCL configurations
 type VCLGenerator struct {
-	platform  *platform.Platform
-	vclDir    string
+	platform *platform.Platform
+	vclDir   string
 }
 
 // BackendConfig represents a backend configuration for VCL
 type BackendConfig struct {
-	Name       string
-	Host       string
-	Port       int
-	ProbeURL   string
+	Name          string
+	Host          string
+	Port          int
+	ProbeURL      string
 	ProbeInterval string
 }
 
 // VCLConfig contains all data needed to generate a VCL file
 type VCLConfig struct {
-	Backends     []BackendConfig
+	Backends       []BackendConfig
 	DefaultBackend string
-	GracePeriod  string
-	PurgeACL     []string
+	GracePeriod    string
+	PurgeACL       []string
 }
 
 // NewVCLGenerator creates a new VCL generator
@@ -71,9 +71,9 @@ func (g *VCLGenerator) Generate(configs []*config.Config) error {
 // buildVCLConfig builds the VCL configuration from project configs
 func (g *VCLGenerator) buildVCLConfig(configs []*config.Config) VCLConfig {
 	vclCfg := VCLConfig{
-		Backends:     make([]BackendConfig, 0),
-		GracePeriod:  "300s",
-		PurgeACL:     []string{"localhost", "127.0.0.1", "::1"},
+		Backends:    make([]BackendConfig, 0),
+		GracePeriod: "300s",
+		PurgeACL:    []string{"localhost", "127.0.0.1", "::1"},
 	}
 
 	for _, cfg := range configs {

@@ -146,10 +146,10 @@ func TestComposeGenerator_GenerateAllServices(t *testing.T) {
 			Name: "fullproject",
 			Services: config.Services{
 				MySQL:      &config.ServiceConfig{Enabled: true, Version: "8.0"},
-				Redis:     &config.ServiceConfig{Enabled: true},
+				Redis:      &config.ServiceConfig{Enabled: true},
 				OpenSearch: &config.ServiceConfig{Enabled: true, Version: "2.12"},
-				RabbitMQ:  &config.ServiceConfig{Enabled: true},
-				Mailpit:   &config.ServiceConfig{Enabled: true},
+				RabbitMQ:   &config.ServiceConfig{Enabled: true},
+				Mailpit:    &config.ServiceConfig{Enabled: true},
 			},
 		},
 	}

@@ -132,12 +132,12 @@ func (u *Updater) Update(result *UpdateResult) error {
 	// Move new binary into place
 	if err := os.Rename(tmpFile, execPath); err != nil {
 		// Try to restore backup
-		os.Rename(backupPath, execPath)
+		_ = os.Rename(backupPath, execPath)
 		return fmt.Errorf("failed to install new binary: %w", err)
 	}
 
 	// Remove backup
-	os.Remove(backupPath)
+	_ = os.Remove(backupPath)
 
 	return nil
 }
@@ -246,7 +246,7 @@ func parseVersion(version string) []int {
 		// Extract numeric part (ignore suffixes like -beta)
 		numStr := strings.Split(p, "-")[0]
 		var num int
-		fmt.Sscanf(numStr, "%d", &num)
+		_, _ = fmt.Sscanf(numStr, "%d", &num)
 		result[i] = num
 	}
 

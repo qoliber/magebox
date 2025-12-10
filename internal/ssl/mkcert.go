@@ -12,8 +12,8 @@ import (
 
 // Manager handles SSL certificate management using mkcert
 type Manager struct {
-	platform   *platform.Platform
-	certsDir   string
+	platform    *platform.Platform
+	certsDir    string
 	caInstalled bool
 }
 

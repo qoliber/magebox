@@ -34,12 +34,12 @@ type GlobalConfig struct {
 
 // DefaultServices represents default service configurations
 type DefaultServices struct {
-	MySQL       string `yaml:"mysql,omitempty"`
-	MariaDB     string `yaml:"mariadb,omitempty"`
-	Redis       bool   `yaml:"redis,omitempty"`
-	OpenSearch  string `yaml:"opensearch,omitempty"`
-	RabbitMQ    bool   `yaml:"rabbitmq,omitempty"`
-	Mailpit     bool   `yaml:"mailpit,omitempty"`
+	MySQL      string `yaml:"mysql,omitempty"`
+	MariaDB    string `yaml:"mariadb,omitempty"`
+	Redis      bool   `yaml:"redis,omitempty"`
+	OpenSearch string `yaml:"opensearch,omitempty"`
+	RabbitMQ   bool   `yaml:"rabbitmq,omitempty"`
+	Mailpit    bool   `yaml:"mailpit,omitempty"`
 }
 
 // GlobalConfigPath returns the path to the global config file

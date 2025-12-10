@@ -20,10 +20,10 @@ type ComposeGenerator struct {
 
 // ComposeConfig represents a Docker Compose configuration
 type ComposeConfig struct {
-	Version  string                       `yaml:"version,omitempty"`
-	Services map[string]ComposeService    `yaml:"services"`
-	Networks map[string]ComposeNetwork    `yaml:"networks,omitempty"`
-	Volumes  map[string]ComposeVolume     `yaml:"volumes,omitempty"`
+	Version  string                    `yaml:"version,omitempty"`
+	Services map[string]ComposeService `yaml:"services"`
+	Networks map[string]ComposeNetwork `yaml:"networks,omitempty"`
+	Volumes  map[string]ComposeVolume  `yaml:"volumes,omitempty"`
 }
 
 // ComposeService represents a service in Docker Compose
@@ -263,9 +263,9 @@ func (g *ComposeGenerator) getOpenSearchService(version string) ComposeService {
 		Image: fmt.Sprintf("opensearchproject/opensearch:%s", version),
 		Ports: []string{fmt.Sprintf("%d:9200", port)},
 		Environment: map[string]string{
-			"discovery.type":                         "single-node",
-			"DISABLE_SECURITY_PLUGIN":                "true",
-			"OPENSEARCH_JAVA_OPTS":                   "-Xms512m -Xmx512m",
+			"discovery.type":                                    "single-node",
+			"DISABLE_SECURITY_PLUGIN":                           "true",
+			"OPENSEARCH_JAVA_OPTS":                              "-Xms512m -Xmx512m",
 			"cluster.routing.allocation.disk.threshold_enabled": "false",
 		},
 		Volumes: []string{
@@ -283,9 +283,9 @@ func (g *ComposeGenerator) getElasticsearchService(version string) ComposeServic
 		Image: fmt.Sprintf("elasticsearch:%s", version),
 		Ports: []string{fmt.Sprintf("%d:9200", port)},
 		Environment: map[string]string{
-			"discovery.type":        "single-node",
+			"discovery.type":         "single-node",
 			"xpack.security.enabled": "false",
-			"ES_JAVA_OPTS":          "-Xms512m -Xmx512m",
+			"ES_JAVA_OPTS":           "-Xms512m -Xmx512m",
 		},
 		Volumes: []string{
 			fmt.Sprintf("elasticsearch%s_data:/usr/share/elasticsearch/data", strings.ReplaceAll(version, ".", "")),
@@ -360,12 +360,12 @@ func (g *ComposeGenerator) getMySQLPort(version string) int {
 
 func (g *ComposeGenerator) getMariaDBPort(version string) int {
 	ports := map[string]int{
-		"10.4": 33104,
-		"10.5": 33105,
-		"10.6": 33106,
+		"10.4":  33104,
+		"10.5":  33105,
+		"10.6":  33106,
 		"10.11": 33111,
-		"11.0": 33110,
-		"11.4": 33114,
+		"11.0":  33110,
+		"11.4":  33114,
 	}
 	if port, ok := ports[version]; ok {
 		return port

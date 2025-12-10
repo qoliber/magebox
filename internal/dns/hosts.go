@@ -150,9 +150,7 @@ func (m *HostsManager) extractMageBoxDomains(content string) []string {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
 				// Add all domains from the line (excluding IP)
-				for _, domain := range parts[1:] {
-					domains = append(domains, domain)
-				}
+				domains = append(domains, parts[1:]...)
 			}
 		}
 	}
