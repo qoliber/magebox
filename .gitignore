@@ -27,3 +27,6 @@ vendor/
 # Temporary files
 *.tmp
 *.bak
+
+vitepress/
+vitepress
