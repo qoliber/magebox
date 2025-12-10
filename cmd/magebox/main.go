@@ -25,7 +25,7 @@ import (
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
-var version = "0.2.3"
+var version = "0.3.0"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {

@@ -1,0 +1,57 @@
+; MageBox generated pool for {{.ProjectName}}
+; Do not edit manually - regenerated on magebox start
+
+[{{.ProjectName}}]
+
+user = {{.User}}
+group = {{.Group}}
+
+listen = {{.SocketPath}}
+listen.owner = {{.User}}
+listen.group = {{.Group}}
+listen.mode = 0666
+
+pm = dynamic
+pm.max_children = {{.MaxChildren}}
+pm.start_servers = {{.StartServers}}
+pm.min_spare_servers = {{.MinSpareServers}}
+pm.max_spare_servers = {{.MaxSpareServers}}
+pm.max_requests = {{.MaxRequests}}
+
+pm.status_path = /status
+
+catch_workers_output = yes
+decorate_workers_output = no
+
+php_admin_value[error_log] = {{.LogPath}}
+php_admin_flag[log_errors] = on
+
+; Magento recommended settings
+php_value[memory_limit] = 756M
+php_value[max_execution_time] = 18000
+php_value[max_input_time] = 600
+php_value[max_input_vars] = 10000
+php_value[post_max_size] = 64M
+php_value[upload_max_filesize] = 64M
+php_value[session.gc_maxlifetime] = 86400
+
+; OPcache settings
+php_admin_value[opcache.enable] = 1
+php_admin_value[opcache.memory_consumption] = 512
+php_admin_value[opcache.max_accelerated_files] = 130986
+php_admin_value[opcache.validate_timestamps] = 1
+php_admin_value[opcache.consistency_checks] = 0
+php_admin_value[opcache.interned_strings_buffer] = 20
+
+; Realpath cache
+php_admin_value[realpath_cache_size] = 10M
+php_admin_value[realpath_cache_ttl] = 7200
+
+; Custom PHP INI overrides from .magebox
+{{range $key, $value := .PHPINI}}
+php_admin_value[{{$key}}] = {{$value}}
+{{end}}
+
+{{range $key, $value := .Env}}
+env[{{$key}}] = {{$value}}
+{{end}}

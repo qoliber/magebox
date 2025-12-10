@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.2.3
+                 |___/  0.3.0
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
@@ -1119,6 +1119,45 @@ magebox/
 │   └── updater/           # Self-update functionality
 └── .github/workflows/     # CI/CD pipelines
 ```
+
+---
+
+## Changelog
+
+### v0.3.0 (2025-12-10)
+
+**Template Refactoring**
+- Extracted all templates from Go code into separate `.tmpl` files for easier maintenance
+- Added comprehensive template variable documentation in Go files
+- Created README files for each template directory with variable reference tables
+- Added template validation tests for PHP-FPM, Nginx, and Varnish templates
+- Templates remain embedded in binary at compile time (no external dependencies)
+
+**Developer Experience Improvements**
+- Template modifications no longer require touching Go code
+- Clear documentation of available template variables
+- Syntax highlighting and validation in editors for template files
+- Better separation of logic and configuration
+
+### v0.2.3 (2025-12-10)
+
+**PHP Version Management**
+- Added smart PHP wrapper script (`~/.magebox/bin/php`) that automatically detects and uses correct PHP version per project
+- PHP wrapper walks directory tree to find `.magebox.yaml` and uses configured PHP version
+- Fixed `magebox php` command to properly restart services when switching PHP versions
+- Added PHP wrapper installation to bootstrap process
+
+**Bug Fixes**
+- Fixed PHP-FPM logs to use writable directory (`~/.magebox/logs/php-fpm/`)
+- Fixed service lifecycle when switching PHP versions (stop → regenerate configs → start)
+
+### v0.2.2 (2025-12-10)
+
+**Configuration**
+- Renamed `.magebox` → `.magebox.yaml` for better editor support
+- Renamed `.magebox.local` → `.magebox.local.yaml` for clarity
+- Full backward compatibility maintained for legacy filenames
+- Updated all documentation
 
 ---
 

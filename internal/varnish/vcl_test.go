@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
@@ -371,6 +372,40 @@ func TestVCLTemplate_StaticContent(t *testing.T) {
 	for _, ext := range staticExtensions {
 		if !strings.Contains(contentStr, ext) {
 			t.Errorf("VCL should handle .%s files", ext)
+		}
+	}
+}
+
+func TestVCLTemplateValidity(t *testing.T) {
+	// Test that the embedded template parses correctly
+	tmpl, err := template.New("vcl").Parse(vclTemplate)
+	if err != nil {
+		t.Fatalf("VCL template parsing failed: %v", err)
+	}
+
+	if tmpl == nil {
+		t.Error("Parsed template should not be nil")
+	}
+
+	// Verify template contains expected sections
+	templateStr := vclTemplate
+	expectedSections := []string{
+		"vcl 4.1",
+		"{{range .Backends}}",
+		"backend {{.Name}}",
+		"acl purge",
+		"{{range .PurgeACL}}",
+		"sub vcl_recv",
+		"sub vcl_hash",
+		"sub vcl_backend_response",
+		"beresp.grace = {{.GracePeriod}}",
+		"set req.backend_hint = {{.DefaultBackend}}",
+		"X-Magento-Tags",
+	}
+
+	for _, section := range expectedSections {
+		if !strings.Contains(templateStr, section) {
+			t.Errorf("Template should contain section: %s", section)
 		}
 	}
 }

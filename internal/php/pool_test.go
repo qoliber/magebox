@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
 )
@@ -239,6 +240,35 @@ func TestGetCurrentGroup(t *testing.T) {
 	group := getCurrentGroup()
 	if group == "" {
 		t.Error("getCurrentGroup should not return empty string")
+	}
+}
+
+func TestPoolTemplateValidity(t *testing.T) {
+	// Test that the embedded template parses correctly
+	tmpl, err := template.New("pool").Parse(poolTemplate)
+	if err != nil {
+		t.Fatalf("Pool template parsing failed: %v", err)
+	}
+
+	if tmpl == nil {
+		t.Error("Parsed template should not be nil")
+	}
+
+	// Verify template contains expected sections
+	templateStr := poolTemplate
+	expectedSections := []string{
+		"[{{.ProjectName}}]",
+		"listen = {{.SocketPath}}",
+		"pm = dynamic",
+		"php_admin_value[error_log] = {{.LogPath}}",
+		"{{range $key, $value := .PHPINI}}",
+		"{{range $key, $value := .Env}}",
+	}
+
+	for _, section := range expectedSections {
+		if !strings.Contains(templateStr, section) {
+			t.Errorf("Template should contain section: %s", section)
+		}
 	}
 }
 

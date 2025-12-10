@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,21 @@ import (
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/ssl"
 )
+
+//go:embed templates/vhost.conf.tmpl
+var vhostTemplate string
+
+// Template variables available in vhost.conf.tmpl:
+// - ProjectName: Name of the project (e.g., "mystore")
+// - Domain: Domain name (e.g., "mystore.test")
+// - DocumentRoot: Absolute path to document root (e.g., "/var/www/mystore/pub")
+// - PHPVersion: PHP version (e.g., "8.2")
+// - PHPSocketPath: Path to PHP-FPM socket (e.g., "/tmp/magebox/mystore-php8.2.sock")
+// - SSLEnabled: Boolean indicating if SSL is enabled
+// - SSLCertFile: Path to SSL certificate file (only if SSLEnabled=true)
+// - SSLKeyFile: Path to SSL key file (only if SSLEnabled=true)
+// - UseVarnish: Boolean indicating if Varnish is enabled (currently unused)
+// - VarnishPort: Varnish port number (currently unused)
 
 // VhostGenerator generates Nginx vhost configurations
 type VhostGenerator struct {
@@ -136,179 +152,6 @@ func sanitizeDomain(domain string) string {
 	return domain // Domains are already safe for filenames
 }
 
-// Nginx vhost template for Magento 2
-const vhostTemplate = `# MageBox generated vhost for {{.ProjectName}} - {{.Domain}}
-# Do not edit manually - regenerated on magebox start
-
-upstream fastcgi_backend_{{.ProjectName}} {
-    server unix:{{.PHPSocketPath}};
-}
-
-{{if .SSLEnabled}}
-server {
-    listen 8080;
-    server_name {{.Domain}};
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 8443 ssl http2;
-    server_name {{.Domain}};
-
-    ssl_certificate {{.SSLCertFile}};
-    ssl_certificate_key {{.SSLKeyFile}};
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;
-{{else}}
-server {
-    listen 8080;
-    server_name {{.Domain}};
-{{end}}
-
-    set $MAGE_ROOT {{.DocumentRoot}};
-    set $MAGE_MODE developer;
-
-    root $MAGE_ROOT;
-    index index.php;
-
-    autoindex off;
-    charset UTF-8;
-    error_page 404 403 = /errors/404.php;
-
-    # Deny access to sensitive files
-    location /.user.ini {
-        deny all;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.php$is_args$args;
-    }
-
-    location /pub/ {
-        location ~ ^/pub/media/(downloadable|customer|import|custom_options|theme_customization/.*\.xml) {
-            deny all;
-        }
-        alias $MAGE_ROOT/pub/;
-        add_header X-Frame-Options "SAMEORIGIN";
-    }
-
-    location /static/ {
-        expires max;
-
-        location ~ ^/static/version\d*/ {
-            rewrite ^/static/version\d*/(.*)$ /static/$1 last;
-        }
-
-        location ~* \.(ico|jpg|jpeg|png|gif|svg|svgz|webp|avif|avifs|js|css|eot|ttf|otf|woff|woff2|html|json|webmanifest)$ {
-            add_header Cache-Control "public";
-            add_header X-Frame-Options "SAMEORIGIN";
-            expires +1y;
-
-            if (!-f $request_filename) {
-                rewrite ^/static/(version\d*/)?(.*)$ /static.php?resource=$2 last;
-            }
-        }
-        location ~* \.(zip|gz|gzip|bz2|csv|xml)$ {
-            add_header Cache-Control "no-store";
-            add_header X-Frame-Options "SAMEORIGIN";
-            expires off;
-
-            if (!-f $request_filename) {
-               rewrite ^/static/(version\d*/)?(.*)$ /static.php?resource=$2 last;
-            }
-        }
-        if (!-f $request_filename) {
-            rewrite ^/static/(version\d*/)?(.*)$ /static.php?resource=$2 last;
-        }
-        add_header X-Frame-Options "SAMEORIGIN";
-    }
-
-    location /media/ {
-        try_files $uri $uri/ /get.php$is_args$args;
-
-        location ~ ^/media/theme_customization/.*\.xml {
-            deny all;
-        }
-
-        location ~* \.(ico|jpg|jpeg|png|gif|svg|svgz|webp|avif|avifs|js|css|eot|ttf|otf|woff|woff2)$ {
-            add_header Cache-Control "public";
-            add_header X-Frame-Options "SAMEORIGIN";
-            expires +1y;
-            try_files $uri $uri/ /get.php$is_args$args;
-        }
-        location ~* \.(zip|gz|gzip|bz2|csv|xml)$ {
-            add_header Cache-Control "no-store";
-            add_header X-Frame-Options "SAMEORIGIN";
-            expires off;
-            try_files $uri $uri/ /get.php$is_args$args;
-        }
-        add_header X-Frame-Options "SAMEORIGIN";
-    }
-
-    location /media/customer/ {
-        deny all;
-    }
-
-    location /media/downloadable/ {
-        deny all;
-    }
-
-    location /media/import/ {
-        deny all;
-    }
-
-    location /media/custom_options/ {
-        deny all;
-    }
-
-    location /errors/ {
-        location ~* \.xml$ {
-            deny all;
-        }
-    }
-
-    location ~ \.php$ {
-        try_files $uri =404;
-        fastcgi_pass fastcgi_backend_{{.ProjectName}};
-        fastcgi_buffers 16 16k;
-        fastcgi_buffer_size 32k;
-
-        fastcgi_param PHP_FLAG "session.auto_start=off \n suhosin.session.cryptua=off";
-        fastcgi_param PHP_VALUE "memory_limit=756M \n max_execution_time=18000";
-        fastcgi_read_timeout 600s;
-        fastcgi_connect_timeout 600s;
-
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    gzip on;
-    gzip_disable "msie6";
-    gzip_comp_level 6;
-    gzip_min_length 1100;
-    gzip_buffers 16 8k;
-    gzip_proxied any;
-    gzip_types
-        text/plain
-        text/css
-        text/js
-        text/xml
-        text/javascript
-        application/javascript
-        application/x-javascript
-        application/json
-        application/xml
-        application/xml+rss
-        image/svg+xml;
-    gzip_vary on;
-
-    location ~* (\.php$|\.phtml$|\.htaccess$|\.git) {
-        deny all;
-    }
-}
-`
 
 // Controller manages Nginx service
 type Controller struct {

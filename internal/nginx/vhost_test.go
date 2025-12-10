@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
@@ -284,5 +285,36 @@ func TestSanitizeDomain(t *testing.T) {
 				t.Errorf("sanitizeDomain(%v) = %v, want %v", tt.input, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestVhostTemplateValidity(t *testing.T) {
+	// Test that the embedded template parses correctly
+	tmpl, err := template.New("vhost").Parse(vhostTemplate)
+	if err != nil {
+		t.Fatalf("Vhost template parsing failed: %v", err)
+	}
+
+	if tmpl == nil {
+		t.Error("Parsed template should not be nil")
+	}
+
+	// Verify template contains expected sections
+	templateStr := vhostTemplate
+	expectedSections := []string{
+		"upstream fastcgi_backend_{{.ProjectName}}",
+		"server_name {{.Domain}}",
+		"root $MAGE_ROOT",
+		"{{if .SSLEnabled}}",
+		"ssl_certificate {{.SSLCertFile}}",
+		"fastcgi_pass fastcgi_backend_{{.ProjectName}}",
+		"location /static/",
+		"location /media/",
+	}
+
+	for _, section := range expectedSections {
+		if !strings.Contains(templateStr, section) {
+			t.Errorf("Template should contain section: %s", section)
+		}
 	}
 }
