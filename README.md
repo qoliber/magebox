@@ -25,7 +25,49 @@ Unlike Docker-based solutions (Warden, DDEV), MageBox runs PHP and Nginx nativel
 
 ---
 
-## Step-by-Step Setup Guide
+## Quick Start (For Beginners)
+
+**Want to get started quickly? Just 4 commands:**
+
+```bash
+# 1. Install MageBox (Linux)
+sudo curl -L https://github.com/qoliber/magebox/releases/latest/download/magebox-linux-amd64 -o /usr/local/bin/magebox && sudo chmod +x /usr/local/bin/magebox
+
+# 2. Set up your environment (one-time)
+magebox bootstrap
+
+# 3. Create a new store with sample data (no questions asked!)
+magebox new mystore --quick
+
+# 4. Start your store
+cd mystore && magebox start
+```
+
+Then run the Magento installer:
+```bash
+magebox cli setup:install \
+    --base-url=https://mystore.test \
+    --db-host=127.0.0.1:33080 \
+    --db-name=mystore \
+    --db-user=root \
+    --db-password=magebox \
+    --search-engine=opensearch \
+    --opensearch-host=127.0.0.1 \
+    --opensearch-port=9200 \
+    --admin-firstname=Admin \
+    --admin-lastname=User \
+    --admin-email=admin@example.com \
+    --admin-user=admin \
+    --admin-password=Admin123!
+```
+
+**That's it!** Open https://mystore.test in your browser.
+
+> **Note:** The `--quick` flag installs MageOS (no Adobe auth required) with sample data, PHP 8.3, MySQL 8.0, Redis, and OpenSearch - perfect for learning or testing.
+
+---
+
+## Step-by-Step Setup Guide (Detailed)
 
 ### Step 1: Install System Dependencies
 
@@ -182,13 +224,25 @@ After bootstrap, these services are running:
 
 ### Step 4: Create or Initialize a Project
 
-#### Option A: Create New Magento/MageOS Project
+#### Option A: Quick Install (Recommended for Beginners)
+
+```bash
+magebox new mystore --quick
+```
+
+This installs MageOS with sensible defaults:
+- MageOS 1.0.4 (no Adobe authentication required)
+- PHP 8.3, MySQL 8.0, Redis, OpenSearch
+- Sample data included
+- Domain: mystore.test
+
+#### Option B: Interactive Wizard
 
 ```bash
 magebox new mystore
 ```
 
-This launches an interactive wizard:
+This launches an interactive wizard where you choose:
 
 1. **Distribution** - Magento Open Source or MageOS
 2. **Version** - 2.4.7-p3, 2.4.6-p7, etc.
@@ -404,7 +458,8 @@ magebox config set portainer true
 |---------|-------------|
 | `magebox` | Show help and logo |
 | `magebox bootstrap` | One-time environment setup |
-| `magebox new [dir]` | Create new Magento/MageOS project |
+| `magebox new [dir]` | Create new project (interactive wizard) |
+| `magebox new [dir] --quick` | Quick install MageOS with sample data |
 | `magebox init` | Initialize existing project |
 | `magebox start` | Start project services |
 | `magebox stop` | Stop project services |

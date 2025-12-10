@@ -371,9 +371,18 @@ This command will guide you through:
   6. Optional sample data installation
   7. Database setup
 
+Quick Mode (--quick):
+  Skip all questions and install MageOS with sensible defaults:
+  - MageOS 1.0.4 (latest stable, no auth required)
+  - PHP 8.3
+  - MySQL 8.0, Redis, OpenSearch
+  - Sample data included
+  - Domain: {directory}.test
+
 Example:
-  magebox new mystore        # Create new project in ./mystore
-  magebox new .              # Create in current directory`,
+  magebox new mystore              # Interactive wizard
+  magebox new mystore --quick      # Quick install with defaults + sample data
+  magebox new . --quick            # Quick install in current directory`,
 	Args: cobra.ExactArgs(1),
 	RunE: runNew,
 }
@@ -401,7 +410,17 @@ var (
 	logsLines  int
 )
 
+// New command flags
+var (
+	newQuick      bool
+	newWithSample bool
+)
+
 func init() {
+	// New command flags
+	newCmd.Flags().BoolVarP(&newQuick, "quick", "q", false, "Quick install with defaults (MageOS + sample data)")
+	newCmd.Flags().BoolVar(&newWithSample, "with-sample", false, "Include sample data (used with --quick)")
+
 	// Logs command flags
 	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "Follow log files for changes")
 	logsCmd.Flags().IntVarP(&logsLines, "lines", "n", 20, "Number of lines to show initially")
@@ -2364,8 +2383,6 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 	cli.PrintLogoSmall(version)
 	fmt.Println()
-	cli.PrintTitle("Create New Magento/MageOS Project")
-	fmt.Println()
 
 	// Check prerequisites
 	if !platform.CommandExists("composer") {
@@ -2376,6 +2393,14 @@ func runNew(cmd *cobra.Command, args []string) error {
 		fmt.Println("  sudo mv composer.phar /usr/local/bin/composer")
 		return nil
 	}
+
+	// Quick mode - skip all questions, use sensible defaults
+	if newQuick {
+		return runNewQuick(targetDir, p)
+	}
+
+	cli.PrintTitle("Create New Magento/MageOS Project")
+	fmt.Println()
 
 	// Step 1: Choose distribution
 	fmt.Println(cli.Header("Step 1: Choose Distribution"))
@@ -2828,6 +2853,231 @@ commands:
 	fmt.Println(cli.Bullet("Run " + cli.Command("magebox cli setup:install") + " to complete Magento setup"))
 	fmt.Println()
 	fmt.Println("After setup, access your store at: " + cli.URL("https://"+domainInput))
+	fmt.Println()
+
+	return nil
+}
+
+// runNewQuick creates a new MageOS project with sensible defaults (no questions)
+func runNewQuick(targetDir string, p *platform.Platform) error {
+	cli.PrintTitle("Quick Install - MageOS with Sample Data")
+	fmt.Println()
+
+	// Defaults for quick mode
+	selectedVersion := mageosVersions[0] // MageOS 1.0.4 (latest)
+	selectedPHP := "8.3"
+	dbVersion := "8.0"
+	searchVersion := "2.12"
+
+	// Determine project name and directory
+	var projectName string
+	var projectDir string
+
+	if targetDir == "." {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+		projectDir = cwd
+		projectName = filepath.Base(cwd)
+	} else {
+		projectDir, _ = filepath.Abs(targetDir)
+		projectName = filepath.Base(targetDir)
+	}
+
+	// Domain from project name
+	domainInput := projectName + ".test"
+
+	// Check PHP availability
+	detector := php.NewDetector(p)
+	installedVersions := detector.DetectInstalled()
+
+	phpFound := false
+	for _, v := range installedVersions {
+		if v.Version == selectedPHP {
+			phpFound = true
+			break
+		}
+	}
+
+	if !phpFound {
+		// Try to find any compatible version
+		for _, compatiblePHP := range selectedVersion.PHPVersions {
+			for _, v := range installedVersions {
+				if v.Version == compatiblePHP {
+					selectedPHP = compatiblePHP
+					phpFound = true
+					cli.PrintWarning("PHP 8.3 not found, using PHP %s instead", selectedPHP)
+					break
+				}
+			}
+			if phpFound {
+				break
+			}
+		}
+	}
+
+	if !phpFound {
+		cli.PrintError("No compatible PHP version found!")
+		fmt.Println()
+		cli.PrintInfo("Install PHP 8.3 first:")
+		fmt.Println("  macOS:  brew install php@8.3")
+		fmt.Println("  Ubuntu: sudo apt install php8.3-fpm php8.3-cli ...")
+		return nil
+	}
+
+	// Show what we're going to install
+	fmt.Println("Configuration:")
+	fmt.Println(cli.Bullet("Distribution: " + cli.Highlight("MageOS")))
+	fmt.Println(cli.Bullet("Version:      " + cli.Highlight(selectedVersion.Name)))
+	fmt.Println(cli.Bullet("PHP:          " + cli.Highlight(selectedPHP)))
+	fmt.Println(cli.Bullet("Database:     " + cli.Highlight("MySQL "+dbVersion)))
+	fmt.Println(cli.Bullet("Search:       " + cli.Highlight("OpenSearch "+searchVersion)))
+	fmt.Println(cli.Bullet("Services:     " + cli.Highlight("Redis, Mailpit")))
+	fmt.Println(cli.Bullet("Sample Data:  " + cli.Highlight("Yes")))
+	fmt.Println(cli.Bullet("Directory:    " + cli.Highlight(projectDir)))
+	fmt.Println(cli.Bullet("Domain:       " + cli.Highlight(domainInput)))
+	fmt.Println()
+
+	// Create directory if needed
+	if targetDir != "." {
+		if err := os.MkdirAll(projectDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// Run Composer create-project
+	cli.PrintTitle("Installing " + selectedVersion.Name)
+	fmt.Println()
+
+	composerArgs := []string{
+		"create-project",
+		selectedVersion.Package,
+		projectDir,
+		selectedVersion.Version,
+	}
+
+	composerCmd := exec.Command("composer", composerArgs...)
+	composerCmd.Stdout = os.Stdout
+	composerCmd.Stderr = os.Stderr
+	composerCmd.Stdin = os.Stdin
+
+	fmt.Println(cli.Command("composer " + strings.Join(composerArgs, " ")))
+	fmt.Println()
+
+	if err := composerCmd.Run(); err != nil {
+		cli.PrintError("Composer installation failed: %v", err)
+		return err
+	}
+	fmt.Println()
+
+	// Create .magebox file
+	cli.PrintInfo("Creating MageBox configuration...")
+
+	mageboxConfig := fmt.Sprintf(`name: %s
+domains:
+  - host: %s
+    root: pub
+    ssl: true
+php: "%s"
+services:
+  mysql: "%s"
+  opensearch: "%s"
+  redis: true
+  mailpit: true
+
+commands:
+  setup:
+    description: "Run Magento setup"
+    run: "php bin/magento setup:upgrade && php bin/magento cache:flush"
+  reindex:
+    description: "Reindex all indexes"
+    run: "php bin/magento indexer:reindex"
+  deploy:
+    description: "Deploy static content"
+    run: "php bin/magento setup:static-content:deploy -f"
+  cache:
+    description: "Flush all caches"
+    run: "php bin/magento cache:flush"
+`, projectName, domainInput, selectedPHP, dbVersion, searchVersion)
+
+	mageboxFile := filepath.Join(projectDir, ".magebox")
+	if err := os.WriteFile(mageboxFile, []byte(mageboxConfig), 0644); err != nil {
+		cli.PrintWarning("Failed to create .magebox file: %v", err)
+	} else {
+		fmt.Printf("  Created %s\n", cli.Highlight(".magebox"))
+	}
+
+	// Install sample data (always in quick mode)
+	fmt.Println()
+	cli.PrintInfo("Installing sample data (this may take a while)...")
+
+	sampleCmd := exec.Command("composer", "require", "magento/module-bundle-sample-data",
+		"magento/module-catalog-sample-data", "magento/module-catalog-rule-sample-data",
+		"magento/module-cms-sample-data", "magento/module-configurable-sample-data",
+		"magento/module-customer-sample-data", "magento/module-downloadable-sample-data",
+		"magento/module-grouped-sample-data", "magento/module-msrp-sample-data",
+		"magento/module-offline-shipping-sample-data", "magento/module-product-links-sample-data",
+		"magento/module-review-sample-data", "magento/module-sales-rule-sample-data",
+		"magento/module-sales-sample-data", "magento/module-swatches-sample-data",
+		"magento/module-tax-sample-data", "magento/module-theme-sample-data",
+		"magento/module-widget-sample-data", "magento/module-wishlist-sample-data",
+		"magento/sample-data-media", "--no-update")
+	sampleCmd.Dir = projectDir
+	sampleCmd.Stdout = os.Stdout
+	sampleCmd.Stderr = os.Stderr
+
+	if err := sampleCmd.Run(); err != nil {
+		cli.PrintWarning("Sample data require failed: %v", err)
+	}
+
+	// Run composer update
+	updateCmd := exec.Command("composer", "update")
+	updateCmd.Dir = projectDir
+	updateCmd.Stdout = os.Stdout
+	updateCmd.Stderr = os.Stderr
+	updateCmd.Run()
+
+	// Success!
+	fmt.Println()
+	cli.PrintTitle("Installation Complete!")
+	fmt.Println()
+	cli.PrintSuccess("MageOS project created successfully!")
+	fmt.Println()
+
+	// Print the full setup command
+	dbPort := "33080" // MySQL 8.0 default port
+
+	fmt.Println("Next steps:")
+	fmt.Println()
+	fmt.Println(cli.Bullet("1. Start services:"))
+	fmt.Println("      cd " + cli.Highlight(projectDir))
+	fmt.Println("      " + cli.Command("magebox start"))
+	fmt.Println()
+	fmt.Println(cli.Bullet("2. Install Magento:"))
+	installCmd := fmt.Sprintf(`magebox cli setup:install \
+    --base-url=https://%s \
+    --db-host=127.0.0.1:%s \
+    --db-name=%s \
+    --db-user=root \
+    --db-password=magebox \
+    --search-engine=opensearch \
+    --opensearch-host=127.0.0.1 \
+    --opensearch-port=9200 \
+    --admin-firstname=Admin \
+    --admin-lastname=User \
+    --admin-email=admin@example.com \
+    --admin-user=admin \
+    --admin-password=Admin123!`, domainInput, dbPort, projectName)
+	fmt.Println("      " + cli.Command(installCmd))
+	fmt.Println()
+	fmt.Println(cli.Bullet("3. Deploy sample data:"))
+	fmt.Println("      " + cli.Command("magebox cli setup:upgrade"))
+	fmt.Println("      " + cli.Command("magebox cli indexer:reindex"))
+	fmt.Println("      " + cli.Command("magebox cli cache:flush"))
+	fmt.Println()
+	fmt.Println("After setup, access your store at: " + cli.URL("https://"+domainInput))
+	fmt.Println("Admin panel: " + cli.URL("https://"+domainInput+"/admin"))
 	fmt.Println()
 
 	return nil
