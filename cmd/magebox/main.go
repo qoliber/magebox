@@ -25,7 +25,7 @@ import (
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
-var version = "0.2.1"
+var version = "0.2.2"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -492,10 +492,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check if .magebox already exists
-	configPath := filepath.Join(cwd, ".magebox")
+	// Check if .magebox.yaml already exists
+	configPath := filepath.Join(cwd, config.ConfigFileName)
 	if _, err := os.Stat(configPath); err == nil {
-		cli.PrintError(".magebox file already exists")
+		cli.PrintError("%s file already exists", config.ConfigFileName)
 		return nil
 	}
 
@@ -509,12 +509,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cli.PrintSuccess("Created .magebox for project '%s'", projectName)
+	cli.PrintSuccess("Created %s for project '%s'", config.ConfigFileName, projectName)
 	fmt.Println()
 	fmt.Printf("Domain: %s\n", cli.URL(projectName+".test"))
 	fmt.Println()
 	cli.PrintInfo("Next steps:")
-	fmt.Println(cli.Bullet("Edit .magebox to customize your configuration"))
+	fmt.Println(cli.Bullet("Edit " + config.ConfigFileName + " to customize your configuration"))
 	fmt.Println(cli.Bullet("Run " + cli.Command("magebox start") + " to start your project"))
 
 	return nil
@@ -815,7 +815,7 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
-		cli.PrintError("No database service configured in .magebox")
+		cli.PrintError("No database service configured in %s", config.ConfigFileName)
 		return nil
 	}
 
@@ -932,7 +932,7 @@ func runDbShell(cmd *cobra.Command, args []string) error {
 	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
 		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	} else {
-		cli.PrintError("No database service configured in .magebox")
+		cli.PrintError("No database service configured in %s", config.ConfigFileName)
 		return nil
 	}
 
@@ -1382,9 +1382,9 @@ func runCustomCommand(cmd *cobra.Command, args []string) error {
 				}
 			}
 		} else {
-			fmt.Println("No commands defined in .magebox")
+			fmt.Printf("No commands defined in %s\n", config.ConfigFileName)
 			fmt.Println()
-			fmt.Println("Add commands to your .magebox file:")
+			fmt.Printf("Add commands to your %s file:\n", config.ConfigFileName)
 			fmt.Println()
 			fmt.Println("  commands:")
 			fmt.Println("    deploy: \"php bin/magento deploy:mode:set production\"")
@@ -1524,7 +1524,7 @@ func runRedisFlush(cmd *cobra.Command, args []string) error {
 	}
 
 	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in .magebox")
+		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
 		return nil
 	}
 
@@ -1569,7 +1569,7 @@ func runRedisShell(cmd *cobra.Command, args []string) error {
 	}
 
 	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in .magebox")
+		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
 		return nil
 	}
 
@@ -1606,7 +1606,7 @@ func runRedisInfo(cmd *cobra.Command, args []string) error {
 	}
 
 	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in .magebox")
+		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
 		return nil
 	}
 
@@ -2513,11 +2513,11 @@ commands:
     run: "php bin/magento cache:flush"
 `
 
-	mageboxFile := filepath.Join(projectDir, ".magebox")
+	mageboxFile := filepath.Join(projectDir, config.ConfigFileName)
 	if err := os.WriteFile(mageboxFile, []byte(mageboxConfig), 0644); err != nil {
-		cli.PrintWarning("Failed to create .magebox file: %v", err)
+		cli.PrintWarning("Failed to create %s file: %v", config.ConfigFileName, err)
 	} else {
-		fmt.Printf("  Created %s\n", cli.Highlight(".magebox"))
+		fmt.Printf("  Created %s\n", cli.Highlight(config.ConfigFileName))
 	}
 
 	// Install sample data if requested
@@ -2712,11 +2712,11 @@ commands:
     run: "php bin/magento cache:flush"
 `, projectName, domainInput, selectedPHP, dbVersion, searchVersion)
 
-	mageboxFile := filepath.Join(projectDir, ".magebox")
+	mageboxFile := filepath.Join(projectDir, config.ConfigFileName)
 	if err := os.WriteFile(mageboxFile, []byte(mageboxConfig), 0644); err != nil {
-		cli.PrintWarning("Failed to create .magebox file: %v", err)
+		cli.PrintWarning("Failed to create %s file: %v", config.ConfigFileName, err)
 	} else {
-		fmt.Printf("  Created %s\n", cli.Highlight(".magebox"))
+		fmt.Printf("  Created %s\n", cli.Highlight(config.ConfigFileName))
 	}
 
 	// Install sample data (always in quick mode)

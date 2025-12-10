@@ -317,13 +317,13 @@ func (e *PHPNotInstalledError) Error() string {
 	return php.FormatNotInstalledMessage(e.Version, e.Platform)
 }
 
-// Init initializes a new .magebox file in the given directory
+// Init initializes a new .magebox.yaml file in the given directory
 func (m *Manager) Init(projectPath string, projectName string) error {
-	configPath := filepath.Join(projectPath, ".magebox")
+	configPath := filepath.Join(projectPath, config.ConfigFileName)
 
 	// Check if file already exists
 	if _, err := os.Stat(configPath); err == nil {
-		return fmt.Errorf(".magebox file already exists")
+		return fmt.Errorf("%s file already exists", config.ConfigFileName)
 	}
 
 	// Derive domain from project name

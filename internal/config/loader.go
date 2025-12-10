@@ -10,9 +10,13 @@ import (
 
 const (
 	// ConfigFileName is the main configuration file name
-	ConfigFileName = ".magebox"
+	ConfigFileName = ".magebox.yaml"
+	// ConfigFileNameLegacy is the legacy configuration file name (for backward compatibility)
+	ConfigFileNameLegacy = ".magebox"
 	// LocalConfigFileName is the local override configuration file name
-	LocalConfigFileName = ".magebox.local"
+	LocalConfigFileName = ".magebox.local.yaml"
+	// LocalConfigFileNameLegacy is the legacy local configuration file name (for backward compatibility)
+	LocalConfigFileNameLegacy = ".magebox.local"
 )
 
 // Loader handles loading and merging configuration files
@@ -25,24 +29,36 @@ func NewLoader(basePath string) *Loader {
 	return &Loader{basePath: basePath}
 }
 
-// Load loads and merges the configuration from .magebox and .magebox.local
+// Load loads and merges the configuration from .magebox.yaml (or .magebox for backward compatibility) and .magebox.local
 func (l *Loader) Load() (*Config, error) {
 	mainConfigPath := filepath.Join(l.basePath, ConfigFileName)
+	legacyConfigPath := filepath.Join(l.basePath, ConfigFileNameLegacy)
 	localConfigPath := filepath.Join(l.basePath, LocalConfigFileName)
 
-	// Load main config (required)
+	// Try to load new format first, fall back to legacy
 	mainConfig, err := l.loadFile(mainConfigPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, &ConfigNotFoundError{Path: mainConfigPath}
+	if err != nil && os.IsNotExist(err) {
+		// Try legacy format
+		mainConfig, err = l.loadFile(legacyConfigPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, &ConfigNotFoundError{Path: mainConfigPath}
+			}
+			return nil, fmt.Errorf("failed to load %s: %w", ConfigFileNameLegacy, err)
 		}
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to load %s: %w", ConfigFileName, err)
 	}
 
-	// Load local config (optional)
+	// Load local config (optional) - try new format first, fall back to legacy
+	legacyLocalConfigPath := filepath.Join(l.basePath, LocalConfigFileNameLegacy)
 	localConfig, err := l.loadFile(localConfigPath)
+	if err != nil && os.IsNotExist(err) {
+		// Try legacy format
+		localConfig, err = l.loadFile(legacyLocalConfigPath)
+	}
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to load %s: %w", LocalConfigFileName, err)
+		return nil, fmt.Errorf("failed to load local config: %w", err)
 	}
 
 	// Merge configs (local overrides main)

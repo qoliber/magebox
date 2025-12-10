@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
 )
 
@@ -61,10 +62,10 @@ func TestManager_Init(t *testing.T) {
 		t.Fatalf("Init failed: %v", err)
 	}
 
-	// Check that .magebox file was created
-	configPath := filepath.Join(projectPath, ".magebox")
+	// Check that .magebox.yaml file was created
+	configPath := filepath.Join(projectPath, config.ConfigFileName)
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Error(".magebox file should have been created")
+		t.Errorf("%s file should have been created", config.ConfigFileName)
 	}
 
 	// Read and verify content
@@ -105,7 +106,7 @@ func TestManager_InitAlreadyExists(t *testing.T) {
 	// Try to create again - should fail
 	err := m.Init(projectPath, "mystore")
 	if err == nil {
-		t.Error("Init should fail when .magebox already exists")
+		t.Errorf("Init should fail when %s already exists", config.ConfigFileName)
 	}
 }
 
@@ -125,7 +126,7 @@ php: "8.2"
 services:
   mysql: "8.0"
 `
-	if err := os.WriteFile(filepath.Join(projectPath, ".magebox"), []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectPath, config.ConfigFileName), []byte(configContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -161,7 +162,7 @@ func TestManager_ValidateConfigMissingFile(t *testing.T) {
 
 	_, _, err := m.ValidateConfig(projectPath)
 	if err == nil {
-		t.Error("ValidateConfig should fail for missing .magebox file")
+		t.Errorf("ValidateConfig should fail for missing %s file", config.ConfigFileName)
 	}
 }
 
@@ -262,7 +263,7 @@ services:
   redis: true
   opensearch: "2.12"
 `
-	if err := os.WriteFile(filepath.Join(projectPath, ".magebox"), []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectPath, config.ConfigFileName), []byte(configContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 

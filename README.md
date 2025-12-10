@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.2.1
+                 |___/  0.2.2
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
@@ -283,7 +283,7 @@ cd /path/to/your/magento/project
 magebox init
 ```
 
-Answer the prompts to create a `.magebox` config file.
+Answer the prompts to create a `.magebox.yaml` config file.
 
 ---
 
@@ -372,7 +372,7 @@ magebox logs "exception*"            # Wildcard pattern
 
 ### Custom Commands
 
-Define in `.magebox`:
+Define in `.magebox.yaml`:
 ```yaml
 commands:
   deploy: "php bin/magento deploy:mode:set production"
@@ -391,7 +391,7 @@ magebox run reindex
 
 ## Configuration Reference
 
-### .magebox File
+### .magebox.yaml File
 
 ```yaml
 name: mystore                    # Required: project name (used for DB name)
@@ -437,7 +437,7 @@ commands:                        # Optional: custom commands
       php bin/magento cache:flush
 ```
 
-### .magebox.local File
+### .magebox.local.yaml File
 
 Override settings locally (add to `.gitignore`):
 
@@ -719,11 +719,11 @@ On Linux, MageBox doesn't need port forwarding because:
 
 ### Overview
 
-MageBox allows you to override PHP configuration settings per-project using the `php_ini` section in your `.magebox` or `.magebox.local` file. These settings are injected into the PHP-FPM pool configuration and take precedence over system-wide PHP settings.
+MageBox allows you to override PHP configuration settings per-project using the `php_ini` section in your `.magebox.yaml` or `.magebox.local.yaml` file. These settings are injected into the PHP-FPM pool configuration and take precedence over system-wide PHP settings.
 
 ### Usage
 
-Add `php_ini` settings to your `.magebox` file:
+Add `php_ini` settings to your `.magebox.yaml` file:
 
 ```yaml
 php_ini:
@@ -771,7 +771,7 @@ php_ini:
 
 #### 4. Production Settings
 
-Optimize for production (use in `.magebox`, not `.magebox.local`):
+Optimize for production (use in `.magebox.yaml`, not `.magebox.local.yaml`):
 
 ```yaml
 php_ini:
@@ -783,15 +783,15 @@ php_ini:
 
 ### Development vs Production
 
-Use `.magebox.local` for development-specific overrides:
+Use `.magebox.local.yaml` for development-specific overrides:
 
-**.magebox** (committed to git):
+**.magebox.yaml** (committed to git):
 ```yaml
 php: "8.2"
 # Production settings
 ```
 
-**.magebox.local** (in .gitignore):
+**.magebox.local.yaml** (in .gitignore):
 ```yaml
 php_ini:
   opcache.enable: "0"            # Development only

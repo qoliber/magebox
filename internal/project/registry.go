@@ -112,11 +112,19 @@ func (d *ProjectDiscovery) parseVhostFile(path string) (*ProjectInfo, error) {
 		return nil, err
 	}
 
-	// Try to load project config
-	configPath := filepath.Join(info.Path, ".magebox")
+	// Try to load project config (try new format first, then legacy)
+	configPath := filepath.Join(info.Path, config.ConfigFileName)
+	legacyPath := filepath.Join(info.Path, config.ConfigFileNameLegacy)
+
 	if _, err := os.Stat(configPath); err == nil {
 		info.HasConfig = true
 		info.ConfigFile = configPath
+	} else if _, err := os.Stat(legacyPath); err == nil {
+		info.HasConfig = true
+		info.ConfigFile = legacyPath
+	}
+
+	if info.HasConfig {
 
 		// Load config to get name and PHP version
 		cfg, err := config.LoadFromPath(info.Path)
