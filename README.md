@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.3.0
+                 |___/  0.3.1
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
@@ -1125,6 +1125,14 @@ magebox/
 ---
 
 ## Changelog
+
+### v0.3.1 (2025-12-10)
+
+**Documentation**
+- Added comprehensive migration guide from Laravel Herd to MageBox
+- Step-by-step instructions for cleaning up Herd configuration
+- Troubleshooting section for common migration issues
+- Updated README to mention Herd comparison
 
 ### v0.3.0 (2025-12-10)
 
