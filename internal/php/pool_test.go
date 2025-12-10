@@ -31,7 +31,7 @@ func TestNewPoolGenerator(t *testing.T) {
 		t.Errorf("poolsDir = %v, want %v", g.poolsDir, expectedPoolsDir)
 	}
 
-	expectedRunDir := filepath.Join(tmpDir, ".magebox", "run")
+	expectedRunDir := "/tmp/magebox"
 	if g.runDir != expectedRunDir {
 		t.Errorf("runDir = %v, want %v", g.runDir, expectedRunDir)
 	}
@@ -47,18 +47,18 @@ func TestPoolGenerator_PoolsDir(t *testing.T) {
 }
 
 func TestPoolGenerator_RunDir(t *testing.T) {
-	g, tmpDir := setupTestPoolGenerator(t)
+	g, _ := setupTestPoolGenerator(t)
 
-	expected := filepath.Join(tmpDir, ".magebox", "run")
+	expected := "/tmp/magebox"
 	if got := g.RunDir(); got != expected {
 		t.Errorf("RunDir() = %v, want %v", got, expected)
 	}
 }
 
 func TestPoolGenerator_GetSocketPath(t *testing.T) {
-	g, tmpDir := setupTestPoolGenerator(t)
+	g, _ := setupTestPoolGenerator(t)
 
-	expected := filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock")
+	expected := "/tmp/magebox/mystore-php8.2.sock"
 	if got := g.GetSocketPath("mystore", "8.2"); got != expected {
 		t.Errorf("GetSocketPath() = %v, want %v", got, expected)
 	}
@@ -71,7 +71,9 @@ func TestPoolGenerator_Generate(t *testing.T) {
 		"MAGE_MODE": "developer",
 	}
 
-	err := g.Generate("mystore", "8.2", env)
+	phpIni := map[string]string{}
+
+	err := g.Generate("mystore", "8.2", env, phpIni)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -110,7 +112,7 @@ func TestPoolGenerator_Generate(t *testing.T) {
 func TestPoolGenerator_GenerateWithoutEnv(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
-	err := g.Generate("mystore", "8.3", nil)
+	err := g.Generate("mystore", "8.3", nil, nil)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -126,7 +128,7 @@ func TestPoolGenerator_Remove(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Generate pool first
-	if err := g.Generate("mystore", "8.2", nil); err != nil {
+	if err := g.Generate("mystore", "8.2", nil, nil); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -155,10 +157,10 @@ func TestPoolGenerator_ListPools(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Create some pool files
-	if err := g.Generate("project1", "8.2", nil); err != nil {
+	if err := g.Generate("project1", "8.2", nil, nil); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	if err := g.Generate("project2", "8.3", nil); err != nil {
+	if err := g.Generate("project2", "8.3", nil, nil); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -185,7 +187,7 @@ func TestPoolConfig_Defaults(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Generate and read back to verify defaults
-	if err := g.Generate("testproject", "8.2", nil); err != nil {
+	if err := g.Generate("testproject", "8.2", nil, nil); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -258,6 +260,7 @@ func TestRenderPool_WithEnv(t *testing.T) {
 			"MAGE_MODE":  "developer",
 			"REDIS_HOST": "localhost",
 		},
+		PHPINI: map[string]string{},
 	}
 
 	content, err := g.renderPool(cfg)
@@ -271,5 +274,79 @@ func TestRenderPool_WithEnv(t *testing.T) {
 	}
 	if !strings.Contains(content, "env[REDIS_HOST] = localhost") {
 		t.Error("Pool should contain REDIS_HOST env var")
+	}
+}
+
+func TestRenderPool_WithPHPINI(t *testing.T) {
+	g, _ := setupTestPoolGenerator(t)
+
+	cfg := PoolConfig{
+		ProjectName:     "mystore",
+		PHPVersion:      "8.2",
+		SocketPath:      "/tmp/mystore.sock",
+		User:            "testuser",
+		Group:           "testgroup",
+		MaxChildren:     10,
+		StartServers:    2,
+		MinSpareServers: 1,
+		MaxSpareServers: 3,
+		MaxRequests:     500,
+		Env: map[string]string{},
+		PHPINI: map[string]string{
+			"opcache.enable":            "0",
+			"display_errors":            "On",
+			"xdebug.mode":               "debug",
+			"max_execution_time":        "3600",
+		},
+	}
+
+	content, err := g.renderPool(cfg)
+	if err != nil {
+		t.Fatalf("renderPool failed: %v", err)
+	}
+
+	// Check PHP INI directives are rendered
+	checks := []string{
+		"php_admin_value[opcache.enable] = 0",
+		"php_admin_value[display_errors] = On",
+		"php_admin_value[xdebug.mode] = debug",
+		"php_admin_value[max_execution_time] = 3600",
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(content, check) {
+			t.Errorf("Pool should contain PHP INI directive: %q", check)
+		}
+	}
+}
+
+func TestGenerate_WithPHPINI(t *testing.T) {
+	g, _ := setupTestPoolGenerator(t)
+
+	phpIni := map[string]string{
+		"opcache.enable": "0",
+		"display_errors": "On",
+	}
+
+	err := g.Generate("testproject", "8.2", nil, phpIni)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Read the generated file
+	poolFile := filepath.Join(g.poolsDir, "testproject.conf")
+	content, err := os.ReadFile(poolFile)
+	if err != nil {
+		t.Fatalf("Failed to read pool file: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// Verify PHP INI overrides are present
+	if !strings.Contains(contentStr, "php_admin_value[opcache.enable] = 0") {
+		t.Error("Pool should contain opcache.enable override")
+	}
+	if !strings.Contains(contentStr, "php_admin_value[display_errors] = On") {
+		t.Error("Pool should contain display_errors override")
 	}
 }

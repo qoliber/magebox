@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
@@ -31,6 +32,7 @@ type PoolConfig struct {
 	MaxSpareServers int
 	MaxRequests     int
 	Env             map[string]string
+	PHPINI          map[string]string
 }
 
 // NewPoolGenerator creates a new pool generator
@@ -38,12 +40,12 @@ func NewPoolGenerator(p *platform.Platform) *PoolGenerator {
 	return &PoolGenerator{
 		platform: p,
 		poolsDir: filepath.Join(p.MageBoxDir(), "php", "pools"),
-		runDir:   filepath.Join(p.MageBoxDir(), "run"),
+		runDir:   "/tmp/magebox",
 	}
 }
 
 // Generate generates a PHP-FPM pool configuration for a project
-func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]string) error {
+func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]string, phpIni map[string]string) error {
 	// Ensure directories exist
 	if err := os.MkdirAll(g.poolsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create pools directory: %w", err)
@@ -64,6 +66,7 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 		MaxSpareServers: 3,
 		MaxRequests:     500,
 		Env:             env,
+		PHPINI:          phpIni,
 	}
 
 	content, err := g.renderPool(cfg)
@@ -138,12 +141,19 @@ func getCurrentUser() string {
 
 // getCurrentGroup returns the current user's primary group
 func getCurrentGroup() string {
-	// On macOS, the group is typically "staff", on Linux it's the username
+	// On macOS, the group is typically "staff"
+	// On Linux, it's usually the username or www-data
 	user := getCurrentUser()
 	if user == "www-data" {
 		return "www-data"
 	}
-	// For development, use the user as the group
+
+	// Check platform - on macOS use "staff"
+	if runtime.GOOS == "darwin" {
+		return "staff"
+	}
+
+	// On Linux, use the username as the group
 	return user
 }
 
@@ -159,7 +169,7 @@ group = {{.Group}}
 listen = {{.SocketPath}}
 listen.owner = {{.User}}
 listen.group = {{.Group}}
-listen.mode = 0660
+listen.mode = 0666
 
 pm = dynamic
 pm.max_children = {{.MaxChildren}}
@@ -196,6 +206,11 @@ php_admin_value[opcache.interned_strings_buffer] = 20
 ; Realpath cache
 php_admin_value[realpath_cache_size] = 10M
 php_admin_value[realpath_cache_ttl] = 7200
+
+; Custom PHP INI overrides from .magebox
+{{range $key, $value := .PHPINI}}
+php_admin_value[{{$key}}] = {{$value}}
+{{end}}
 
 {{range $key, $value := .Env}}
 env[{{$key}}] = {{$value}}
@@ -281,4 +296,60 @@ func (c *FPMController) IsRunning() bool {
 // GetIncludeDirective returns the include path for the pools directory
 func (g *PoolGenerator) GetIncludeDirective() string {
 	return g.poolsDir + "/*.conf"
+}
+
+// SetupFPMConfig creates symlinks from PHP-FPM conf.d directories to MageBox pools
+func (g *PoolGenerator) SetupFPMConfig(version string) error {
+	// Determine PHP-FPM conf.d directory based on platform and version
+	var fpmConfDir string
+	switch g.platform.Type {
+	case platform.Darwin:
+		// Check Homebrew ARM first, then Intel
+		armPath := fmt.Sprintf("/opt/homebrew/etc/php/%s/php-fpm.d", version)
+		intelPath := fmt.Sprintf("/usr/local/etc/php/%s/php-fpm.d", version)
+		if _, err := os.Stat(armPath); err == nil {
+			fpmConfDir = armPath
+		} else {
+			fpmConfDir = intelPath
+		}
+	case platform.Linux:
+		fpmConfDir = fmt.Sprintf("/etc/php/%s/fpm/pool.d", version)
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	// Ensure PHP-FPM conf.d directory exists
+	if _, err := os.Stat(fpmConfDir); os.IsNotExist(err) {
+		return fmt.Errorf("PHP-FPM config directory not found: %s", fpmConfDir)
+	}
+
+	// Create symlink from PHP-FPM conf.d to our pools directory
+	symlinkPath := filepath.Join(fpmConfDir, "magebox")
+
+	// Check if symlink already exists
+	if linkTarget, err := os.Readlink(symlinkPath); err == nil {
+		// Symlink exists, check if it points to the right place
+		if linkTarget == g.poolsDir {
+			return nil // Already configured correctly
+		}
+		// Remove old symlink
+		cmd := exec.Command("sudo", "rm", symlinkPath)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to remove old PHP-FPM symlink: %w", err)
+		}
+	}
+
+	// Create symlink with sudo
+	cmd := exec.Command("sudo", "ln", "-s", g.poolsDir, symlinkPath)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create PHP-FPM symlink: %w", err)
+	}
+
+	return nil
 }

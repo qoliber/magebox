@@ -192,9 +192,9 @@ func TestVhostGenerator_GetIncludeDirective(t *testing.T) {
 }
 
 func TestVhostGenerator_getPHPSocketPath(t *testing.T) {
-	g, tmpDir := setupTestGenerator(t)
+	g, _ := setupTestGenerator(t)
 
-	expected := filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock")
+	expected := "/tmp/magebox/mystore-php8.2.sock"
 	if got := g.getPHPSocketPath("mystore", "8.2"); got != expected {
 		t.Errorf("getPHPSocketPath() = %v, want %v", got, expected)
 	}
@@ -221,7 +221,7 @@ func TestRenderVhost_SSLEnabled(t *testing.T) {
 
 	// Should contain SSL configuration
 	checks := []string{
-		"listen 443 ssl",
+		"listen 8443 ssl",
 		"ssl_certificate /path/to/cert.pem",
 		"ssl_certificate_key /path/to/key.pem",
 		"return 301 https://",

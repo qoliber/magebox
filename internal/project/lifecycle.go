@@ -85,7 +85,7 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 	}
 
 	// Generate PHP-FPM pool
-	if err := m.poolGenerator.Generate(cfg.Name, cfg.PHP, cfg.Env); err != nil {
+	if err := m.poolGenerator.Generate(cfg.Name, cfg.PHP, cfg.Env, cfg.PHPINI); err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
 	}
 

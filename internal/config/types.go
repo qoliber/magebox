@@ -5,6 +5,7 @@ type Config struct {
 	Name     string             `yaml:"name"`
 	Domains  []Domain           `yaml:"domains"`
 	PHP      string             `yaml:"php"`
+	PHPINI   map[string]string  `yaml:"php_ini,omitempty"`
 	Services Services           `yaml:"services"`
 	Env      map[string]string  `yaml:"env,omitempty"`
 	Commands map[string]Command `yaml:"commands,omitempty"`

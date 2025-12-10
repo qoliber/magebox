@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/qoliber/magebox/internal/config"
@@ -103,7 +102,7 @@ func (g *VhostGenerator) Remove(projectName string) error {
 
 // getPHPSocketPath returns the PHP-FPM socket path for a project
 func (g *VhostGenerator) getPHPSocketPath(projectName, phpVersion string) string {
-	return filepath.Join(g.platform.MageBoxDir(), "run", fmt.Sprintf("%s-php%s.sock", projectName, phpVersion))
+	return filepath.Join("/tmp/magebox", fmt.Sprintf("%s-php%s.sock", projectName, phpVersion))
 }
 
 // renderVhost renders the vhost template
@@ -147,13 +146,13 @@ upstream fastcgi_backend_{{.ProjectName}} {
 
 {{if .SSLEnabled}}
 server {
-    listen 80;
+    listen 8080;
     server_name {{.Domain}};
     return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl http2;
+    listen 8443 ssl http2;
     server_name {{.Domain}};
 
     ssl_certificate {{.SSLCertFile}};
@@ -163,7 +162,7 @@ server {
     ssl_prefer_server_ciphers off;
 {{else}}
 server {
-    listen 80;
+    listen 8080;
     server_name {{.Domain}};
 {{end}}
 
@@ -269,7 +268,7 @@ server {
         }
     }
 
-    location ~ ^/(index|get|static|errors/report|errors/404|errors/503|health_check)\.php$ {
+    location ~ \.php$ {
         try_files $uri =404;
         fastcgi_pass fastcgi_backend_{{.ProjectName}};
         fastcgi_buffers 16 16k;
@@ -378,101 +377,64 @@ func (g *VhostGenerator) GetIncludeDirective() string {
 	return fmt.Sprintf("include %s/*.conf;", g.vhostsDir)
 }
 
-// SetupNginxConfig ensures nginx.conf includes MageBox vhosts directory
+// SetupNginxConfig ensures nginx.conf includes MageBox vhosts directory using symlinks
 func (c *Controller) SetupNginxConfig() error {
-	// Determine nginx.conf location based on platform
-	var nginxConf string
+	// Determine nginx servers directory based on platform
+	var nginxServersDir string
 	switch c.platform.Type {
 	case platform.Darwin:
 		// Check Homebrew ARM first, then Intel
-		if _, err := os.Stat("/opt/homebrew/etc/nginx/nginx.conf"); err == nil {
-			nginxConf = "/opt/homebrew/etc/nginx/nginx.conf"
+		if _, err := os.Stat("/opt/homebrew/etc/nginx/servers"); err == nil {
+			nginxServersDir = "/opt/homebrew/etc/nginx/servers"
 		} else {
-			nginxConf = "/usr/local/etc/nginx/nginx.conf"
+			nginxServersDir = "/usr/local/etc/nginx/servers"
 		}
 	case platform.Linux:
-		nginxConf = "/etc/nginx/nginx.conf"
+		nginxServersDir = "/etc/nginx/sites-enabled"
 	default:
 		return fmt.Errorf("unsupported platform")
 	}
 
-	// Read current nginx.conf
-	content, err := os.ReadFile(nginxConf)
-	if err != nil {
-		return fmt.Errorf("failed to read nginx.conf: %w", err)
-	}
-
-	// MageBox include line
-	mageboxDir := c.platform.MageBoxDir()
-	includeLine := fmt.Sprintf("    include %s/nginx/vhosts/*.conf;", mageboxDir)
-	marker := "# MageBox vhosts"
-
-	// Check if already configured
-	if strings.Contains(string(content), marker) {
-		return nil // Already configured
-	}
-
-	// Find the http block and add our include
-	// We look for "include /etc/nginx/conf.d/*.conf;" or similar and add after it
-	lines := strings.Split(string(content), "\n")
-	var newLines []string
-	inserted := false
-
-	for i, line := range lines {
-		newLines = append(newLines, line)
-
-		// Look for existing include directive in http block, or the http { line itself
-		trimmed := strings.TrimSpace(line)
-		if !inserted && (strings.HasPrefix(trimmed, "include ") && strings.Contains(trimmed, ".conf") ||
-			(trimmed == "http {" && i+1 < len(lines))) {
-
-			// If this is "http {", find a good spot after the opening
-			if trimmed == "http {" {
-				// Add after some initial http block content
-				continue
-			}
-
-			// Add our include after existing includes
-			newLines = append(newLines, "")
-			newLines = append(newLines, "    "+marker)
-			newLines = append(newLines, includeLine)
-			inserted = true
+	// Ensure nginx servers directory exists
+	if _, err := os.Stat(nginxServersDir); os.IsNotExist(err) {
+		// Try to create it with sudo
+		cmd := exec.Command("sudo", "mkdir", "-p", nginxServersDir)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to create nginx servers directory: %w", err)
 		}
 	}
 
-	// If we couldn't find a good spot, try to add before the closing brace of http block
-	if !inserted {
-		for i := len(newLines) - 1; i >= 0; i-- {
-			if strings.TrimSpace(newLines[i]) == "}" {
-				// Insert before this closing brace
-				newContent := append(newLines[:i], "", "    "+marker, includeLine)
-				newContent = append(newContent, newLines[i:]...)
-				newLines = newContent
-				inserted = true
-				break
-			}
+	// Create symlink from nginx servers dir to our magebox vhosts dir
+	mageboxVhostsDir := filepath.Join(c.platform.MageBoxDir(), "nginx", "vhosts")
+	symlinkPath := filepath.Join(nginxServersDir, "magebox")
+
+	// Check if symlink already exists
+	if linkTarget, err := os.Readlink(symlinkPath); err == nil {
+		// Symlink exists, check if it points to the right place
+		if linkTarget == mageboxVhostsDir {
+			return nil // Already configured correctly
+		}
+		// Remove old symlink
+		cmd := exec.Command("sudo", "rm", symlinkPath)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to remove old symlink: %w", err)
 		}
 	}
 
-	if !inserted {
-		return fmt.Errorf("could not find suitable location in nginx.conf to add MageBox include")
+	// Create symlink with sudo
+	cmd := exec.Command("sudo", "ln", "-s", mageboxVhostsDir, symlinkPath)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create symlink: %w", err)
 	}
-
-	// Write back with sudo
-	newContent := strings.Join(newLines, "\n")
-	tmpFile := "/tmp/nginx.conf.magebox"
-	if err := os.WriteFile(tmpFile, []byte(newContent), 0644); err != nil {
-		return fmt.Errorf("failed to write temp nginx.conf: %w", err)
-	}
-
-	// Use sudo to copy the file
-	cmd := exec.Command("sudo", "cp", tmpFile, nginxConf)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to update nginx.conf: %w\nOutput: %s", err, output)
-	}
-
-	// Clean up temp file
-	os.Remove(tmpFile)
 
 	return nil
 }

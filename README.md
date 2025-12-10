@@ -1,14 +1,14 @@
 # MageBox
 
 ```
-      ___________
-     /          /|
-    /  MAGE   /  |
-   /   BOX   /   |
-  /__________/   |
-  |          |   /
-  |  0.1.0   |  /
-  |__________|_/
+                            _
+                           | |
+ _ __ ___   __ _  __ _  ___| |__   _____  __
+| '_ ` _ \ / _` |/ _` |/ _ \ '_ \ / _ \ \/ /
+| | | | | | (_| | (_| |  __/ |_) | (_) >  <
+|_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
+                  __/ |
+                 |___/  0.2.0
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
@@ -22,6 +22,7 @@ Unlike Docker-based solutions (Warden, DDEV), MageBox runs PHP and Nginx nativel
 - **Simple architecture** - Docker only for databases and search engines
 - **Multi-project support** - Run multiple Magento projects simultaneously
 - **Easy PHP switching** - Change PHP versions per project with one command
+- **No sudo required** - After one-time setup, all commands run as your user (macOS uses port forwarding)
 
 ---
 
@@ -208,9 +209,13 @@ This performs:
 1. **Dependency Check** - Verifies Docker, Nginx, mkcert, PHP are installed
 2. **Global Config** - Creates `~/.magebox/config.yaml`
 3. **SSL Setup** - Installs mkcert CA (all `.test` domains get valid HTTPS)
-4. **Nginx Config** - Configures Nginx to include MageBox vhosts
-5. **Docker Services** - Starts MySQL 8.0, Redis, Mailpit containers
-6. **DNS Setup** - Configures DNS resolution for `.test` domains
+4. **Port Forwarding** (macOS only) - Sets up transparent port forwarding (80→8080, 443→8443)
+   - Allows Nginx to run as your user without sudo
+   - Requires sudo password once during bootstrap
+   - After setup, no sudo needed for daily operations
+5. **Nginx Config** - Configures Nginx to include MageBox vhosts
+6. **Docker Services** - Starts MySQL 8.0, Redis, Mailpit containers
+7. **DNS Setup** - Configures DNS resolution for `.test` domains
 
 After bootstrap, these services are running:
 
@@ -400,6 +405,13 @@ domains:                         # Required: at least one domain
 
 php: "8.2"                       # Required: PHP version
 
+php_ini:                         # Optional: PHP INI overrides
+  opcache.enable: "0"            # Disable OPcache for development
+  display_errors: "On"           # Show PHP errors
+  xdebug.mode: "debug"           # Enable Xdebug debugging
+  max_execution_time: "3600"     # Increase execution time
+  memory_limit: "2G"             # Override memory limit
+
 services:
   mysql: "8.0"                   # MySQL version
   # mariadb: "10.6"              # Or MariaDB (choose one)
@@ -431,6 +443,11 @@ Override settings locally (add to `.gitignore`):
 
 ```yaml
 php: "8.3"                       # Use different PHP locally
+
+php_ini:                         # Override PHP settings locally
+  opcache.enable: "0"            # Disable OPcache for local dev
+  xdebug.mode: "debug,coverage"  # Enable Xdebug
+  display_errors: "On"
 
 services:
   mysql:
@@ -530,11 +547,20 @@ magebox config set portainer true
 │                          Your Machine                             │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
+│  Browser                                                          │
+│     │                                                             │
+│     │ https://mystore.test (port 443)                            │
+│     ▼                                                             │
+│  ┌──────────────┐                                                 │
+│  │ pf (macOS)   │  Port forwarding: 80→8080, 443→8443           │
+│  └──────┬───────┘                                                 │
+│         │ port 8443                                               │
+│         ▼                                                         │
 │  ┌─────────────┐    ┌─────────────┐    ┌───────────────────────┐  │
 │  │   Nginx     │    │  PHP-FPM    │    │   Docker Containers   │  │
 │  │  (native)   │    │  (native)   │    │                       │  │
-│  │             │    │             │    │  ┌───────┐ ┌────────┐ │  │
-│  │ Port 80/443 │───▶│ Unix Socket │    │  │ MySQL │ │  Redis │ │  │
+│  │  as user    │    │  as user    │    │  ┌───────┐ ┌────────┐ │  │
+│  │ 8080/8443   │───▶│ Unix Socket │    │  │ MySQL │ │  Redis │ │  │
 │  │             │    │             │    │  └───────┘ └────────┘ │  │
 │  └─────────────┘    └─────────────┘    │  ┌────────────┐       │  │
 │         │                  │           │  │ OpenSearch │       │  │
@@ -548,6 +574,124 @@ magebox config set portainer true
 │                                                                   │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+**Key Features:**
+- **No sudo after setup** - Services run as your user (pf handles port forwarding)
+- **Native performance** - PHP and Nginx run directly on your machine
+- **Unix sockets** - Fast PHP-FPM communication via sockets instead of TCP
+- **Docker for services** - MySQL, Redis, OpenSearch in isolated containers
+- **Clean URLs** - Access sites at https://mystore.test (no :8443 suffix)
+
+---
+
+## Port Forwarding (macOS)
+
+### Overview
+
+On macOS, MageBox uses **packet filter (pf)** to enable services to run as your regular user without requiring sudo for daily operations. This is the same approach used by ddev and other professional development tools.
+
+### How It Works
+
+**The Problem:**
+- Web servers need to listen on privileged ports 80 (HTTP) and 443 (HTTPS)
+- Only root can bind to ports below 1024
+- Running services as root is a security risk
+
+**MageBox Solution:**
+1. Nginx runs on **unprivileged ports 8080 and 8443** as your user
+2. macOS `pf` (packet filter) transparently forwards:
+   - Port 80 → 8080
+   - Port 443 → 8443
+3. You access sites at clean URLs like `https://mystore.test` (no port suffix)
+4. Behind the scenes, traffic is forwarded to high ports
+
+### What Gets Installed During Bootstrap
+
+When you run `magebox bootstrap`, it creates (requires sudo password once):
+
+#### 1. PF Rules File
+**Location:** `/etc/pf.anchors/com.magebox`
+```
+# MageBox port forwarding rules
+rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port 8080
+rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
+```
+
+#### 2. LaunchDaemon
+**Location:** `/Library/LaunchDaemons/com.magebox.portforward.plist`
+
+This daemon:
+- Loads the pf rules automatically on system boot
+- Runs as root (required for pf)
+- Enables the forwarding transparently
+
+### Benefits
+
+✅ **No sudo after setup** - All daily commands (`start`, `stop`, `restart`) run as your user
+✅ **Secure** - Services don't run as root
+✅ **Transparent** - Clean URLs without port numbers
+✅ **Persistent** - Survives reboots
+✅ **Standard approach** - Same method used by ddev, Lando, etc.
+
+### Verification
+
+Check if port forwarding is installed:
+
+```bash
+# Check if LaunchDaemon exists
+ls -la /Library/LaunchDaemons/com.magebox.portforward.plist
+
+# Check if pf rules exist
+cat /etc/pf.anchors/com.magebox
+
+# Test that it works
+curl -I https://mystore.test  # Should connect without :8443
+```
+
+### Troubleshooting
+
+**Port forwarding not working?**
+
+1. **Verify LaunchDaemon is loaded:**
+   ```bash
+   sudo launchctl list | grep magebox
+   ```
+   Should show: `com.magebox.portforward`
+
+2. **Reload pf rules manually:**
+   ```bash
+   sudo pfctl -ef /etc/pf.anchors/com.magebox
+   ```
+
+3. **Check nginx is listening on 8080/8443:**
+   ```bash
+   lsof -nP -iTCP:8080 -sTCP:LISTEN
+   lsof -nP -iTCP:8443 -sTCP:LISTEN
+   ```
+
+4. **Re-run bootstrap:**
+   ```bash
+   magebox bootstrap
+   ```
+
+### Uninstalling Port Forwarding
+
+If you need to remove the port forwarding setup:
+
+```bash
+# Unload LaunchDaemon
+sudo launchctl unload /Library/LaunchDaemons/com.magebox.portforward.plist
+
+# Remove files
+sudo rm /Library/LaunchDaemons/com.magebox.portforward.plist
+sudo rm /etc/pf.anchors/com.magebox
+```
+
+### Linux Alternative
+
+On Linux, MageBox doesn't need port forwarding because:
+- Services are managed by systemd (which can bind to privileged ports)
+- Alternatively, you can use `setcap` to grant capabilities to the nginx binary
 
 ---
 
@@ -567,6 +711,269 @@ magebox config set portainer true
 ├── docker/
 │   └── docker-compose.yml # Docker services
 └── run/                   # Runtime files (sockets, PIDs)
+```
+
+---
+
+## PHP INI Configuration
+
+### Overview
+
+MageBox allows you to override PHP configuration settings per-project using the `php_ini` section in your `.magebox` or `.magebox.local` file. These settings are injected into the PHP-FPM pool configuration and take precedence over system-wide PHP settings.
+
+### Usage
+
+Add `php_ini` settings to your `.magebox` file:
+
+```yaml
+php_ini:
+  opcache.enable: "0"            # Disable OPcache
+  display_errors: "On"           # Show errors
+  error_reporting: "E_ALL"       # Report all errors
+  max_execution_time: "3600"     # 1 hour timeout
+  memory_limit: "2G"             # 2GB memory
+```
+
+### Common Use Cases
+
+#### 1. Disable OPcache for Development
+
+By default, OPcache is enabled for performance. Disable it during active development to see code changes immediately:
+
+```yaml
+php_ini:
+  opcache.enable: "0"
+```
+
+#### 2. Enable Xdebug
+
+Configure Xdebug for debugging and profiling:
+
+```yaml
+php_ini:
+  xdebug.mode: "debug,coverage"
+  xdebug.start_with_request: "yes"
+  xdebug.client_host: "localhost"
+  xdebug.client_port: "9003"
+```
+
+#### 3. Increase Limits for Large Imports
+
+For heavy operations like database imports or product imports:
+
+```yaml
+php_ini:
+  max_execution_time: "7200"     # 2 hours
+  memory_limit: "4G"             # 4GB
+  post_max_size: "256M"
+  upload_max_filesize: "256M"
+```
+
+#### 4. Production Settings
+
+Optimize for production (use in `.magebox`, not `.magebox.local`):
+
+```yaml
+php_ini:
+  opcache.enable: "1"
+  opcache.validate_timestamps: "0"  # Don't check file changes
+  display_errors: "Off"
+  error_reporting: "E_ALL & ~E_DEPRECATED & ~E_STRICT"
+```
+
+### Development vs Production
+
+Use `.magebox.local` for development-specific overrides:
+
+**.magebox** (committed to git):
+```yaml
+php: "8.2"
+# Production settings
+```
+
+**.magebox.local** (in .gitignore):
+```yaml
+php_ini:
+  opcache.enable: "0"            # Development only
+  display_errors: "On"
+  xdebug.mode: "debug"
+```
+
+### Available Directives
+
+You can override any PHP INI directive that can be set via `php_admin_value` in PHP-FPM. Common ones include:
+
+- **Performance**: `opcache.*`, `realpath_cache_size`, `realpath_cache_ttl`
+- **Debugging**: `display_errors`, `error_reporting`, `xdebug.*`
+- **Limits**: `memory_limit`, `max_execution_time`, `max_input_time`, `max_input_vars`
+- **Uploads**: `post_max_size`, `upload_max_filesize`
+- **Session**: `session.save_handler`, `session.gc_maxlifetime`
+
+### Applying Changes
+
+After modifying `php_ini` settings, restart your project:
+
+```bash
+magebox restart
+```
+
+This regenerates the PHP-FPM pool configuration and reloads PHP-FPM.
+
+### Viewing Generated Configuration
+
+The generated PHP-FPM pool configuration is located at:
+
+```bash
+~/.magebox/php/pools/{project-name}.conf
+```
+
+You can view it to see all applied settings:
+
+```bash
+cat ~/.magebox/php/pools/mystore.conf
+```
+
+---
+
+## FAQ
+
+### Why do I need to enter my password during bootstrap?
+
+During the **one-time** `magebox bootstrap` setup, you'll be prompted for your sudo password to:
+- Install port forwarding rules (macOS only) - allows Nginx to run as your user
+- Configure system-level services (Nginx, PHP-FPM symlinks)
+
+**After bootstrap is complete, you never need sudo again.** All daily commands (`start`, `stop`, `restart`) run as your regular user.
+
+### Do I need sudo to start/stop projects?
+
+**No!** After running `magebox bootstrap` once, all project commands run without sudo:
+```bash
+magebox start   # No sudo needed
+magebox stop    # No sudo needed
+magebox restart # No sudo needed
+```
+
+This is possible because:
+- Port forwarding (pf) runs as a system daemon
+- Nginx listens on unprivileged ports (8080/8443)
+- PHP-FPM pools run as your user
+
+### How does MageBox avoid port conflicts with other tools?
+
+**For web ports (80/443):**
+- MageBox uses port forwarding (macOS) or systemd (Linux)
+- Nginx actually listens on 8080/8443
+- Port forwarding makes it accessible on 80/443
+- If you're using other tools (MAMP, Valet, etc.), stop them first
+
+**For database ports:**
+- MySQL: 33080 (not standard 3306)
+- Redis: 6379 (standard, may conflict)
+- OpenSearch: 9200 (standard, may conflict)
+
+### Can I run MageBox alongside ddev/Lando/Warden?
+
+**Yes, but not simultaneously.** MageBox uses the same approach (port forwarding on macOS), so:
+
+✅ **Safe:** Run MageBox and ddev on different days
+✅ **Safe:** Stop ddev before starting MageBox
+❌ **Conflict:** Running both at the same time will cause port conflicts
+
+```bash
+# If you have ddev running:
+ddev poweroff
+
+# Then start MageBox:
+magebox start
+```
+
+### Why use native PHP instead of Docker?
+
+**Performance!** Native PHP is significantly faster than containerized PHP:
+- No file sync overhead (Docker on macOS syncs files slowly)
+- Direct filesystem access
+- No virtualization layer
+- Faster composer installs
+- Faster Magento compilation
+
+Docker is still used for services that benefit from isolation (MySQL, Redis, OpenSearch).
+
+### Where are project files stored?
+
+MageBox **does NOT move** your project files. Your Magento installation stays exactly where it is:
+- `/Volumes/qoliber/jbfurniturem2` ← Your project
+- `~/.magebox/` ← MageBox configuration only
+
+MageBox only creates:
+- Nginx vhost configs pointing to your project
+- PHP-FPM pool configs for your project
+- SSL certificates for your domains
+
+### What happens if I reboot my Mac?
+
+Everything persists across reboots:
+- ✅ Port forwarding LaunchDaemon loads automatically
+- ✅ Docker containers start automatically (if configured)
+- ⚠️ **You need to run `magebox start` again** for project-specific services
+
+### Can I use multiple PHP versions simultaneously?
+
+**Yes!** Each project can use a different PHP version:
+
+```bash
+# Project 1 uses PHP 8.1
+cd /path/to/project1
+cat .magebox
+php: "8.1"
+
+# Project 2 uses PHP 8.3
+cd /path/to/project2
+cat .magebox
+php: "8.3"
+```
+
+MageBox creates separate PHP-FPM pools for each project with the correct version.
+
+### How do I disable OPcache for development?
+
+Add to your `.magebox` or `.magebox.local` file:
+
+```yaml
+php_ini:
+  opcache.enable: "0"
+```
+
+Then restart:
+```bash
+magebox stop && magebox start
+```
+
+### Why does my site show a Magento error instead of my test file?
+
+Magento's Nginx configuration routes all `.php` files through `index.php`. For direct PHP file access (like `info.php`), the file needs to exist and not be routed through Magento.
+
+MageBox now allows all `.php` files to execute directly, so files like `info.php` in the `pub/` directory will work.
+
+### Can I use xdebug?
+
+**Yes!** Configure it in your `.magebox` file:
+
+```yaml
+php_ini:
+  xdebug.mode: "debug"
+  xdebug.start_with_request: "yes"
+  xdebug.client_host: "localhost"
+  xdebug.client_port: "9003"
+```
+
+Make sure xdebug is installed:
+```bash
+# macOS
+brew install php@8.1-xdebug  # or php@8.2-xdebug, php@8.3-xdebug
+
+# Linux
+sudo apt install php8.1-xdebug
 ```
 
 ---

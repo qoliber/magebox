@@ -20,7 +20,7 @@ type ComposeGenerator struct {
 
 // ComposeConfig represents a Docker Compose configuration
 type ComposeConfig struct {
-	Version  string                    `yaml:"version,omitempty"`
+	Name     string                    `yaml:"name,omitempty"`
 	Services map[string]ComposeService `yaml:"services"`
 	Networks map[string]ComposeNetwork `yaml:"networks,omitempty"`
 	Volumes  map[string]ComposeVolume  `yaml:"volumes,omitempty"`
@@ -28,14 +28,15 @@ type ComposeConfig struct {
 
 // ComposeService represents a service in Docker Compose
 type ComposeService struct {
-	Image       string            `yaml:"image"`
-	Ports       []string          `yaml:"ports,omitempty"`
-	Environment map[string]string `yaml:"environment,omitempty"`
-	Volumes     []string          `yaml:"volumes,omitempty"`
-	Networks    []string          `yaml:"networks,omitempty"`
-	Restart     string            `yaml:"restart,omitempty"`
-	HealthCheck *HealthCheck      `yaml:"healthcheck,omitempty"`
-	Command     string            `yaml:"command,omitempty"`
+	ContainerName string            `yaml:"container_name,omitempty"`
+	Image         string            `yaml:"image"`
+	Ports         []string          `yaml:"ports,omitempty"`
+	Environment   map[string]string `yaml:"environment,omitempty"`
+	Volumes       []string          `yaml:"volumes,omitempty"`
+	Networks      []string          `yaml:"networks,omitempty"`
+	Restart       string            `yaml:"restart,omitempty"`
+	HealthCheck   *HealthCheck      `yaml:"healthcheck,omitempty"`
+	Command       string            `yaml:"command,omitempty"`
 }
 
 // ComposeNetwork represents a network in Docker Compose
@@ -79,6 +80,7 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 	}
 
 	compose := ComposeConfig{
+		Name:     "magebox",
 		Services: make(map[string]ComposeService),
 		Networks: map[string]ComposeNetwork{
 			"magebox": {Driver: "bridge"},
@@ -198,8 +200,9 @@ func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) req
 func (g *ComposeGenerator) getMySQLService(version string) ComposeService {
 	port := g.getMySQLPort(version)
 	return ComposeService{
-		Image: fmt.Sprintf("mysql:%s", version),
-		Ports: []string{fmt.Sprintf("%d:3306", port)},
+		ContainerName: fmt.Sprintf("magebox-mysql-%s", version),
+		Image:         fmt.Sprintf("mysql:%s", version),
+		Ports:         []string{fmt.Sprintf("%d:3306", port)},
 		Environment: map[string]string{
 			"MYSQL_ROOT_PASSWORD": "magebox",
 		},
@@ -221,8 +224,9 @@ func (g *ComposeGenerator) getMySQLService(version string) ComposeService {
 func (g *ComposeGenerator) getMariaDBService(version string) ComposeService {
 	port := g.getMariaDBPort(version)
 	return ComposeService{
-		Image: fmt.Sprintf("mariadb:%s", version),
-		Ports: []string{fmt.Sprintf("%d:3306", port)},
+		ContainerName: fmt.Sprintf("magebox-mariadb-%s", version),
+		Image:         fmt.Sprintf("mariadb:%s", version),
+		Ports:         []string{fmt.Sprintf("%d:3306", port)},
 		Environment: map[string]string{
 			"MYSQL_ROOT_PASSWORD": "magebox",
 		},
@@ -243,9 +247,10 @@ func (g *ComposeGenerator) getMariaDBService(version string) ComposeService {
 // getRedisService returns a Redis service configuration
 func (g *ComposeGenerator) getRedisService() ComposeService {
 	return ComposeService{
-		Image:    "redis:7-alpine",
-		Ports:    []string{"6379:6379"},
-		Networks: []string{"magebox"},
+		ContainerName: "magebox-redis",
+		Image:         "redis:7-alpine",
+		Ports:         []string{"6379:6379"},
+		Networks:      []string{"magebox"},
 		Restart:  "unless-stopped",
 		HealthCheck: &HealthCheck{
 			Test:     []string{"CMD", "redis-cli", "ping"},
@@ -260,8 +265,9 @@ func (g *ComposeGenerator) getRedisService() ComposeService {
 func (g *ComposeGenerator) getOpenSearchService(version string) ComposeService {
 	port := g.getOpenSearchPort(version)
 	return ComposeService{
-		Image: fmt.Sprintf("opensearchproject/opensearch:%s", version),
-		Ports: []string{fmt.Sprintf("%d:9200", port)},
+		ContainerName: fmt.Sprintf("magebox-opensearch-%s", version),
+		Image:         fmt.Sprintf("opensearchproject/opensearch:%s", version),
+		Ports:         []string{fmt.Sprintf("%d:9200", port)},
 		Environment: map[string]string{
 			"discovery.type":                                    "single-node",
 			"DISABLE_SECURITY_PLUGIN":                           "true",
@@ -280,8 +286,9 @@ func (g *ComposeGenerator) getOpenSearchService(version string) ComposeService {
 func (g *ComposeGenerator) getElasticsearchService(version string) ComposeService {
 	port := g.getElasticsearchPort(version)
 	return ComposeService{
-		Image: fmt.Sprintf("elasticsearch:%s", version),
-		Ports: []string{fmt.Sprintf("%d:9200", port)},
+		ContainerName: fmt.Sprintf("magebox-elasticsearch-%s", version),
+		Image:         fmt.Sprintf("elasticsearch:%s", version),
+		Ports:         []string{fmt.Sprintf("%d:9200", port)},
 		Environment: map[string]string{
 			"discovery.type":         "single-node",
 			"xpack.security.enabled": "false",
@@ -298,8 +305,9 @@ func (g *ComposeGenerator) getElasticsearchService(version string) ComposeServic
 // getRabbitMQService returns a RabbitMQ service configuration
 func (g *ComposeGenerator) getRabbitMQService() ComposeService {
 	return ComposeService{
-		Image: "rabbitmq:3-management-alpine",
-		Ports: []string{
+		ContainerName: "magebox-rabbitmq",
+		Image:         "rabbitmq:3-management-alpine",
+		Ports:         []string{
 			"5672:5672",
 			"15672:15672",
 		},
@@ -318,8 +326,9 @@ func (g *ComposeGenerator) getRabbitMQService() ComposeService {
 // getMailpitService returns a Mailpit service configuration
 func (g *ComposeGenerator) getMailpitService() ComposeService {
 	return ComposeService{
-		Image: "axllent/mailpit:latest",
-		Ports: []string{
+		ContainerName: "magebox-mailpit",
+		Image:         "axllent/mailpit:latest",
+		Ports:         []string{
 			"1025:1025",
 			"8025:8025",
 		},
@@ -331,8 +340,9 @@ func (g *ComposeGenerator) getMailpitService() ComposeService {
 // getPortainerService returns a Portainer service configuration
 func (g *ComposeGenerator) getPortainerService() ComposeService {
 	return ComposeService{
-		Image: "portainer/portainer-ce:latest",
-		Ports: []string{
+		ContainerName: "magebox-portainer",
+		Image:         "portainer/portainer-ce:latest",
+		Ports:         []string{
 			"9000:9000",
 			"9443:9443",
 		},
@@ -480,6 +490,7 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 	}
 
 	compose := ComposeConfig{
+		Name:     "magebox",
 		Services: make(map[string]ComposeService),
 		Networks: map[string]ComposeNetwork{
 			"magebox": {Driver: "bridge"},
