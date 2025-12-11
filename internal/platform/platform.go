@@ -12,6 +12,9 @@ import (
 // Type represents the operating system type
 type Type string
 
+// LinuxDistro represents the Linux distribution family
+type LinuxDistro string
+
 const (
 	// Darwin represents macOS
 	Darwin Type = "darwin"
@@ -21,12 +24,24 @@ const (
 	Unknown Type = "unknown"
 )
 
+const (
+	// DistroDebian represents Debian/Ubuntu family (uses apt)
+	DistroDebian LinuxDistro = "debian"
+	// DistroFedora represents Fedora/RHEL/CentOS family (uses dnf)
+	DistroFedora LinuxDistro = "fedora"
+	// DistroArch represents Arch Linux family (uses pacman)
+	DistroArch LinuxDistro = "arch"
+	// DistroUnknown represents an unknown distro
+	DistroUnknown LinuxDistro = "unknown"
+)
+
 // Platform contains information about the current platform
 type Platform struct {
 	Type           Type
 	Arch           string
 	HomeDir        string
 	IsAppleSilicon bool
+	LinuxDistro    LinuxDistro
 }
 
 // Detect detects the current platform
@@ -44,6 +59,11 @@ func Detect() (*Platform, error) {
 
 	p.IsAppleSilicon = p.Type == Darwin && p.Arch == "arm64"
 
+	// Detect Linux distribution
+	if p.Type == Linux {
+		p.LinuxDistro = detectLinuxDistro()
+	}
+
 	return p, nil
 }
 
@@ -57,6 +77,43 @@ func getType() Type {
 	default:
 		return Unknown
 	}
+}
+
+// detectLinuxDistro detects the Linux distribution family
+func detectLinuxDistro() LinuxDistro {
+	// Read /etc/os-release to determine distro
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return DistroUnknown
+	}
+
+	content := strings.ToLower(string(data))
+
+	// Check for Fedora/RHEL/CentOS family
+	if strings.Contains(content, "id=fedora") ||
+		strings.Contains(content, "id=rhel") ||
+		strings.Contains(content, "id=centos") ||
+		strings.Contains(content, "id=rocky") ||
+		strings.Contains(content, "id=almalinux") {
+		return DistroFedora
+	}
+
+	// Check for Debian/Ubuntu family
+	if strings.Contains(content, "id=debian") ||
+		strings.Contains(content, "id=ubuntu") ||
+		strings.Contains(content, "id=linuxmint") ||
+		strings.Contains(content, "id=pop") {
+		return DistroDebian
+	}
+
+	// Check for Arch family
+	if strings.Contains(content, "id=arch") ||
+		strings.Contains(content, "id=manjaro") ||
+		strings.Contains(content, "id=endeavouros") {
+		return DistroArch
+	}
+
+	return DistroUnknown
 }
 
 // IsSupported returns true if the platform is supported
@@ -135,7 +192,15 @@ func (p *Platform) PHPFPMBinary(version string) string {
 		// Fallback to opt symlink (for backwards compatibility)
 		return filepath.Join(base, "opt", "php@"+normalizedVersion, "sbin", "php-fpm")
 	case Linux:
-		return fmt.Sprintf("/usr/sbin/php-fpm%s", normalizedVersion)
+		switch p.LinuxDistro {
+		case DistroFedora:
+			// Remi uses php82-php-fpm format, binary is at /usr/bin/php-fpm82 or /opt/remi/php82/root/usr/sbin/php-fpm
+			remiVersion := strings.ReplaceAll(normalizedVersion, ".", "")
+			return fmt.Sprintf("/opt/remi/php%s/root/usr/sbin/php-fpm", remiVersion)
+		default:
+			// Debian/Ubuntu uses php-fpm8.2 format
+			return fmt.Sprintf("/usr/sbin/php-fpm%s", normalizedVersion)
+		}
 	default:
 		return ""
 	}
@@ -160,7 +225,15 @@ func (p *Platform) PHPBinary(version string) string {
 		// Fallback to opt symlink (for backwards compatibility)
 		return filepath.Join(base, "opt", "php@"+normalizedVersion, "bin", "php")
 	case Linux:
-		return fmt.Sprintf("/usr/bin/php%s", normalizedVersion)
+		switch p.LinuxDistro {
+		case DistroFedora:
+			// Remi installs as php82, php83, etc. in /usr/bin/
+			remiVersion := strings.ReplaceAll(normalizedVersion, ".", "")
+			return fmt.Sprintf("/usr/bin/php%s", remiVersion)
+		default:
+			// Debian/Ubuntu uses php8.2, php8.3 format
+			return fmt.Sprintf("/usr/bin/php%s", normalizedVersion)
+		}
 	default:
 		return ""
 	}
@@ -203,15 +276,29 @@ func (p *Platform) HostsFilePath() string {
 
 // PHPInstallCommand returns the command to install a specific PHP version
 func (p *Platform) PHPInstallCommand(version string) string {
-	normalizedVersion := normalizeVersion(version)
+	normalizedVersion := normalizeVersion(version)                // e.g., "8.2"
+	remiVersion := strings.ReplaceAll(normalizedVersion, ".", "") // e.g., "82" for Remi packages
 	switch p.Type {
 	case Darwin:
 		return fmt.Sprintf("brew install php@%s", normalizedVersion)
 	case Linux:
-		return fmt.Sprintf("sudo add-apt-repository ppa:ondrej/php && sudo apt install php%s-fpm php%s-cli php%s-common php%s-mysql php%s-xml php%s-curl php%s-mbstring php%s-zip php%s-gd php%s-intl php%s-bcmath php%s-soap",
-			normalizedVersion, normalizedVersion, normalizedVersion, normalizedVersion,
-			normalizedVersion, normalizedVersion, normalizedVersion, normalizedVersion,
-			normalizedVersion, normalizedVersion, normalizedVersion, normalizedVersion)
+		switch p.LinuxDistro {
+		case DistroFedora:
+			// Fedora/RHEL uses Remi repository with format php82, php83, etc.
+			return fmt.Sprintf("sudo dnf install -y php%s-php-fpm php%s-php-cli php%s-php-common php%s-php-mysqlnd php%s-php-xml php%s-php-mbstring php%s-php-zip php%s-php-gd php%s-php-intl php%s-php-bcmath php%s-php-soap php%s-php-opcache",
+				remiVersion, remiVersion, remiVersion, remiVersion,
+				remiVersion, remiVersion, remiVersion, remiVersion,
+				remiVersion, remiVersion, remiVersion, remiVersion)
+		case DistroArch:
+			// Arch doesn't have versioned PHP packages by default
+			return "sudo pacman -S php php-fpm php-gd php-intl php-sodium"
+		default:
+			// Debian/Ubuntu uses Ondrej PPA with format php8.2, php8.3, etc.
+			return fmt.Sprintf("sudo add-apt-repository -y ppa:ondrej/php && sudo apt install -y php%s-fpm php%s-cli php%s-common php%s-mysql php%s-xml php%s-curl php%s-mbstring php%s-zip php%s-gd php%s-intl php%s-bcmath php%s-soap",
+				normalizedVersion, normalizedVersion, normalizedVersion, normalizedVersion,
+				normalizedVersion, normalizedVersion, normalizedVersion, normalizedVersion,
+				normalizedVersion, normalizedVersion, normalizedVersion, normalizedVersion)
+		}
 	default:
 		return ""
 	}
@@ -223,7 +310,14 @@ func (p *Platform) NginxInstallCommand() string {
 	case Darwin:
 		return "brew install nginx"
 	case Linux:
-		return "sudo apt install nginx"
+		switch p.LinuxDistro {
+		case DistroFedora:
+			return "sudo dnf install -y nginx"
+		case DistroArch:
+			return "sudo pacman -S nginx"
+		default:
+			return "sudo apt install -y nginx"
+		}
 	default:
 		return ""
 	}
@@ -235,7 +329,14 @@ func (p *Platform) VarnishInstallCommand() string {
 	case Darwin:
 		return "brew install varnish"
 	case Linux:
-		return "sudo apt install varnish"
+		switch p.LinuxDistro {
+		case DistroFedora:
+			return "sudo dnf install -y varnish"
+		case DistroArch:
+			return "sudo pacman -S varnish"
+		default:
+			return "sudo apt install -y varnish"
+		}
 	default:
 		return ""
 	}
@@ -247,7 +348,14 @@ func (p *Platform) MkcertInstallCommand() string {
 	case Darwin:
 		return "brew install mkcert nss"
 	case Linux:
-		return "sudo apt install mkcert libnss3-tools"
+		switch p.LinuxDistro {
+		case DistroFedora:
+			return "sudo dnf install -y mkcert nss-tools"
+		case DistroArch:
+			return "sudo pacman -S mkcert nss"
+		default:
+			return "sudo apt install -y mkcert libnss3-tools"
+		}
 	default:
 		return ""
 	}
@@ -259,7 +367,27 @@ func (p *Platform) DockerInstallCommand() string {
 	case Darwin:
 		return "brew install --cask docker"
 	case Linux:
+		// Docker's convenience script works on most distros
 		return "curl -fsSL https://get.docker.com | sudo sh"
+	default:
+		return ""
+	}
+}
+
+// PackageManager returns the package manager command for this platform
+func (p *Platform) PackageManager() string {
+	switch p.Type {
+	case Darwin:
+		return "brew"
+	case Linux:
+		switch p.LinuxDistro {
+		case DistroFedora:
+			return "dnf"
+		case DistroArch:
+			return "pacman"
+		default:
+			return "apt"
+		}
 	default:
 		return ""
 	}

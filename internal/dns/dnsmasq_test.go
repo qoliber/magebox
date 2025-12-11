@@ -85,7 +85,7 @@ func TestDnsmasqManager_InstallCommand(t *testing.T) {
 		{
 			name:         "Linux",
 			platformType: platform.Linux,
-			expected:     "sudo apt install dnsmasq",
+			expected:     "sudo apt install -y dnsmasq",
 		},
 		{
 			name:         "macOS",

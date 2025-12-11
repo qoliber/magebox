@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
+	// Test Linux - uses /etc/magebox/certs
 	p := &platform.Platform{
 		Type:    platform.Linux,
 		HomeDir: "/home/testuser",
@@ -19,36 +20,60 @@ func TestNewManager(t *testing.T) {
 		t.Fatal("NewManager should not return nil")
 	}
 
-	expectedCertsDir := "/home/testuser/.magebox/certs"
+	expectedCertsDir := "/etc/magebox/certs"
 	if m.certsDir != expectedCertsDir {
 		t.Errorf("certsDir = %v, want %v", m.certsDir, expectedCertsDir)
+	}
+
+	// Test macOS - uses ~/.magebox/certs
+	pMac := &platform.Platform{
+		Type:    platform.Darwin,
+		HomeDir: "/Users/testuser",
+	}
+	mMac := NewManager(pMac)
+	expectedMacCertsDir := "/Users/testuser/.magebox/certs"
+	if mMac.certsDir != expectedMacCertsDir {
+		t.Errorf("certsDir (macOS) = %v, want %v", mMac.certsDir, expectedMacCertsDir)
 	}
 }
 
 func TestManager_CertsDir(t *testing.T) {
+	// Test Linux
 	p := &platform.Platform{
 		Type:    platform.Linux,
 		HomeDir: "/home/testuser",
 	}
 	m := NewManager(p)
 
-	expected := "/home/testuser/.magebox/certs"
+	expected := "/etc/magebox/certs"
 	if got := m.CertsDir(); got != expected {
 		t.Errorf("CertsDir() = %v, want %v", got, expected)
+	}
+
+	// Test macOS
+	pMac := &platform.Platform{
+		Type:    platform.Darwin,
+		HomeDir: "/Users/testuser",
+	}
+	mMac := NewManager(pMac)
+	expectedMac := "/Users/testuser/.magebox/certs"
+	if got := mMac.CertsDir(); got != expectedMac {
+		t.Errorf("CertsDir() (macOS) = %v, want %v", got, expectedMac)
 	}
 }
 
 func TestManager_GetCertPaths(t *testing.T) {
+	// Use macOS platform for testing (uses home dir, not /etc)
 	p := &platform.Platform{
-		Type:    platform.Linux,
-		HomeDir: "/home/testuser",
+		Type:    platform.Darwin,
+		HomeDir: "/Users/testuser",
 	}
 	m := NewManager(p)
 
 	paths := m.GetCertPaths("mystore.test")
 
-	expectedCert := "/home/testuser/.magebox/certs/mystore.test/cert.pem"
-	expectedKey := "/home/testuser/.magebox/certs/mystore.test/key.pem"
+	expectedCert := "/Users/testuser/.magebox/certs/mystore.test/cert.pem"
+	expectedKey := "/Users/testuser/.magebox/certs/mystore.test/key.pem"
 
 	if paths.CertFile != expectedCert {
 		t.Errorf("CertFile = %v, want %v", paths.CertFile, expectedCert)
@@ -62,10 +87,10 @@ func TestManager_GetCertPaths(t *testing.T) {
 }
 
 func TestManager_CertExists(t *testing.T) {
-	// Create temp directory structure
+	// Create temp directory structure - use Darwin to use home dir based certs
 	tmpDir := t.TempDir()
 	p := &platform.Platform{
-		Type:    platform.Linux,
+		Type:    platform.Darwin,
 		HomeDir: tmpDir,
 	}
 	m := NewManager(p)
@@ -96,7 +121,7 @@ func TestManager_CertExists(t *testing.T) {
 func TestManager_RemoveCert(t *testing.T) {
 	tmpDir := t.TempDir()
 	p := &platform.Platform{
-		Type:    platform.Linux,
+		Type:    platform.Darwin,
 		HomeDir: tmpDir,
 	}
 	m := NewManager(p)
@@ -124,7 +149,7 @@ func TestManager_RemoveCert(t *testing.T) {
 func TestManager_ListCerts(t *testing.T) {
 	tmpDir := t.TempDir()
 	p := &platform.Platform{
-		Type:    platform.Linux,
+		Type:    platform.Darwin,
 		HomeDir: tmpDir,
 	}
 	m := NewManager(p)
@@ -207,12 +232,20 @@ func TestMkcertNotInstalledError(t *testing.T) {
 	tests := []struct {
 		name         string
 		platformType platform.Type
+		linuxDistro  platform.LinuxDistro
 		contains     string
 	}{
 		{
-			name:         "linux error message",
+			name:         "linux debian error message",
 			platformType: platform.Linux,
-			contains:     "apt install mkcert",
+			linuxDistro:  platform.DistroDebian,
+			contains:     "apt install",
+		},
+		{
+			name:         "linux fedora error message",
+			platformType: platform.Linux,
+			linuxDistro:  platform.DistroFedora,
+			contains:     "dnf install",
 		},
 		{
 			name:         "darwin error message",
@@ -223,7 +256,7 @@ func TestMkcertNotInstalledError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &platform.Platform{Type: tt.platformType}
+			p := &platform.Platform{Type: tt.platformType, LinuxDistro: tt.linuxDistro}
 			err := &MkcertNotInstalledError{Platform: p}
 
 			msg := err.Error()

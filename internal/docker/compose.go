@@ -549,6 +549,13 @@ func (c *DockerController) Exec(serviceName string, command ...string) error {
 	return cmd.Run()
 }
 
+// ExecSilent executes a command in a running container without terminal attachment
+func (c *DockerController) ExecSilent(serviceName string, command ...string) error {
+	args := append([]string{"compose", "-f", c.composeFile, "exec", "-T", serviceName}, command...)
+	cmd := exec.Command("docker", args...)
+	return cmd.Run()
+}
+
 // CreateDatabase creates a database in the MySQL/MariaDB service
 func (c *DockerController) CreateDatabase(serviceName, dbName string) error {
 	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "exec", "-T", serviceName,

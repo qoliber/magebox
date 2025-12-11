@@ -3,13 +3,14 @@
 
 {{if .SSLEnabled}}
 server {
-    listen 8080;
+    listen {{.HTTPPort}};
     server_name {{.Domain}};
     return 301 https://$host$request_uri;
 }
 
 server {
-    listen 8443 ssl http2;
+    listen {{.HTTPSPort}} ssl;
+    http2 on;
     server_name {{.Domain}};
 
     ssl_certificate {{.SSLCertFile}};
@@ -19,7 +20,7 @@ server {
     ssl_prefer_server_ciphers off;
 {{else}}
 server {
-    listen 8080;
+    listen {{.HTTPPort}};
     server_name {{.Domain}};
 {{end}}
 

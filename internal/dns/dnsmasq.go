@@ -47,6 +47,13 @@ func (m *DnsmasqManager) Configure() error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
+	// On Linux, enable conf-dir in dnsmasq.conf if commented out
+	if m.platform.Type == platform.Linux {
+		if err := m.enableDnsmasqConfDir(); err != nil {
+			return fmt.Errorf("failed to enable dnsmasq.d: %w", err)
+		}
+	}
+
 	// Write dnsmasq config
 	config := m.generateConfig()
 	configPath := m.getConfigPath()
@@ -55,10 +62,17 @@ func (m *DnsmasqManager) Configure() error {
 		return fmt.Errorf("failed to write dnsmasq config: %w", err)
 	}
 
-	// On macOS, also set up the resolver
+	// On macOS, set up the resolver
 	if m.platform.Type == platform.Darwin {
 		if err := m.setupMacOSResolver(); err != nil {
 			return fmt.Errorf("failed to setup macOS resolver: %w", err)
+		}
+	}
+
+	// On Linux with systemd-resolved, configure it to use dnsmasq for .test
+	if m.platform.Type == platform.Linux {
+		if err := m.setupSystemdResolved(); err != nil {
+			return fmt.Errorf("failed to setup systemd-resolved: %w", err)
 		}
 	}
 
@@ -146,7 +160,14 @@ func (m *DnsmasqManager) InstallCommand() string {
 	case platform.Darwin:
 		return "brew install dnsmasq"
 	case platform.Linux:
-		return "sudo apt install dnsmasq"
+		switch m.platform.LinuxDistro {
+		case platform.DistroFedora:
+			return "sudo dnf install -y dnsmasq"
+		case platform.DistroArch:
+			return "sudo pacman -S dnsmasq"
+		default:
+			return "sudo apt install -y dnsmasq"
+		}
 	}
 	return ""
 }
@@ -275,4 +296,74 @@ func (m *DnsmasqManager) GetStatus() DnsmasqStatus {
 	}
 
 	return status
+}
+
+// enableDnsmasqConfDir enables the conf-dir directive in /etc/dnsmasq.conf
+// This is needed on Fedora/RHEL where it's commented out by default
+func (m *DnsmasqManager) enableDnsmasqConfDir() error {
+	dnsmasqConf := "/etc/dnsmasq.conf"
+
+	// Read current config
+	content, err := os.ReadFile(dnsmasqConf)
+	if err != nil {
+		return err
+	}
+
+	// Check if conf-dir is already enabled
+	if strings.Contains(string(content), "conf-dir=/etc/dnsmasq.d\n") &&
+		!strings.Contains(string(content), "#conf-dir=/etc/dnsmasq.d") {
+		return nil // Already enabled
+	}
+
+	// Use sed to uncomment the conf-dir line
+	cmd := exec.Command("sudo", "sed", "-i", "s|#conf-dir=/etc/dnsmasq.d|conf-dir=/etc/dnsmasq.d|", dnsmasqConf)
+	return cmd.Run()
+}
+
+// setupSystemdResolved configures systemd-resolved to use dnsmasq for .test domains
+// This is needed on modern Linux distros (Fedora, Ubuntu 18.04+) that use systemd-resolved
+func (m *DnsmasqManager) setupSystemdResolved() error {
+	// Check if systemd-resolved is running
+	cmd := exec.Command("systemctl", "is-active", "systemd-resolved")
+	if err := cmd.Run(); err != nil {
+		// systemd-resolved not running, skip this step
+		return nil
+	}
+
+	// Create config directory
+	confDir := "/etc/systemd/resolved.conf.d"
+	cmd = exec.Command("sudo", "mkdir", "-p", confDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create resolved.conf.d: %w", err)
+	}
+
+	// Write resolved config for .test domain
+	resolvedConfig := `[Resolve]
+DNS=127.0.0.1
+Domains=~test
+`
+
+	tmpFile, err := os.CreateTemp("", "resolved-magebox-*.conf")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmpFile.WriteString(resolvedConfig); err != nil {
+		tmpFile.Close()
+		return err
+	}
+	tmpFile.Close()
+
+	// Copy to destination with sudo
+	confPath := filepath.Join(confDir, "magebox.conf")
+	cmd = exec.Command("sudo", "cp", tmpPath, confPath)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write resolved config: %w", err)
+	}
+
+	// Restart systemd-resolved
+	cmd = exec.Command("sudo", "systemctl", "restart", "systemd-resolved")
+	return cmd.Run()
 }

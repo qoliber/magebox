@@ -213,6 +213,8 @@ func TestRenderVhost_SSLEnabled(t *testing.T) {
 		SSLEnabled:    true,
 		SSLCertFile:   "/path/to/cert.pem",
 		SSLKeyFile:    "/path/to/key.pem",
+		HTTPPort:      80,
+		HTTPSPort:     443,
 	}
 
 	content, err := g.renderVhost(cfg)
@@ -220,9 +222,9 @@ func TestRenderVhost_SSLEnabled(t *testing.T) {
 		t.Fatalf("renderVhost failed: %v", err)
 	}
 
-	// Should contain SSL configuration
+	// Should contain SSL configuration (Linux uses port 443)
 	checks := []string{
-		"listen 8443 ssl",
+		"listen 443 ssl",
 		"ssl_certificate /path/to/cert.pem",
 		"ssl_certificate_key /path/to/key.pem",
 		"return 301 https://",

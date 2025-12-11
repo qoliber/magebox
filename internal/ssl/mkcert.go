@@ -26,9 +26,15 @@ type CertPaths struct {
 
 // NewManager creates a new SSL manager
 func NewManager(p *platform.Platform) *Manager {
+	// On Linux, use /etc/magebox/certs so nginx can access them
+	// On macOS, use ~/.magebox/certs (nginx runs as user)
+	certsDir := filepath.Join(p.MageBoxDir(), "certs")
+	if p.Type == platform.Linux {
+		certsDir = "/etc/magebox/certs"
+	}
 	return &Manager{
 		platform: p,
-		certsDir: filepath.Join(p.MageBoxDir(), "certs"),
+		certsDir: certsDir,
 	}
 }
 
@@ -117,8 +123,15 @@ func (m *Manager) GenerateCert(domain string) (*CertPaths, error) {
 
 	// Ensure certs directory exists
 	domainDir := filepath.Join(m.certsDir, domain)
-	if err := os.MkdirAll(domainDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create certs directory: %w", err)
+	if m.platform.Type == platform.Linux {
+		// On Linux, use sudo to create /etc/magebox/certs
+		exec.Command("sudo", "mkdir", "-p", domainDir).Run()
+		exec.Command("sudo", "chmod", "755", m.certsDir).Run()
+		exec.Command("sudo", "chmod", "755", domainDir).Run()
+	} else {
+		if err := os.MkdirAll(domainDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create certs directory: %w", err)
+		}
 	}
 
 	certFile := filepath.Join(domainDir, "cert.pem")
@@ -134,17 +147,47 @@ func (m *Manager) GenerateCert(domain string) (*CertPaths, error) {
 	}
 
 	// Generate cert using mkcert
-	cmd := exec.Command("mkcert",
-		"-cert-file", certFile,
-		"-key-file", keyFile,
-		domain,
-		"*."+domain, // Wildcard for subdomains
-	)
-	cmd.Dir = domainDir
+	var cmd *exec.Cmd
+	if m.platform.Type == platform.Linux {
+		// On Linux, generate to temp dir then move with sudo
+		tmpDir, err := os.MkdirTemp("", "magebox-cert-")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp dir: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate certificate: %w\nOutput: %s", err, output)
+		tmpCert := filepath.Join(tmpDir, "cert.pem")
+		tmpKey := filepath.Join(tmpDir, "key.pem")
+
+		cmd = exec.Command("mkcert",
+			"-cert-file", tmpCert,
+			"-key-file", tmpKey,
+			domain,
+			"*."+domain,
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate certificate: %w\nOutput: %s", err, output)
+		}
+
+		// Move certs to final location with sudo and set permissions
+		exec.Command("sudo", "cp", tmpCert, certFile).Run()
+		exec.Command("sudo", "cp", tmpKey, keyFile).Run()
+		exec.Command("sudo", "chmod", "644", certFile).Run()
+		exec.Command("sudo", "chmod", "644", keyFile).Run()
+	} else {
+		cmd = exec.Command("mkcert",
+			"-cert-file", certFile,
+			"-key-file", keyFile,
+			domain,
+			"*."+domain,
+		)
+		cmd.Dir = domainDir
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate certificate: %w\nOutput: %s", err, output)
+		}
 	}
 
 	return &CertPaths{

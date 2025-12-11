@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/dns"
@@ -110,6 +111,18 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 	// Create database if needed
 	if err := m.ensureDatabase(cfg); err != nil {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("Database: %v", err))
+	}
+
+	// Flush Redis cache on start (clean slate)
+	if cfg.Services.HasRedis() {
+		if err := m.flushRedis(); err != nil {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("Redis flush: %v", err))
+		}
+	}
+
+	// Generate/update Magento env.php if it's a Magento project
+	if err := m.ensureEnvPHP(projectPath, cfg); err != nil {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("env.php: %v", err))
 	}
 
 	// Collect started services
@@ -244,12 +257,12 @@ func (m *Manager) ensureDatabase(cfg *config.Config) error {
 
 	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
 
-	// Determine service name
+	// Determine service name (version dots are removed in docker-compose service names)
 	var serviceName string
 	if cfg.Services.HasMySQL() {
-		serviceName = fmt.Sprintf("mysql%s", cfg.Services.MySQL.Version)
+		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
 	} else if cfg.Services.HasMariaDB() {
-		serviceName = fmt.Sprintf("mariadb%s", cfg.Services.MariaDB.Version)
+		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
 	}
 
 	if serviceName == "" {
@@ -370,4 +383,38 @@ func (m *Manager) ValidateConfig(projectPath string) (*config.Config, []string, 
 	}
 
 	return cfg, warnings, nil
+}
+
+// flushRedis flushes all Redis databases
+func (m *Manager) flushRedis() error {
+	composeFile := m.composeGen.ComposeFilePath()
+	dockerController := docker.NewDockerController(composeFile)
+
+	// Check if Redis is running
+	if !dockerController.IsServiceRunning("redis") {
+		return nil // Redis not running, nothing to flush
+	}
+
+	// Flush all Redis databases
+	return dockerController.ExecSilent("redis", "redis-cli", "FLUSHALL")
+}
+
+// ensureEnvPHP generates or updates Magento's app/etc/env.php
+func (m *Manager) ensureEnvPHP(projectPath string, cfg *config.Config) error {
+	// Check if this is a Magento project (has app/etc directory)
+	appEtcDir := filepath.Join(projectPath, "app", "etc")
+	if _, err := os.Stat(appEtcDir); os.IsNotExist(err) {
+		return nil // Not a Magento project, skip
+	}
+
+	// Check if env.php already exists - don't overwrite existing config
+	envPath := filepath.Join(appEtcDir, "env.php")
+	if _, err := os.Stat(envPath); err == nil {
+		// env.php exists, don't overwrite (user may have customizations)
+		return nil
+	}
+
+	// Generate new env.php
+	envGen := newEnvGenerator(projectPath, cfg)
+	return envGen.Generate()
 }

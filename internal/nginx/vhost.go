@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/qoliber/magebox/internal/config"
@@ -51,6 +52,8 @@ type VhostConfig struct {
 	SSLKeyFile    string
 	UseVarnish    bool
 	VarnishPort   int
+	HTTPPort      int // 80 on Linux, 8080 on macOS (port forwarding)
+	HTTPSPort     int // 443 on Linux, 8443 on macOS (port forwarding)
 }
 
 // ProxyConfig contains data needed to generate a proxy vhost
@@ -62,6 +65,8 @@ type ProxyConfig struct {
 	SSLEnabled  bool
 	SSLCertFile string
 	SSLKeyFile  string
+	HTTPPort    int
+	HTTPSPort   int
 }
 
 // NewVhostGenerator creates a new vhost generator
@@ -80,6 +85,15 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 		return fmt.Errorf("failed to create vhosts directory: %w", err)
 	}
 
+	// Determine ports based on platform
+	// macOS uses port forwarding (80->8080, 443->8443), Linux uses standard ports
+	httpPort := 80
+	httpsPort := 443
+	if g.platform.Type == platform.Darwin {
+		httpPort = 8080
+		httpsPort = 8443
+	}
+
 	for _, domain := range cfg.Domains {
 		vhostCfg := VhostConfig{
 			ProjectName:   cfg.Name,
@@ -90,6 +104,8 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			SSLEnabled:    domain.IsSSLEnabled(),
 			UseVarnish:    false, // TODO: Add varnish support
 			VarnishPort:   6081,
+			HTTPPort:      httpPort,
+			HTTPSPort:     httpsPort,
 		}
 
 		// Get SSL cert paths if SSL is enabled
@@ -166,6 +182,14 @@ func (g *VhostGenerator) GenerateProxyVhost(cfg ProxyConfig) error {
 	// Ensure vhosts directory exists
 	if err := os.MkdirAll(g.vhostsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create vhosts directory: %w", err)
+	}
+
+	// Set ports based on platform
+	cfg.HTTPPort = 80
+	cfg.HTTPSPort = 443
+	if g.platform.Type == platform.Darwin {
+		cfg.HTTPPort = 8080
+		cfg.HTTPSPort = 8443
 	}
 
 	// Generate SSL certificate if enabled
@@ -267,6 +291,19 @@ func (c *Controller) Stop() error {
 	return fmt.Errorf("unsupported platform")
 }
 
+// Restart restarts Nginx (needed to pick up new listen ports)
+func (c *Controller) Restart() error {
+	switch c.platform.Type {
+	case platform.Darwin:
+		cmd := exec.Command("brew", "services", "restart", "nginx")
+		return cmd.Run()
+	case platform.Linux:
+		cmd := exec.Command("sudo", "systemctl", "restart", "nginx")
+		return cmd.Run()
+	}
+	return fmt.Errorf("unsupported platform")
+}
+
 // IsRunning checks if Nginx is running
 func (c *Controller) IsRunning() bool {
 	cmd := exec.Command("pgrep", "nginx")
@@ -278,13 +315,90 @@ func (g *VhostGenerator) GetIncludeDirective() string {
 	return fmt.Sprintf("include %s/*.conf;", g.vhostsDir)
 }
 
-// SetupNginxConfig ensures nginx.conf includes MageBox vhosts directory using symlinks
+// SetupNginxConfig ensures nginx includes MageBox vhosts
+// On Fedora/RHEL: adds include line to nginx.conf (conf.d/*.conf doesn't support nested dirs)
+// On Debian/Ubuntu: creates symlink in sites-enabled
+// On macOS: creates symlink in servers directory
 func (c *Controller) SetupNginxConfig() error {
-	// Determine nginx servers directory based on platform
+	mageboxVhostsDir := filepath.Join(c.platform.MageBoxDir(), "nginx", "vhosts")
+	includeDirective := fmt.Sprintf("include %s/*.conf;", mageboxVhostsDir)
+
+	switch c.platform.Type {
+	case platform.Darwin:
+		// macOS: use symlink approach (Homebrew nginx supports it)
+		return c.setupNginxSymlink(mageboxVhostsDir)
+
+	case platform.Linux:
+		switch c.platform.LinuxDistro {
+		case platform.DistroFedora, platform.DistroArch:
+			// Fedora/Arch: add include line directly to nginx.conf
+			// because conf.d/*.conf doesn't recurse into symlinked directories
+			return c.addIncludeToNginxConf(includeDirective)
+		default:
+			// Debian/Ubuntu: use sites-enabled symlink
+			return c.setupNginxSymlink(mageboxVhostsDir)
+		}
+	}
+
+	return fmt.Errorf("unsupported platform")
+}
+
+// addIncludeToNginxConf adds an include directive to nginx.conf
+func (c *Controller) addIncludeToNginxConf(includeDirective string) error {
+	nginxConf := c.GetNginxConfPath()
+
+	// Read current config
+	content, err := os.ReadFile(nginxConf)
+	if err != nil {
+		return fmt.Errorf("failed to read nginx.conf: %w", err)
+	}
+
+	// Check if include already exists
+	if strings.Contains(string(content), includeDirective) {
+		return nil // Already configured
+	}
+
+	// Find the http { block and add include after the last existing include in conf.d
+	// We'll add it right after "include /etc/nginx/conf.d/*.conf;"
+	marker := "include /etc/nginx/conf.d/*.conf;"
+	if !strings.Contains(string(content), marker) {
+		return fmt.Errorf("could not find conf.d include in nginx.conf")
+	}
+
+	newContent := strings.Replace(
+		string(content),
+		marker,
+		marker+"\n    "+includeDirective+" # MageBox vhosts",
+		1,
+	)
+
+	// Write to temp file
+	tmpFile, err := os.CreateTemp("", "nginx-conf-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmpFile.WriteString(newContent); err != nil {
+		tmpFile.Close()
+		return err
+	}
+	tmpFile.Close()
+
+	// Copy to nginx.conf with sudo
+	cmd := exec.Command("sudo", "cp", tmpPath, nginxConf)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// setupNginxSymlink creates a symlink for platforms that support it
+func (c *Controller) setupNginxSymlink(mageboxVhostsDir string) error {
 	var nginxServersDir string
 	switch c.platform.Type {
 	case platform.Darwin:
-		// Check Homebrew ARM first, then Intel
 		if _, err := os.Stat("/opt/homebrew/etc/nginx/servers"); err == nil {
 			nginxServersDir = "/opt/homebrew/etc/nginx/servers"
 		} else {
@@ -293,12 +407,11 @@ func (c *Controller) SetupNginxConfig() error {
 	case platform.Linux:
 		nginxServersDir = "/etc/nginx/sites-enabled"
 	default:
-		return fmt.Errorf("unsupported platform")
+		return fmt.Errorf("unsupported platform for symlink")
 	}
 
 	// Ensure nginx servers directory exists
 	if _, err := os.Stat(nginxServersDir); os.IsNotExist(err) {
-		// Try to create it with sudo
 		cmd := exec.Command("sudo", "mkdir", "-p", nginxServersDir)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -308,13 +421,10 @@ func (c *Controller) SetupNginxConfig() error {
 		}
 	}
 
-	// Create symlink from nginx servers dir to our magebox vhosts dir
-	mageboxVhostsDir := filepath.Join(c.platform.MageBoxDir(), "nginx", "vhosts")
 	symlinkPath := filepath.Join(nginxServersDir, "magebox")
 
 	// Check if symlink already exists
 	if linkTarget, err := os.Readlink(symlinkPath); err == nil {
-		// Symlink exists, check if it points to the right place
 		if linkTarget == mageboxVhostsDir {
 			return nil // Already configured correctly
 		}
