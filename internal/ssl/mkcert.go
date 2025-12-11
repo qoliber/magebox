@@ -125,9 +125,9 @@ func (m *Manager) GenerateCert(domain string) (*CertPaths, error) {
 	domainDir := filepath.Join(m.certsDir, domain)
 	if m.platform.Type == platform.Linux {
 		// On Linux, use sudo to create /etc/magebox/certs
-		exec.Command("sudo", "mkdir", "-p", domainDir).Run()
-		exec.Command("sudo", "chmod", "755", m.certsDir).Run()
-		exec.Command("sudo", "chmod", "755", domainDir).Run()
+		_ = exec.Command("sudo", "mkdir", "-p", domainDir).Run()
+		_ = exec.Command("sudo", "chmod", "755", m.certsDir).Run()
+		_ = exec.Command("sudo", "chmod", "755", domainDir).Run()
 	} else {
 		if err := os.MkdirAll(domainDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create certs directory: %w", err)
@@ -171,10 +171,10 @@ func (m *Manager) GenerateCert(domain string) (*CertPaths, error) {
 		}
 
 		// Move certs to final location with sudo and set permissions
-		exec.Command("sudo", "cp", tmpCert, certFile).Run()
-		exec.Command("sudo", "cp", tmpKey, keyFile).Run()
-		exec.Command("sudo", "chmod", "644", certFile).Run()
-		exec.Command("sudo", "chmod", "644", keyFile).Run()
+		_ = exec.Command("sudo", "cp", tmpCert, certFile).Run()
+		_ = exec.Command("sudo", "cp", tmpKey, keyFile).Run()
+		_ = exec.Command("sudo", "chmod", "644", certFile).Run()
+		_ = exec.Command("sudo", "chmod", "644", keyFile).Run()
 	} else {
 		cmd = exec.Command("mkcert",
 			"-cert-file", certFile,

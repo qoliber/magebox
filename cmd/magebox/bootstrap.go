@@ -235,8 +235,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Print("  Setting up PHP-FPM services... ")
 
 		// Create /var/log/magebox for PHP-FPM logs
-		exec.Command("sudo", "mkdir", "-p", "/var/log/magebox").Run()
-		exec.Command("sudo", "chmod", "755", "/var/log/magebox").Run()
+		_ = exec.Command("sudo", "mkdir", "-p", "/var/log/magebox").Run()
+		_ = exec.Command("sudo", "chmod", "755", "/var/log/magebox").Run()
 
 		// Configure each PHP version to use /var/log/magebox
 		phpVersions := []string{"81", "82", "83", "84", "85"}
@@ -245,15 +245,15 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			logFile := fmt.Sprintf("/var/log/magebox/php%s-fpm.log", v)
 
 			// Update error_log path in php-fpm.conf
-			exec.Command("sudo", "sed", "-i", fmt.Sprintf("s|^error_log = .*|error_log = %s|", logFile), fpmConf).Run()
+			_ = exec.Command("sudo", "sed", "-i", fmt.Sprintf("s|^error_log = .*|error_log = %s|", logFile), fpmConf).Run()
 		}
 
 		// Enable and start PHP-FPM services for installed versions
 		for _, ver := range installedPHPVersions {
 			remiVer := strings.ReplaceAll(ver.Version, ".", "")
 			serviceName := fmt.Sprintf("php%s-php-fpm", remiVer)
-			exec.Command("sudo", "systemctl", "enable", serviceName).Run()
-			exec.Command("sudo", "systemctl", "restart", serviceName).Run()
+			_ = exec.Command("sudo", "systemctl", "enable", serviceName).Run()
+			_ = exec.Command("sudo", "systemctl", "restart", serviceName).Run()
 		}
 		fmt.Println(cli.Success("done"))
 	}
@@ -561,11 +561,11 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 				cli.PrintWarning("Failed to create temp file: %v", err)
 			} else {
 				tmpPath := tmpFile.Name()
-				tmpFile.WriteString(sudoersContent)
-				tmpFile.Close()
+				_, _ = tmpFile.WriteString(sudoersContent)
+				_ = tmpFile.Close()
 
 				// Set correct permissions (sudoers files must be 0440)
-				os.Chmod(tmpPath, 0440)
+				_ = os.Chmod(tmpPath, 0440)
 
 				// Copy to sudoers.d with sudo
 				cmd := exec.Command("sudo", "cp", tmpPath, sudoersFile)
@@ -577,10 +577,10 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 					cli.PrintWarning("Failed to setup sudoers: %v", err)
 				} else {
 					// Set correct ownership
-					exec.Command("sudo", "chmod", "0440", sudoersFile).Run()
+					_ = exec.Command("sudo", "chmod", "0440", sudoersFile).Run()
 					fmt.Println(cli.Success("done"))
 				}
-				os.Remove(tmpPath)
+				_ = os.Remove(tmpPath)
 			}
 		}
 		fmt.Println()
