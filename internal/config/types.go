@@ -72,6 +72,7 @@ type ServiceConfig struct {
 	Enabled bool   `yaml:"-"`
 	Version string `yaml:"version,omitempty"`
 	Port    int    `yaml:"port,omitempty"`
+	Memory  string `yaml:"memory,omitempty"` // RAM allocation (e.g., "2g", "1024m")
 }
 
 // UnmarshalYAML implements custom unmarshaling to handle both string and object formats
@@ -96,12 +97,16 @@ func (s *ServiceConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		// mysql:
 		//   version: "8.0"
 		//   port: 3307
+		//   memory: "2g"
 		s.Enabled = true
 		if version, ok := v["version"].(string); ok {
 			s.Version = version
 		}
 		if port, ok := v["port"].(int); ok {
 			s.Port = port
+		}
+		if memory, ok := v["memory"].(string); ok {
+			s.Memory = memory
 		}
 		return nil
 	default:

@@ -117,6 +117,7 @@ func (p *Platform) PHPFPMConfigDir(version string) string {
 }
 
 // PHPFPMBinary returns the path to the PHP-FPM binary for a specific version
+// On macOS, uses Cellar path directly (more reliable than opt symlinks)
 func (p *Platform) PHPFPMBinary(version string) string {
 	normalizedVersion := normalizeVersion(version)
 	switch p.Type {
@@ -125,6 +126,13 @@ func (p *Platform) PHPFPMBinary(version string) string {
 		if p.IsAppleSilicon {
 			base = "/opt/homebrew"
 		}
+		// Use Cellar path with glob to find actual installation
+		cellarPath := filepath.Join(base, "Cellar", "php@"+normalizedVersion)
+		matches, err := filepath.Glob(filepath.Join(cellarPath, "*", "sbin", "php-fpm"))
+		if err == nil && len(matches) > 0 {
+			return matches[0]
+		}
+		// Fallback to opt symlink (for backwards compatibility)
 		return filepath.Join(base, "opt", "php@"+normalizedVersion, "sbin", "php-fpm")
 	case Linux:
 		return fmt.Sprintf("/usr/sbin/php-fpm%s", normalizedVersion)
@@ -134,6 +142,7 @@ func (p *Platform) PHPFPMBinary(version string) string {
 }
 
 // PHPBinary returns the path to the PHP CLI binary for a specific version
+// On macOS, uses Cellar path directly (more reliable than opt symlinks)
 func (p *Platform) PHPBinary(version string) string {
 	normalizedVersion := normalizeVersion(version)
 	switch p.Type {
@@ -142,6 +151,13 @@ func (p *Platform) PHPBinary(version string) string {
 		if p.IsAppleSilicon {
 			base = "/opt/homebrew"
 		}
+		// Use Cellar path with glob to find actual installation
+		cellarPath := filepath.Join(base, "Cellar", "php@"+normalizedVersion)
+		matches, err := filepath.Glob(filepath.Join(cellarPath, "*", "bin", "php"))
+		if err == nil && len(matches) > 0 {
+			return matches[0]
+		}
+		// Fallback to opt symlink (for backwards compatibility)
 		return filepath.Join(base, "opt", "php@"+normalizedVersion, "bin", "php")
 	case Linux:
 		return fmt.Sprintf("/usr/bin/php%s", normalizedVersion)

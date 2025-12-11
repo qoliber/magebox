@@ -34,14 +34,15 @@ var bootstrapCmd = &cobra.Command{
 	Long: `Sets up the MageBox development environment for first-time use.
 
 This command performs the following steps:
-  1. Checks all required dependencies (Docker, Nginx, mkcert, PHP)
-  2. Initializes global configuration (~/.magebox/config.yaml)
-  3. Sets up mkcert CA for HTTPS support
-  4. Configures port forwarding (macOS: 80→8080, 443→8443)
-  5. Configures Nginx to include MageBox vhosts
-  6. Creates and starts Docker services (MySQL, Redis, Mailpit)
-  7. Sets up DNS resolution (dnsmasq or /etc/hosts)
-  8. Installs PHP version wrapper for automatic version switching
+  1. Checks all required dependencies (Docker, Nginx, mkcert)
+  2. Installs PHP versions 8.1-8.4 via Homebrew (macOS)
+  3. Initializes global configuration (~/.magebox/config.yaml)
+  4. Sets up mkcert CA for HTTPS support
+  5. Configures port forwarding (macOS: 80→8080, 443→8443)
+  6. Configures Nginx to include MageBox vhosts
+  7. Creates and starts Docker services (MySQL, Redis, Mailpit)
+  8. Sets up DNS resolution (dnsmasq or /etc/hosts)
+  9. Installs PHP and Composer wrappers for automatic version switching
 
 Run this once after installing MageBox to prepare your system.`,
 	RunE: runBootstrap,
@@ -96,18 +97,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 	// Check PHP versions
 	detector := php.NewDetector(p)
-	phpInstalled := false
-	for _, v := range php.SupportedVersions {
-		version := detector.Detect(v)
-		if version.Installed {
-			phpInstalled = true
-			break
-		}
-	}
-	fmt.Printf("  %-15s %s\n", "PHP:", cli.StatusInstalled(phpInstalled))
-	if !phpInstalled {
-		errors = append(errors, "No PHP version installed. Install: "+p.PHPInstallCommand("8.2"))
-	}
+	installedPHPVersions := detector.DetectInstalled()
+	fmt.Printf("  %-15s %s (%d versions)\n", "PHP:", cli.StatusInstalled(len(installedPHPVersions) > 0), len(installedPHPVersions))
 
 	fmt.Println()
 
@@ -123,8 +114,31 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Step 2: Initialize global config
-	fmt.Println(cli.Header("Step 2: Global Configuration"))
+	// Step 2: Install PHP versions
+	fmt.Println(cli.Header("Step 2: PHP Installation"))
+	fmt.Println()
+	fmt.Println("  Installing PHP versions for Magento/MageOS compatibility...")
+	fmt.Println()
+
+	phpVersionsToInstall := []string{"8.1", "8.2", "8.3", "8.4"}
+	for _, phpVer := range phpVersionsToInstall {
+		if detector.IsVersionInstalled(phpVer) {
+			fmt.Printf("  PHP %s: %s\n", phpVer, cli.Success("already installed"))
+		} else {
+			fmt.Printf("  PHP %s: installing... ", phpVer)
+			installCmd := exec.Command("brew", "install", fmt.Sprintf("php@%s", phpVer))
+			if err := installCmd.Run(); err != nil {
+				fmt.Println(cli.Error("failed"))
+				cli.PrintWarning("Failed to install PHP %s: %v", phpVer, err)
+			} else {
+				fmt.Println(cli.Success("done"))
+			}
+		}
+	}
+	fmt.Println()
+
+	// Step 3: Initialize global config
+	fmt.Println(cli.Header("Step 3: Global Configuration"))
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -145,8 +159,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 3: Setup mkcert CA
-	fmt.Println(cli.Header("Step 3: SSL Certificate Authority"))
+	// Step 4: Setup mkcert CA
+	fmt.Println(cli.Header("Step 4: SSL Certificate Authority"))
 
 	sslMgr := ssl.NewManager(p)
 	if sslMgr.IsCAInstalled() {
@@ -162,9 +176,9 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 4: Setup Port Forwarding (macOS only)
+	// Step 5: Setup Port Forwarding (macOS only)
 	if p.Type == platform.Darwin {
-		fmt.Println(cli.Header("Step 4: Port Forwarding Setup"))
+		fmt.Println(cli.Header("Step 5: Port Forwarding Setup"))
 		fmt.Println("  Setting up transparent port forwarding (80→8080, 443→8443)")
 		fmt.Println("  This allows Nginx to run as your user without sudo")
 		fmt.Println()
@@ -186,8 +200,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Step 5: Setup Nginx configuration
-	fmt.Println(cli.Header("Step 5: Nginx Configuration"))
+	// Step 6: Setup Nginx configuration
+	fmt.Println(cli.Header("Step 6: Nginx Configuration"))
 
 	nginxCtrl := nginx.NewController(p)
 	fmt.Printf("  Nginx config: %s\n", cli.Highlight(nginxCtrl.GetNginxConfPath()))
@@ -231,8 +245,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 6: Setup Docker services
-	fmt.Println(cli.Header("Step 6: Docker Services"))
+	// Step 7: Setup Docker services
+	fmt.Println(cli.Header("Step 7: Docker Services"))
 
 	composeGen := docker.NewComposeGenerator(p)
 	composeFile := composeGen.ComposeFilePath()
@@ -265,8 +279,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 7: DNS setup (informational)
-	fmt.Println(cli.Header("Step 7: DNS Configuration"))
+	// Step 8: DNS setup (informational)
+	fmt.Println(cli.Header("Step 8: DNS Configuration"))
 
 	if globalCfg.UseDnsmasq() {
 		dnsManager := dns.NewDnsmasqManager(p)
@@ -282,10 +296,12 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 8: Install PHP wrapper
-	fmt.Println(cli.Header("Step 8: PHP Version Wrapper"))
+	// Step 9: Install PHP and Composer wrappers
+	fmt.Println(cli.Header("Step 9: PHP & Composer Wrappers"))
 
 	wrapperMgr := phpwrapper.NewManager(p)
+
+	// PHP wrapper
 	if wrapperMgr.IsInstalled() {
 		fmt.Println("  PHP wrapper already installed " + cli.Success("✓"))
 	} else {
@@ -293,6 +309,19 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		if err := wrapperMgr.Install(); err != nil {
 			fmt.Println(cli.Error("failed"))
 			cli.PrintWarning("PHP wrapper installation failed: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	// Composer wrapper
+	if wrapperMgr.IsComposerInstalled() {
+		fmt.Println("  Composer wrapper already installed " + cli.Success("✓"))
+	} else {
+		fmt.Print("  Installing Composer wrapper script... ")
+		if err := wrapperMgr.InstallComposer(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("Composer wrapper installation failed: %v", err)
 		} else {
 			fmt.Println(cli.Success("done"))
 		}

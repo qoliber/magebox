@@ -92,17 +92,19 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 	requiredServices := g.collectRequiredServices(configs)
 
 	// Add MySQL services
-	for version := range requiredServices.mysql {
+	for version, svcCfg := range requiredServices.mysql {
 		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(version, ".", ""))
 		compose.Services[serviceName] = g.getMySQLService(version)
 		compose.Volumes[fmt.Sprintf("mysql%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+		_ = svcCfg // Will use this for memory config in the future
 	}
 
 	// Add MariaDB services
-	for version := range requiredServices.mariadb {
+	for version, svcCfg := range requiredServices.mariadb {
 		serviceName := fmt.Sprintf("mariadb%s", strings.ReplaceAll(version, ".", ""))
 		compose.Services[serviceName] = g.getMariaDBService(version)
 		compose.Volumes[fmt.Sprintf("mariadb%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+		_ = svcCfg // Will use this for memory config in the future
 	}
 
 	// Add Redis if needed
@@ -111,16 +113,16 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 	}
 
 	// Add OpenSearch services
-	for version := range requiredServices.opensearch {
+	for version, svcCfg := range requiredServices.opensearch {
 		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(version, ".", ""))
-		compose.Services[serviceName] = g.getOpenSearchService(version)
+		compose.Services[serviceName] = g.getOpenSearchService(svcCfg)
 		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 
 	// Add Elasticsearch services
-	for version := range requiredServices.elasticsearch {
+	for version, svcCfg := range requiredServices.elasticsearch {
 		serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(version, ".", ""))
-		compose.Services[serviceName] = g.getElasticsearchService(version)
+		compose.Services[serviceName] = g.getElasticsearchService(svcCfg)
 		compose.Volumes[fmt.Sprintf("elasticsearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 
@@ -151,11 +153,11 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 
 // requiredServices tracks which services are needed
 type requiredServices struct {
-	mysql         map[string]bool
-	mariadb       map[string]bool
+	mysql         map[string]*config.ServiceConfig
+	mariadb       map[string]*config.ServiceConfig
 	redis         bool
-	opensearch    map[string]bool
-	elasticsearch map[string]bool
+	opensearch    map[string]*config.ServiceConfig
+	elasticsearch map[string]*config.ServiceConfig
 	rabbitmq      bool
 	mailpit       bool
 }
@@ -163,27 +165,27 @@ type requiredServices struct {
 // collectRequiredServices collects all required services from configs
 func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) requiredServices {
 	rs := requiredServices{
-		mysql:         make(map[string]bool),
-		mariadb:       make(map[string]bool),
-		opensearch:    make(map[string]bool),
-		elasticsearch: make(map[string]bool),
+		mysql:         make(map[string]*config.ServiceConfig),
+		mariadb:       make(map[string]*config.ServiceConfig),
+		opensearch:    make(map[string]*config.ServiceConfig),
+		elasticsearch: make(map[string]*config.ServiceConfig),
 	}
 
 	for _, cfg := range configs {
 		if cfg.Services.HasMySQL() {
-			rs.mysql[cfg.Services.MySQL.Version] = true
+			rs.mysql[cfg.Services.MySQL.Version] = cfg.Services.MySQL
 		}
 		if cfg.Services.HasMariaDB() {
-			rs.mariadb[cfg.Services.MariaDB.Version] = true
+			rs.mariadb[cfg.Services.MariaDB.Version] = cfg.Services.MariaDB
 		}
 		if cfg.Services.HasRedis() {
 			rs.redis = true
 		}
 		if cfg.Services.HasOpenSearch() {
-			rs.opensearch[cfg.Services.OpenSearch.Version] = true
+			rs.opensearch[cfg.Services.OpenSearch.Version] = cfg.Services.OpenSearch
 		}
 		if cfg.Services.HasElasticsearch() {
-			rs.elasticsearch[cfg.Services.Elasticsearch.Version] = true
+			rs.elasticsearch[cfg.Services.Elasticsearch.Version] = cfg.Services.Elasticsearch
 		}
 		if cfg.Services.HasRabbitMQ() {
 			rs.rabbitmq = true
@@ -262,8 +264,18 @@ func (g *ComposeGenerator) getRedisService() ComposeService {
 }
 
 // getOpenSearchService returns an OpenSearch service configuration
-func (g *ComposeGenerator) getOpenSearchService(version string) ComposeService {
+func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig) ComposeService {
+	version := svcCfg.Version
 	port := g.getOpenSearchPort(version)
+
+	// Default to 1GB if not specified
+	memory := "1g"
+	if svcCfg.Memory != "" {
+		memory = svcCfg.Memory
+	}
+
+	heapSize := fmt.Sprintf("-Xms%s -Xmx%s", memory, memory)
+
 	return ComposeService{
 		ContainerName: fmt.Sprintf("magebox-opensearch-%s", version),
 		Image:         fmt.Sprintf("opensearchproject/opensearch:%s", version),
@@ -271,7 +283,7 @@ func (g *ComposeGenerator) getOpenSearchService(version string) ComposeService {
 		Environment: map[string]string{
 			"discovery.type":                                    "single-node",
 			"DISABLE_SECURITY_PLUGIN":                           "true",
-			"OPENSEARCH_JAVA_OPTS":                              "-Xms512m -Xmx512m",
+			"OPENSEARCH_JAVA_OPTS":                              heapSize,
 			"cluster.routing.allocation.disk.threshold_enabled": "false",
 		},
 		Volumes: []string{
@@ -279,12 +291,23 @@ func (g *ComposeGenerator) getOpenSearchService(version string) ComposeService {
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
+		Command:  "sh -c \"bin/opensearch-plugin install --batch analysis-icu && bin/opensearch-plugin install --batch analysis-phonetic && /usr/share/opensearch/opensearch-docker-entrypoint.sh\"",
 	}
 }
 
 // getElasticsearchService returns an Elasticsearch service configuration
-func (g *ComposeGenerator) getElasticsearchService(version string) ComposeService {
+func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig) ComposeService {
+	version := svcCfg.Version
 	port := g.getElasticsearchPort(version)
+
+	// Default to 1GB if not specified
+	memory := "1g"
+	if svcCfg.Memory != "" {
+		memory = svcCfg.Memory
+	}
+
+	heapSize := fmt.Sprintf("-Xms%s -Xmx%s", memory, memory)
+
 	return ComposeService{
 		ContainerName: fmt.Sprintf("magebox-elasticsearch-%s", version),
 		Image:         fmt.Sprintf("elasticsearch:%s", version),
@@ -292,13 +315,14 @@ func (g *ComposeGenerator) getElasticsearchService(version string) ComposeServic
 		Environment: map[string]string{
 			"discovery.type":         "single-node",
 			"xpack.security.enabled": "false",
-			"ES_JAVA_OPTS":           "-Xms512m -Xmx512m",
+			"ES_JAVA_OPTS":           heapSize,
 		},
 		Volumes: []string{
 			fmt.Sprintf("elasticsearch%s_data:/usr/share/elasticsearch/data", strings.ReplaceAll(version, ".", "")),
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
+		Command:  "sh -c \"bin/elasticsearch-plugin install --batch analysis-icu && bin/elasticsearch-plugin install --batch analysis-phonetic && /usr/local/bin/docker-entrypoint.sh eswrapper\"",
 	}
 }
 
@@ -522,7 +546,11 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 	if globalCfg.DefaultServices.OpenSearch != "" {
 		version := globalCfg.DefaultServices.OpenSearch
 		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(version, ".", ""))
-		compose.Services[serviceName] = g.getOpenSearchService(version)
+		svcCfg := &config.ServiceConfig{
+			Enabled: true,
+			Version: version,
+		}
+		compose.Services[serviceName] = g.getOpenSearchService(svcCfg)
 		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 

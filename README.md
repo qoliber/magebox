@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.3.1
+                 |___/  0.3.2
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
@@ -46,8 +46,9 @@ cd mystore && magebox start
 
 Then run the Magento installer:
 ```bash
-magebox cli setup:install \
+php bin/magento setup:install \
     --base-url=https://mystore.test \
+    --backend-frontname=admin \
     --db-host=127.0.0.1:33080 \
     --db-name=mystore \
     --db-user=root \
@@ -55,16 +56,29 @@ magebox cli setup:install \
     --search-engine=opensearch \
     --opensearch-host=127.0.0.1 \
     --opensearch-port=9200 \
-    --admin-firstname=Admin \
-    --admin-lastname=User \
-    --admin-email=admin@example.com \
-    --admin-user=admin \
-    --admin-password=Admin123!
+    --opensearch-index-prefix=magento2 \
+    --opensearch-timeout=15 \
+    --session-save=redis \
+    --session-save-redis-host=127.0.0.1 \
+    --session-save-redis-port=6379 \
+    --session-save-redis-db=2 \
+    --cache-backend=redis \
+    --cache-backend-redis-server=127.0.0.1 \
+    --cache-backend-redis-port=6379 \
+    --cache-backend-redis-db=0 \
+    --page-cache=redis \
+    --page-cache-redis-server=127.0.0.1 \
+    --page-cache-redis-port=6379 \
+    --page-cache-redis-db=1 \
+    --amqp-host=127.0.0.1 \
+    --amqp-port=5672 \
+    --amqp-user=guest \
+    --amqp-password=guest
 ```
 
 **That's it!** Open https://mystore.test in your browser.
 
-> **Note:** The `--quick` flag installs MageOS (no Adobe auth required) with sample data, PHP 8.3, MySQL 8.0, Redis, and OpenSearch - perfect for learning or testing.
+> **Note:** The `--quick` flag installs MageOS (no Adobe auth required) with sample data, PHP 8.3, MySQL 8.0, Redis, RabbitMQ, OpenSearch 2.19, and Mailpit - perfect for learning or testing.
 
 > **Migrating from Herd?** See our [Migration Guide](docs/MIGRATING_FROM_HERD.md) for step-by-step instructions to switch from Laravel Herd to MageBox.
 
@@ -266,18 +280,37 @@ After completion:
 ```bash
 cd mystore
 magebox start
-magebox cli setup:install \
+php bin/magento setup:install \
     --base-url=https://mystore.test \
+    --backend-frontname=admin \
     --db-host=127.0.0.1:33080 \
     --db-name=mystore \
     --db-user=root \
     --db-password=magebox \
-    --admin-firstname=Admin \
-    --admin-lastname=User \
-    --admin-email=admin@example.com \
-    --admin-user=admin \
-    --admin-password=admin123
+    --search-engine=opensearch \
+    --opensearch-host=127.0.0.1 \
+    --opensearch-port=9200 \
+    --opensearch-index-prefix=magento2 \
+    --opensearch-timeout=15 \
+    --session-save=redis \
+    --session-save-redis-host=127.0.0.1 \
+    --session-save-redis-port=6379 \
+    --session-save-redis-db=2 \
+    --cache-backend=redis \
+    --cache-backend-redis-server=127.0.0.1 \
+    --cache-backend-redis-port=6379 \
+    --cache-backend-redis-db=0 \
+    --page-cache=redis \
+    --page-cache-redis-server=127.0.0.1 \
+    --page-cache-redis-port=6379 \
+    --page-cache-redis-db=1 \
+    --amqp-host=127.0.0.1 \
+    --amqp-port=5672 \
+    --amqp-user=guest \
+    --amqp-password=guest
 ```
+
+> **Note:** Remove `--amqp-*` options if RabbitMQ is not configured, and `--opensearch-*` if using Elasticsearch or no search engine.
 
 #### Option B: Initialize Existing Project
 
@@ -333,9 +366,9 @@ magebox restart           # Restart project services
 ### Running Magento Commands
 
 ```bash
-magebox cli cache:clean              # Run bin/magento commands
-magebox cli setup:upgrade
-magebox cli indexer:reindex
+php bin/magento cache:clean          # MageBox PHP wrapper uses correct version
+php bin/magento setup:upgrade
+php bin/magento indexer:reindex
 ```
 
 ### PHP Version Management
@@ -446,10 +479,19 @@ services:
   mysql: "8.0"                   # MySQL version
   # mariadb: "10.6"              # Or MariaDB (choose one)
   redis: true                    # Enable Redis
-  opensearch: "2.12"             # OpenSearch version
-  # elasticsearch: "8.11"        # Or Elasticsearch
-  # rabbitmq: true               # Enable RabbitMQ
-  # mailpit: true                # Enable Mailpit
+
+  # OpenSearch with ICU and Phonetic plugins (installed automatically)
+  opensearch:
+    version: "2.19.4"            # Latest OpenSearch version
+    memory: "2g"                 # RAM allocation (default: 1g)
+
+  # Elasticsearch with ICU and Phonetic plugins (installed automatically)
+  # elasticsearch:
+  #   version: "8.11"
+  #   memory: "2g"               # RAM allocation (default: 1g)
+
+  rabbitmq: true                 # Enable RabbitMQ
+  mailpit: true                  # Enable Mailpit (email testing)
 
 env:                             # Optional: environment variables
   MAGE_MODE: developer
@@ -515,7 +557,6 @@ magebox config set portainer true
 | `magebox list` | List all MageBox projects |
 | `magebox php [version]` | Show/switch PHP version |
 | `magebox shell` | Open shell with correct PHP |
-| `magebox cli <command>` | Run bin/magento command |
 | `magebox db shell` | Open database shell |
 | `magebox db import <file>` | Import database |
 | `magebox db export [file]` | Export database |
@@ -567,6 +608,33 @@ magebox config set portainer true
 | Mailpit SMTP | 1025 |
 | Mailpit Web | 8025 |
 | Portainer | 9000 |
+
+### Search Engines (OpenSearch / Elasticsearch)
+
+MageBox automatically installs the **ICU Analysis** and **Phonetic Analysis** plugins for both OpenSearch and Elasticsearch. These plugins are required by Magento for proper search functionality.
+
+**Plugins included:**
+- `analysis-icu` - International Components for Unicode (ICU) analyzer
+- `analysis-phonetic` - Phonetic token filter for soundex and metaphone algorithms
+
+**Memory Configuration:**
+
+By default, search engines are allocated **1GB of RAM**. You can customize this in your `.magebox.yaml`:
+
+```yaml
+services:
+  # Recommended: with memory allocation (2GB for production-like performance)
+  opensearch:
+    version: "2.19.4"
+    memory: "2g"
+
+  # Simple version string (uses default 1GB RAM)
+  # opensearch: "2.19.4"
+```
+
+**Supported versions:**
+- OpenSearch: 2.19.x (latest), 2.x series
+- Elasticsearch: 8.11, 7.17 (for Magento 2.4.4+)
 
 ---
 
@@ -1125,6 +1193,24 @@ magebox/
 ---
 
 ## Changelog
+
+### v0.3.2 (2025-12-10)
+
+**OpenSearch/Elasticsearch Enhancements**
+- Added automatic installation of ICU and Phonetic Analysis plugins
+- Added configurable memory allocation for search engines (default: 1GB)
+- Updated default OpenSearch version to 2.19.4
+- Search engine configuration now supports object format with version and memory
+
+**Project Creation Improvements**
+- Composer now runs with explicit PHP binary to ensure correct version is used
+- Added RabbitMQ to quick mode (`magebox new --quick`)
+- Full `setup:install` command is now shown after project creation with all service parameters
+- Displays which PHP version and binary is being used during installation
+
+**Code Cleanup**
+- Removed `magebox cli` command (use `php bin/magento` directly - PHP wrapper handles version)
+- DNS cleanup skipped when using dnsmasq mode (no more unnecessary sudo warnings)
 
 ### v0.3.1 (2025-12-10)
 

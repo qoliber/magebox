@@ -94,9 +94,12 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Errors = append(result.Errors, fmt.Errorf("Nginx vhost: %w", err))
 	}
 
-	// Add domains to /etc/hosts
-	if err := m.hostsManager.AddDomains(result.Domains); err != nil {
-		result.Warnings = append(result.Warnings, fmt.Sprintf("DNS: %v", err))
+	// Add domains to /etc/hosts only if using hosts mode (not dnsmasq)
+	globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)
+	if err == nil && globalCfg.UseHosts() {
+		if err := m.hostsManager.AddDomains(result.Domains); err != nil {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("DNS: %v", err))
+		}
 	}
 
 	// Generate and start Docker services
@@ -132,13 +135,16 @@ func (m *Manager) Stop(projectPath string) error {
 		return fmt.Errorf("failed to remove php-fpm pool: %w", err)
 	}
 
-	// Remove domains from /etc/hosts
-	domains := make([]string, 0, len(cfg.Domains))
-	for _, d := range cfg.Domains {
-		domains = append(domains, d.Host)
-	}
-	if err := m.hostsManager.RemoveDomains(domains); err != nil {
-		return fmt.Errorf("failed to remove dns entries: %w", err)
+	// Remove domains from /etc/hosts only if using hosts mode (not dnsmasq)
+	globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)
+	if err == nil && globalCfg.UseHosts() {
+		domains := make([]string, 0, len(cfg.Domains))
+		for _, d := range cfg.Domains {
+			domains = append(domains, d.Host)
+		}
+		if err := m.hostsManager.RemoveDomains(domains); err != nil {
+			return fmt.Errorf("failed to remove dns entries: %w", err)
+		}
 	}
 
 	return nil

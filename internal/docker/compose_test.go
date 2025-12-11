@@ -259,13 +259,27 @@ func TestComposeService_Redis(t *testing.T) {
 func TestComposeService_OpenSearch(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
-	svc := g.getOpenSearchService("2.12")
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "2.12",
+		Memory:  "2g",
+	}
+	svc := g.getOpenSearchService(svcCfg)
 
 	if !strings.Contains(svc.Image, "opensearch") {
 		t.Errorf("Image = %v, should contain opensearch", svc.Image)
 	}
 	if svc.Environment["DISABLE_SECURITY_PLUGIN"] != "true" {
 		t.Error("DISABLE_SECURITY_PLUGIN should be true")
+	}
+	if svc.Environment["OPENSEARCH_JAVA_OPTS"] != "-Xms2g -Xmx2g" {
+		t.Errorf("OPENSEARCH_JAVA_OPTS = %v, want -Xms2g -Xmx2g", svc.Environment["OPENSEARCH_JAVA_OPTS"])
+	}
+	if !strings.Contains(svc.Command, "analysis-icu") {
+		t.Error("Command should install analysis-icu plugin")
+	}
+	if !strings.Contains(svc.Command, "analysis-phonetic") {
+		t.Error("Command should install analysis-phonetic plugin")
 	}
 }
 
@@ -328,16 +342,16 @@ func TestComposeGenerator_collectRequiredServices(t *testing.T) {
 
 	rs := g.collectRequiredServices(configs)
 
-	if !rs.mysql["8.0"] {
+	if rs.mysql["8.0"] == nil {
 		t.Error("Should require MySQL 8.0")
 	}
-	if !rs.mariadb["10.6"] {
+	if rs.mariadb["10.6"] == nil {
 		t.Error("Should require MariaDB 10.6")
 	}
 	if !rs.redis {
 		t.Error("Should require Redis")
 	}
-	if !rs.opensearch["2.12"] {
+	if rs.opensearch["2.12"] == nil {
 		t.Error("Should require OpenSearch 2.12")
 	}
 }
