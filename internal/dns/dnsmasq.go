@@ -133,7 +133,7 @@ func (m *DnsmasqManager) Remove() error {
 		resolverPath := "/etc/resolver/test"
 		if _, err := os.Stat(resolverPath); err == nil {
 			cmd := exec.Command("sudo", "rm", resolverPath)
-			cmd.Run() // Ignore errors
+			_ = cmd.Run() // Ignore errors - resolver may not exist
 		}
 	}
 

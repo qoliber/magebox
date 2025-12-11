@@ -88,7 +88,9 @@ func (m *Manager) Enable(phpVersion string) error {
 	}
 
 	// Also ensure xdebug.mode is set for development
-	m.ensureXdebugConfig(phpVersion)
+	if err := m.ensureXdebugConfig(phpVersion); err != nil {
+		return fmt.Errorf("failed to configure xdebug: %w", err)
+	}
 
 	return nil
 }
