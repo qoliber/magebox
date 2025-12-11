@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -26,7 +27,7 @@ import (
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
-var version = "0.6.0"
+var version = "0.6.1"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -2877,6 +2878,7 @@ commands:
 
 	if installSampleData {
 		fmt.Println(cli.Bullet("3. Deploy sample data:"))
+		fmt.Println("      " + cli.Command("php bin/magento sampledata:deploy"))
 		fmt.Println("      " + cli.Command("php bin/magento setup:upgrade"))
 		fmt.Println("      " + cli.Command("php bin/magento indexer:reindex"))
 		fmt.Println("      " + cli.Command("php bin/magento cache:flush"))
@@ -3052,92 +3054,171 @@ commands:
 		return err
 	}
 
-	// Install sample data (always in quick mode)
+	// Step 4: Start MageBox services
 	fmt.Println()
-	cli.PrintInfo("Installing sample data (this may take a while)...")
+	cli.PrintInfo("Starting MageBox services...")
 
-	// Use our wrapper which reads .magebox.yaml for PHP version
-	sampleCmd := exec.Command(wrapperPath, "require",
-		"magento/module-bundle-sample-data",
-		"magento/module-catalog-sample-data", "magento/module-catalog-rule-sample-data",
-		"magento/module-cms-sample-data", "magento/module-configurable-sample-data",
-		"magento/module-customer-sample-data", "magento/module-downloadable-sample-data",
-		"magento/module-grouped-sample-data", "magento/module-msrp-sample-data",
-		"magento/module-offline-shipping-sample-data", "magento/module-product-links-sample-data",
-		"magento/module-review-sample-data", "magento/module-sales-rule-sample-data",
-		"magento/module-sales-sample-data", "magento/module-swatches-sample-data",
-		"magento/module-tax-sample-data", "magento/module-theme-sample-data",
-		"magento/module-widget-sample-data", "magento/module-wishlist-sample-data",
-		"magento/sample-data-media", "--no-update")
-	sampleCmd.Dir = projectDir
-	sampleCmd.Stdout = os.Stdout
-	sampleCmd.Stderr = os.Stderr
-
-	if err := sampleCmd.Run(); err != nil {
-		cli.PrintWarning("Sample data require failed: %v", err)
+	// Use project manager to start all services (nginx, php-fpm, docker)
+	projectMgr := project.NewManager(p)
+	startResult, err := projectMgr.Start(projectDir)
+	if err != nil {
+		cli.PrintWarning("Failed to start services: %v", err)
+	} else {
+		for _, svc := range startResult.Services {
+			fmt.Printf("  %s %s\n", cli.Success("✓"), svc)
+		}
+		for _, warn := range startResult.Warnings {
+			cli.PrintWarning("%s", warn)
+		}
 	}
 
-	// Run composer update
-	updateCmd := exec.Command(wrapperPath, "update")
-	updateCmd.Dir = projectDir
-	updateCmd.Stdout = os.Stdout
-	updateCmd.Stderr = os.Stderr
-	_ = updateCmd.Run()
+	// Reload nginx to pick up new vhost
+	nginxCtrl := nginx.NewController(p)
+	if err := nginxCtrl.Reload(); err != nil {
+		cli.PrintWarning("Failed to reload nginx: %v", err)
+	}
+
+	fmt.Println("  Services started " + cli.Success("✓"))
+
+	// Wait for OpenSearch to be ready
+	fmt.Println()
+	cli.PrintInfo("Waiting for OpenSearch to be ready...")
+	dbPort := "33080" // MySQL 8.0 default port
+	for i := 0; i < 30; i++ {
+		checkCmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://127.0.0.1:9200")
+		output, err := checkCmd.Output()
+		if err == nil && string(output) == "200" {
+			fmt.Println("  OpenSearch ready " + cli.Success("✓"))
+			break
+		}
+		if i == 29 {
+			cli.PrintWarning("OpenSearch may not be ready, continuing anyway...")
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	// Step 6: Run Magento setup:install
+	fmt.Println()
+	cli.PrintInfo("Running Magento setup:install (this may take several minutes)...")
+
+	setupArgs := []string{
+		"bin/magento", "setup:install",
+		"--base-url=https://" + domainInput,
+		"--backend-frontname=admin",
+		"--db-host=127.0.0.1:" + dbPort,
+		"--db-name=" + projectName,
+		"--db-user=root",
+		"--db-password=magebox",
+		"--admin-firstname=Admin",
+		"--admin-lastname=User",
+		"--admin-email=admin@example.com",
+		"--admin-user=admin",
+		"--admin-password=admin123",
+		"--language=en_US",
+		"--currency=USD",
+		"--timezone=America/New_York",
+		"--use-rewrites=1",
+		"--search-engine=opensearch",
+		"--opensearch-host=127.0.0.1",
+		"--opensearch-port=9200",
+		"--opensearch-index-prefix=magento2",
+		"--opensearch-timeout=15",
+		"--session-save=redis",
+		"--session-save-redis-host=127.0.0.1",
+		"--session-save-redis-port=6379",
+		"--session-save-redis-db=2",
+		"--cache-backend=redis",
+		"--cache-backend-redis-server=127.0.0.1",
+		"--cache-backend-redis-port=6379",
+		"--cache-backend-redis-db=0",
+		"--page-cache=redis",
+		"--page-cache-redis-server=127.0.0.1",
+		"--page-cache-redis-port=6379",
+		"--page-cache-redis-db=1",
+		"--amqp-host=127.0.0.1",
+		"--amqp-port=5672",
+		"--amqp-user=guest",
+		"--amqp-password=guest",
+	}
+
+	setupCmd := exec.Command(wrapperPath, setupArgs...)
+	setupCmd.Dir = projectDir
+	setupCmd.Stdout = os.Stdout
+	setupCmd.Stderr = os.Stderr
+	setupCmd.Stdin = os.Stdin
+
+	if err := setupCmd.Run(); err != nil {
+		cli.PrintError("Magento setup:install failed: %v", err)
+		fmt.Println()
+		fmt.Println("You can retry manually with:")
+		fmt.Println("  cd " + cli.Highlight(projectDir))
+		fmt.Println("  " + cli.Command("php "+strings.Join(setupArgs, " ")))
+		return err
+	}
+
+	fmt.Println("  Magento installed " + cli.Success("✓"))
+
+	// Step 7: Deploy sample data
+	fmt.Println()
+	cli.PrintInfo("Deploying sample data...")
+
+	sampleDataCmd := exec.Command(wrapperPath, "bin/magento", "sampledata:deploy")
+	sampleDataCmd.Dir = projectDir
+	sampleDataCmd.Stdout = os.Stdout
+	sampleDataCmd.Stderr = os.Stderr
+	sampleDataCmd.Stdin = os.Stdin
+	if err := sampleDataCmd.Run(); err != nil {
+		cli.PrintWarning("sampledata:deploy failed: %v", err)
+	}
+
+	// Step 8: Run setup:upgrade
+	fmt.Println()
+	cli.PrintInfo("Running setup:upgrade...")
+
+	upgradeCmd := exec.Command(wrapperPath, "bin/magento", "setup:upgrade")
+	upgradeCmd.Dir = projectDir
+	upgradeCmd.Stdout = os.Stdout
+	upgradeCmd.Stderr = os.Stderr
+	if err := upgradeCmd.Run(); err != nil {
+		cli.PrintWarning("setup:upgrade failed: %v", err)
+	}
+
+	// Step 9: Reindex
+	fmt.Println()
+	cli.PrintInfo("Running indexer:reindex...")
+
+	reindexCmd := exec.Command(wrapperPath, "bin/magento", "indexer:reindex")
+	reindexCmd.Dir = projectDir
+	reindexCmd.Stdout = os.Stdout
+	reindexCmd.Stderr = os.Stderr
+	if err := reindexCmd.Run(); err != nil {
+		cli.PrintWarning("indexer:reindex failed: %v", err)
+	}
+
+	// Step 10: Flush cache
+	fmt.Println()
+	cli.PrintInfo("Flushing cache...")
+
+	cacheCmd := exec.Command(wrapperPath, "bin/magento", "cache:flush")
+	cacheCmd.Dir = projectDir
+	cacheCmd.Stdout = os.Stdout
+	cacheCmd.Stderr = os.Stderr
+	if err := cacheCmd.Run(); err != nil {
+		cli.PrintWarning("cache:flush failed: %v", err)
+	}
 
 	// Success!
 	fmt.Println()
 	cli.PrintTitle("Installation Complete!")
 	fmt.Println()
-	cli.PrintSuccess("MageOS project created successfully!")
+	cli.PrintSuccess("MageOS project installed successfully!")
 	fmt.Println()
-
-	// Print the full setup command
-	dbPort := "33080" // MySQL 8.0 default port
-
-	fmt.Println("Next steps:")
-	fmt.Println()
-	fmt.Println(cli.Bullet("1. Start services:"))
-	fmt.Println("      cd " + cli.Highlight(projectDir))
-	fmt.Println("      " + cli.Command("magebox start"))
-	fmt.Println()
-	fmt.Println(cli.Bullet("2. Install Magento:"))
-	installCmd := fmt.Sprintf(`php bin/magento setup:install \
-    --base-url=https://%s \
-    --backend-frontname=admin \
-    --db-host=127.0.0.1:%s \
-    --db-name=%s \
-    --db-user=root \
-    --db-password=magebox \
-    --search-engine=opensearch \
-    --opensearch-host=127.0.0.1 \
-    --opensearch-port=9200 \
-    --opensearch-index-prefix=magento2 \
-    --opensearch-timeout=15 \
-    --session-save=redis \
-    --session-save-redis-host=127.0.0.1 \
-    --session-save-redis-port=6379 \
-    --session-save-redis-db=2 \
-    --cache-backend=redis \
-    --cache-backend-redis-server=127.0.0.1 \
-    --cache-backend-redis-port=6379 \
-    --cache-backend-redis-db=0 \
-    --page-cache=redis \
-    --page-cache-redis-server=127.0.0.1 \
-    --page-cache-redis-port=6379 \
-    --page-cache-redis-db=1 \
-    --amqp-host=127.0.0.1 \
-    --amqp-port=5672 \
-    --amqp-user=guest \
-    --amqp-password=guest`, domainInput, dbPort, projectName)
-	fmt.Println("      " + cli.Command(installCmd))
-	fmt.Println()
-	fmt.Println(cli.Bullet("3. Deploy sample data:"))
-	fmt.Println("      " + cli.Command("php bin/magento setup:upgrade"))
-	fmt.Println("      " + cli.Command("php bin/magento indexer:reindex"))
-	fmt.Println("      " + cli.Command("php bin/magento cache:flush"))
-	fmt.Println()
-	fmt.Println("After setup, access your store at: " + cli.URL("https://"+domainInput))
+	fmt.Println("Your store is ready at: " + cli.URL("https://"+domainInput))
 	fmt.Println("Admin panel: " + cli.URL("https://"+domainInput+"/admin"))
+	fmt.Println()
+	fmt.Println("Admin credentials:")
+	fmt.Println("  Username: " + cli.Highlight("admin"))
+	fmt.Println("  Password: " + cli.Highlight("admin123"))
 	fmt.Println()
 
 	return nil
