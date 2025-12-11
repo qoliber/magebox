@@ -91,7 +91,7 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 
 	// Generate Nginx vhost
 	if err := m.vhostGenerator.Generate(cfg, projectPath); err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("Nginx vhost: %w", err))
+		result.Errors = append(result.Errors, fmt.Errorf("nginx vhost: %w", err))
 	}
 
 	// Add domains to /etc/hosts only if using hosts mode (not dnsmasq)
@@ -104,7 +104,7 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 
 	// Generate and start Docker services
 	if err := m.startDockerServices(cfg); err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("Docker: %w", err))
+		result.Errors = append(result.Errors, fmt.Errorf("docker: %w", err))
 	}
 
 	// Create database if needed

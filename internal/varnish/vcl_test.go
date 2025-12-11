@@ -25,7 +25,7 @@ func TestNewVCLGenerator(t *testing.T) {
 	g, tmpDir := setupTestVCLGenerator(t)
 
 	if g == nil {
-		t.Error("NewVCLGenerator should not return nil")
+		t.Fatal("NewVCLGenerator should not return nil")
 	}
 
 	expectedDir := filepath.Join(tmpDir, ".magebox", "varnish")
@@ -263,7 +263,7 @@ func TestNewController(t *testing.T) {
 	c := NewController(p, "/path/to/default.vcl")
 
 	if c == nil {
-		t.Error("NewController should not return nil")
+		t.Fatal("NewController should not return nil")
 	}
 	if c.vclFile != "/path/to/default.vcl" {
 		t.Errorf("vclFile = %v, want /path/to/default.vcl", c.vclFile)

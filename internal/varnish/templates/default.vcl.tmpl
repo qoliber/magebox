@@ -12,15 +12,17 @@ backend {{.Name}} {
     .port = "{{.Port}}";
     .first_byte_timeout = 600s;
     .between_bytes_timeout = 600s;
-    {{if .ProbeURL}}
     .probe = {
-        .url = "{{.ProbeURL}}";
+        .request =
+            "HEAD / HTTP/1.1"
+            "Host: localhost"
+            "Connection: close";
         .timeout = 2s;
-        .interval = {{.ProbeInterval}};
-        .window = 10;
-        .threshold = 5;
+        .interval = {{if .ProbeInterval}}{{.ProbeInterval}}{{else}}5s{{end}};
+        .window = 5;
+        .threshold = 2;
+        .expected_response = 301;
     }
-    {{end}}
 }
 {{end}}
 

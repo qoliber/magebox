@@ -1,10 +1,5 @@
-/**
- * Created by Qoliber
- *
- * @category    Qoliber
- * @package     Qoliber_MageBox
- * @author      Jakub Winkler <jwinkler@qoliber.com>
- */
+// Copyright (c) qoliber
+// Author: Jakub Winkler <jwinkler@qoliber.com>
 
 package main
 
@@ -277,6 +272,23 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Printf("    %s %s\n", cli.Success("✓"), svc)
 		}
 	}
+
+	// Generate Mailpit vhost (mailpit.magebox.test)
+	fmt.Print("  Setting up Mailpit vhost... ")
+	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
+	mailpitCfg := nginx.ProxyConfig{
+		Name:       "mailpit",
+		Domain:     "mailpit.magebox.test",
+		ProxyHost:  "127.0.0.1",
+		ProxyPort:  8025,
+		SSLEnabled: true,
+	}
+	if err := vhostGen.GenerateProxyVhost(mailpitCfg); err != nil {
+		fmt.Println(cli.Error("failed"))
+		cli.PrintWarning("Mailpit vhost generation failed: %v", err)
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
 	fmt.Println()
 
 	// Step 8: DNS setup (informational)
@@ -345,7 +357,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println("Services available:")
 	fmt.Printf("  MySQL 8.0:    %s (root password: magebox)\n", cli.URL("localhost:33080"))
 	fmt.Printf("  Redis:        %s\n", cli.URL("localhost:6379"))
-	fmt.Printf("  Mailpit:      %s\n", cli.URL("http://localhost:8025"))
+	fmt.Printf("  Mailpit:      %s\n", cli.URL("https://mailpit.magebox.test"))
 	if globalCfg.Portainer {
 		fmt.Printf("  Portainer:    %s\n", cli.URL("http://localhost:9000"))
 	}

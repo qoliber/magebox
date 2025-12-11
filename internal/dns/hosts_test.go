@@ -12,7 +12,7 @@ func TestNewHostsManager(t *testing.T) {
 	m := NewHostsManager(p)
 
 	if m == nil {
-		t.Error("NewHostsManager should not return nil")
+		t.Fatal("NewHostsManager should not return nil")
 	}
 	if m.hostsFile != "/etc/hosts" {
 		t.Errorf("hostsFile = %v, want /etc/hosts", m.hostsFile)

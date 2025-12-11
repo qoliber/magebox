@@ -27,7 +27,7 @@ func TestNewVhostGenerator(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
 	if g == nil {
-		t.Error("NewVhostGenerator should not return nil")
+		t.Fatal("NewVhostGenerator should not return nil")
 	}
 
 	expectedDir := filepath.Join(tmpDir, ".magebox", "nginx", "vhosts")

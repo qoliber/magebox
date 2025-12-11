@@ -1,10 +1,5 @@
-/**
- * Created by Qoliber
- *
- * @category    Qoliber
- * @package     Qoliber_MageBox
- * @author      Jakub Winkler <jwinkler@qoliber.com>
- */
+// Copyright (c) qoliber
+// Author: Jakub Winkler <jwinkler@qoliber.com>
 
 package portforward
 

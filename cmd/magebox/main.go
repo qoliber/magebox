@@ -26,7 +26,7 @@ import (
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
-var version = "0.4.0"
+var version = "0.5.0"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -40,8 +40,8 @@ var rootCmd = &cobra.Command{
 	Short: "MageBox - Modern Magento Development Environment",
 	Long: `MageBox is a modern, fast development environment for Magento.
 
-It uses native PHP-FPM, Nginx, and Varnish for maximum performance,
-with Docker only for stateless services like MySQL, Redis, and OpenSearch.`,
+It uses native PHP-FPM and Nginx for maximum performance,
+with Docker for services like MySQL, Redis, OpenSearch, and Varnish.`,
 	Version: version,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Show logo when running without subcommand
@@ -270,6 +270,20 @@ var varnishStatusCmd = &cobra.Command{
 	RunE:  runVarnishStatus,
 }
 
+var varnishEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable Varnish for project",
+	Long:  "Enables Varnish full-page cache for the current project",
+	RunE:  runVarnishEnable,
+}
+
+var varnishDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable Varnish for project",
+	Long:  "Disables Varnish full-page cache for the current project",
+	RunE:  runVarnishDisable,
+}
+
 var dnsCmd = &cobra.Command{
 	Use:   "dns",
 	Short: "DNS configuration",
@@ -424,6 +438,8 @@ func init() {
 	varnishCmd.AddCommand(varnishPurgeCmd)
 	varnishCmd.AddCommand(varnishFlushCmd)
 	varnishCmd.AddCommand(varnishStatusCmd)
+	varnishCmd.AddCommand(varnishEnableCmd)
+	varnishCmd.AddCommand(varnishDisableCmd)
 
 	// DNS subcommands
 	dnsCmd.AddCommand(dnsSetupCmd)
@@ -458,6 +474,20 @@ func init() {
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(bootstrapCmd)
 	rootCmd.AddCommand(newCmd)
+	rootCmd.AddCommand(checkCmd)
+	rootCmd.AddCommand(xdebugCmd)
+	rootCmd.AddCommand(adminCmd)
+
+	// Xdebug subcommands
+	xdebugCmd.AddCommand(xdebugOnCmd)
+	xdebugCmd.AddCommand(xdebugOffCmd)
+	xdebugCmd.AddCommand(xdebugStatusCmd)
+
+	// Admin subcommands
+	adminCmd.AddCommand(adminPasswordCmd)
+	adminCmd.AddCommand(adminDisable2FACmd)
+	adminCmd.AddCommand(adminListCmd)
+	adminCmd.AddCommand(adminCreateCmd)
 }
 
 // runInit initializes a new MageBox project
@@ -707,7 +737,7 @@ func runPhp(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Reload config with new PHP version
-	cfg, ok = loadProjectConfig(cwd)
+	_, ok = loadProjectConfig(cwd)
 	if !ok {
 		return nil
 	}
@@ -1340,6 +1370,145 @@ func runVarnishStatus(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Println("Status: stopped")
 	}
+
+	return nil
+}
+
+// runVarnishEnable enables Varnish for the current project
+func runVarnishEnable(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	// Load project config
+	cfg, err := config.LoadFromPath(cwd)
+	if err != nil {
+		cli.PrintError("No project config found - run 'magebox init' first")
+		return nil
+	}
+
+	cli.PrintTitle("Enabling Varnish")
+	fmt.Printf("Project: %s\n", cli.Highlight(cfg.Name))
+	fmt.Println()
+
+	// Check if already enabled
+	if cfg.Services.HasVarnish() {
+		cli.PrintInfo("Varnish is already enabled for this project")
+		return nil
+	}
+
+	// Update config to enable Varnish
+	cfg.Services.Varnish = &config.ServiceConfig{
+		Enabled: true,
+		Version: "7.5",
+	}
+
+	// Save config
+	if err := config.SaveToPath(cfg, cwd); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Generate VCL
+	fmt.Print("Generating VCL configuration... ")
+	vclGen := varnish.NewVCLGenerator(p)
+	if err := vclGen.Generate([]*config.Config{cfg}); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to generate VCL: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Regenerate docker-compose and start Varnish
+	fmt.Print("Starting Varnish container... ")
+	composeGen := docker.NewComposeGenerator(p)
+	if err := composeGen.GenerateGlobalServices([]*config.Config{cfg}); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to generate docker-compose: %w", err)
+	}
+
+	dockerCtrl := docker.NewDockerController(composeGen.ComposeFilePath())
+	if err := dockerCtrl.Up(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to start Varnish: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	fmt.Println()
+	cli.PrintSuccess("Varnish enabled!")
+	fmt.Println()
+	fmt.Println("Configuration:")
+	fmt.Printf("  HTTP Port:  %s (for testing)\n", cli.Highlight("6081"))
+	fmt.Printf("  Admin Port: %s\n", cli.Highlight("6082"))
+	fmt.Println()
+	cli.PrintInfo("Configure Magento to use Varnish:")
+	fmt.Println("  bin/magento config:set system/full_page_cache/caching_application 2")
+	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_host host.docker.internal")
+	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_port 8080")
+
+	return nil
+}
+
+// runVarnishDisable disables Varnish for the current project
+func runVarnishDisable(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	// Load project config
+	cfg, err := config.LoadFromPath(cwd)
+	if err != nil {
+		cli.PrintError("No project config found - run 'magebox init' first")
+		return nil
+	}
+
+	cli.PrintTitle("Disabling Varnish")
+	fmt.Printf("Project: %s\n", cli.Highlight(cfg.Name))
+	fmt.Println()
+
+	// Check if already disabled
+	if !cfg.Services.HasVarnish() {
+		cli.PrintInfo("Varnish is not enabled for this project")
+		return nil
+	}
+
+	// Update config to disable Varnish
+	cfg.Services.Varnish = nil
+
+	// Save config
+	if err := config.SaveToPath(cfg, cwd); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Stop Varnish container
+	fmt.Print("Stopping Varnish container... ")
+	composeGen := docker.NewComposeGenerator(p)
+	dockerCtrl := docker.NewDockerController(composeGen.ComposeFilePath())
+	if err := dockerCtrl.StopService("varnish"); err != nil {
+		fmt.Println(cli.Warning("not running"))
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+
+	// Regenerate docker-compose without Varnish
+	if err := composeGen.GenerateGlobalServices([]*config.Config{cfg}); err != nil {
+		return fmt.Errorf("failed to update docker-compose: %w", err)
+	}
+
+	fmt.Println()
+	cli.PrintSuccess("Varnish disabled!")
+	cli.PrintInfo("Configure Magento to use built-in cache:")
+	fmt.Println("  bin/magento config:set system/full_page_cache/caching_application 1")
 
 	return nil
 }
@@ -2078,25 +2247,6 @@ var mageosVersions = []MagentoVersion{
 	{Name: "MageOS 1.0.1", Version: "1.0.1", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
 }
 
-// makeEnvWithPHP creates an environment with the PHP bin dir prepended to PATH
-func makeEnvWithPHP(phpBin string) []string {
-	phpBinDir := filepath.Dir(phpBin)
-	env := os.Environ()
-	newPath := fmt.Sprintf("PATH=%s:%s", phpBinDir, os.Getenv("PATH"))
-
-	// Replace existing PATH with our modified version
-	result := make([]string, 0, len(env)+2)
-	for _, e := range env {
-		if !strings.HasPrefix(e, "PATH=") && !strings.HasPrefix(e, "PHP_BINARY=") {
-			result = append(result, e)
-		}
-	}
-	result = append(result, newPath)
-	// Set PHP_BINARY so composer uses the correct PHP for child processes
-	result = append(result, fmt.Sprintf("PHP_BINARY=%s", phpBin))
-	return result
-}
-
 // findRealComposer finds the real composer binary, skipping our wrapper
 func findRealComposer(p *platform.Platform) (string, error) {
 	// Our wrapper is in ~/.magebox/bin/composer - we need to skip it
@@ -2401,10 +2551,9 @@ func runNew(cmd *cobra.Command, args []string) error {
 	rabbitChoice, _ := reader.ReadString('\n')
 	enableRabbitMQ := strings.ToLower(strings.TrimSpace(rabbitChoice)) == "y"
 
-	fmt.Print("  Enable Mailpit (email testing)? [Y/n]: ")
-	mailChoice, _ := reader.ReadString('\n')
-	enableMailpit := strings.ToLower(strings.TrimSpace(mailChoice)) != "n"
-	fmt.Println()
+	// Mailpit is always enabled by default for email testing
+	enableMailpit := true
+	fmt.Println("  Mailpit (email testing): enabled by default")
 
 	// Step 6: Sample Data
 	fmt.Println(cli.Header("Step 6: Sample Data"))
@@ -2682,19 +2831,19 @@ commands:
 
 	// Add search engine config
 	if searchEngine == "opensearch" {
-		installCmd += fmt.Sprintf(` \
+		installCmd += ` \
     --search-engine=opensearch \
     --opensearch-host=127.0.0.1 \
     --opensearch-port=9200 \
     --opensearch-index-prefix=magento2 \
-    --opensearch-timeout=15`)
+    --opensearch-timeout=15`
 	} else if searchEngine == "elasticsearch" {
-		installCmd += fmt.Sprintf(` \
+		installCmd += ` \
     --search-engine=elasticsearch7 \
     --elasticsearch-host=127.0.0.1 \
     --elasticsearch-port=9200 \
     --elasticsearch-index-prefix=magento2 \
-    --elasticsearch-timeout=15`)
+    --elasticsearch-timeout=15`
 	}
 
 	// Add Redis config

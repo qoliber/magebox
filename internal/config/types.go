@@ -64,6 +64,7 @@ type Services struct {
 	Elasticsearch *ServiceConfig `yaml:"elasticsearch,omitempty"`
 	RabbitMQ      *ServiceConfig `yaml:"rabbitmq,omitempty"`
 	Mailpit       *ServiceConfig `yaml:"mailpit,omitempty"`
+	Varnish       *ServiceConfig `yaml:"varnish,omitempty"`
 }
 
 // ServiceConfig represents a service configuration
@@ -197,6 +198,11 @@ func (s *Services) HasRabbitMQ() bool {
 // HasMailpit returns true if Mailpit service is configured
 func (s *Services) HasMailpit() bool {
 	return s.Mailpit != nil && s.Mailpit.Enabled
+}
+
+// HasVarnish returns true if Varnish service is configured
+func (s *Services) HasVarnish() bool {
+	return s.Varnish != nil && s.Varnish.Enabled
 }
 
 // GetDatabaseService returns the configured database service (MySQL or MariaDB)

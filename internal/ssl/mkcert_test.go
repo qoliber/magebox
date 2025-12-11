@@ -16,7 +16,7 @@ func TestNewManager(t *testing.T) {
 	m := NewManager(p)
 
 	if m == nil {
-		t.Error("NewManager should not return nil")
+		t.Fatal("NewManager should not return nil")
 	}
 
 	expectedCertsDir := "/home/testuser/.magebox/certs"

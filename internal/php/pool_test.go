@@ -24,7 +24,7 @@ func TestNewPoolGenerator(t *testing.T) {
 	g, tmpDir := setupTestPoolGenerator(t)
 
 	if g == nil {
-		t.Error("NewPoolGenerator should not return nil")
+		t.Fatal("NewPoolGenerator should not return nil")
 	}
 
 	expectedPoolsDir := filepath.Join(tmpDir, ".magebox", "php", "pools")
@@ -222,7 +222,7 @@ func TestNewFPMController(t *testing.T) {
 	c := NewFPMController(p, "8.2")
 
 	if c == nil {
-		t.Error("NewFPMController should not return nil")
+		t.Fatal("NewFPMController should not return nil")
 	}
 	if c.version != "8.2" {
 		t.Errorf("version = %v, want 8.2", c.version)

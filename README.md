@@ -11,7 +11,7 @@
                  |___/  0.3.2
 ```
 
-A modern, fast development environment for Magento 2. Uses native PHP-FPM, Nginx, and Varnish for maximum performance, with Docker only for stateless services like MySQL, Redis, and OpenSearch.
+A modern, fast development environment for Magento 2. Uses native PHP-FPM and Nginx for maximum performance, with Docker for services like MySQL, Redis, OpenSearch, and Varnish.
 
 ## Why MageBox?
 

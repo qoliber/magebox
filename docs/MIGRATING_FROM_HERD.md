@@ -7,7 +7,7 @@ This guide helps you switch from Laravel Herd to MageBox for your Magento develo
 - **Magento-optimized**: Built specifically for Magento 2 development
 - **Multi-project support**: Run multiple Magento projects with different PHP versions simultaneously
 - **Native performance**: PHP runs natively on your machine, not in containers
-- **Flexible architecture**: Uses native Nginx, PHP-FPM, and Varnish with Docker only for databases
+- **Flexible architecture**: Uses native Nginx and PHP-FPM with Docker for databases, search, and caching services
 - **Automatic PHP version switching**: Smart PHP wrapper automatically uses the correct version per project
 
 ## Prerequisites

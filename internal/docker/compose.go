@@ -9,6 +9,7 @@ import (
 
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
+	"github.com/qoliber/magebox/internal/varnish"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,9 +35,11 @@ type ComposeService struct {
 	Environment   map[string]string `yaml:"environment,omitempty"`
 	Volumes       []string          `yaml:"volumes,omitempty"`
 	Networks      []string          `yaml:"networks,omitempty"`
+	NetworkMode   string            `yaml:"network_mode,omitempty"`
 	Restart       string            `yaml:"restart,omitempty"`
 	HealthCheck   *HealthCheck      `yaml:"healthcheck,omitempty"`
 	Command       string            `yaml:"command,omitempty"`
+	ExtraHosts    []string          `yaml:"extra_hosts,omitempty"`
 }
 
 // ComposeNetwork represents a network in Docker Compose
@@ -137,6 +140,16 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		compose.Services["mailpit"] = g.getMailpitService()
 	}
 
+	// Add Varnish if needed
+	if requiredServices.varnish != nil {
+		// Generate VCL configuration first
+		vclGen := varnish.NewVCLGenerator(g.platform)
+		if err := vclGen.Generate(configs); err != nil {
+			return fmt.Errorf("failed to generate VCL: %w", err)
+		}
+		compose.Services["varnish"] = g.getVarnishService(requiredServices.varnish)
+	}
+
 	// Write compose file
 	data, err := yaml.Marshal(compose)
 	if err != nil {
@@ -160,6 +173,7 @@ type requiredServices struct {
 	elasticsearch map[string]*config.ServiceConfig
 	rabbitmq      bool
 	mailpit       bool
+	varnish       *config.ServiceConfig
 }
 
 // collectRequiredServices collects all required services from configs
@@ -192,6 +206,9 @@ func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) req
 		}
 		if cfg.Services.HasMailpit() {
 			rs.mailpit = true
+		}
+		if cfg.Services.HasVarnish() {
+			rs.varnish = cfg.Services.Varnish
 		}
 	}
 
@@ -376,6 +393,47 @@ func (g *ComposeGenerator) getPortainerService() ComposeService {
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
+	}
+}
+
+// getVarnishService returns a Varnish service configuration
+func (g *ComposeGenerator) getVarnishService(svcCfg *config.ServiceConfig) ComposeService {
+	version := svcCfg.Version
+	if version == "" {
+		version = "7.5" // default Varnish version
+	}
+
+	// Default memory for Varnish cache
+	memory := "256m"
+	if svcCfg.Memory != "" {
+		memory = svcCfg.Memory
+	}
+
+	// Mount VCL from MageBox directory
+	vclPath := filepath.Join(g.platform.MageBoxDir(), "varnish", "default.vcl")
+
+	return ComposeService{
+		ContainerName: "magebox-varnish",
+		Image:         fmt.Sprintf("varnish:%s", version),
+		Ports: []string{
+			"6081:80",
+			"6082:6082",
+		},
+		Environment: map[string]string{
+			"VARNISH_SIZE": memory,
+		},
+		Volumes: []string{
+			vclPath + ":/etc/varnish/default.vcl:ro",
+		},
+		Networks: []string{"magebox"},
+		Restart:  "unless-stopped",
+		Command:  "-p feature=+http2 -f /etc/varnish/default.vcl",
+		HealthCheck: &HealthCheck{
+			Test:     []string{"CMD", "varnishadm", "ping"},
+			Interval: "10s",
+			Timeout:  "5s",
+			Retries:  3,
+		},
 	}
 }
 

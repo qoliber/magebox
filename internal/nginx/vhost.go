@@ -17,6 +17,9 @@ import (
 //go:embed templates/vhost.conf.tmpl
 var vhostTemplate string
 
+//go:embed templates/proxy.conf.tmpl
+var proxyTemplate string
+
 // Template variables available in vhost.conf.tmpl:
 // - ProjectName: Name of the project (e.g., "mystore")
 // - Domain: Domain name (e.g., "mystore.test")
@@ -48,6 +51,17 @@ type VhostConfig struct {
 	SSLKeyFile    string
 	UseVarnish    bool
 	VarnishPort   int
+}
+
+// ProxyConfig contains data needed to generate a proxy vhost
+type ProxyConfig struct {
+	Name        string
+	Domain      string
+	ProxyHost   string
+	ProxyPort   int
+	SSLEnabled  bool
+	SSLCertFile string
+	SSLKeyFile  string
 }
 
 // NewVhostGenerator creates a new vhost generator
@@ -145,6 +159,51 @@ func (g *VhostGenerator) VhostsDir() string {
 func (g *VhostGenerator) ListVhosts() ([]string, error) {
 	pattern := filepath.Join(g.vhostsDir, "*.conf")
 	return filepath.Glob(pattern)
+}
+
+// GenerateProxyVhost generates a proxy vhost configuration for a service
+func (g *VhostGenerator) GenerateProxyVhost(cfg ProxyConfig) error {
+	// Ensure vhosts directory exists
+	if err := os.MkdirAll(g.vhostsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create vhosts directory: %w", err)
+	}
+
+	// Generate SSL certificate if enabled
+	if cfg.SSLEnabled && g.sslManager != nil {
+		certPaths, err := g.sslManager.GenerateCert(cfg.Domain)
+		if err != nil {
+			return fmt.Errorf("failed to generate SSL certificate for %s: %w", cfg.Domain, err)
+		}
+		cfg.SSLCertFile = certPaths.CertFile
+		cfg.SSLKeyFile = certPaths.KeyFile
+	}
+
+	content, err := g.renderProxyVhost(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to render proxy vhost for %s: %w", cfg.Domain, err)
+	}
+
+	vhostFile := filepath.Join(g.vhostsDir, fmt.Sprintf("%s.conf", cfg.Name))
+	if err := os.WriteFile(vhostFile, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write proxy vhost file: %w", err)
+	}
+
+	return nil
+}
+
+// renderProxyVhost renders the proxy vhost template
+func (g *VhostGenerator) renderProxyVhost(cfg ProxyConfig) (string, error) {
+	tmpl, err := template.New("proxy").Parse(proxyTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 // sanitizeDomain converts a domain to a safe filename

@@ -12,7 +12,7 @@ func TestNewDetector(t *testing.T) {
 	d := NewDetector(p)
 
 	if d == nil {
-		t.Error("NewDetector should not return nil")
+		t.Fatal("NewDetector should not return nil")
 	}
 	if d.platform != p {
 		t.Error("NewDetector should store the platform")

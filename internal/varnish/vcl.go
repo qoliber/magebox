@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,15 +89,19 @@ func (g *VCLGenerator) buildVCLConfig(configs []*config.Config) VCLConfig {
 	vclCfg := VCLConfig{
 		Backends:    make([]BackendConfig, 0),
 		GracePeriod: "300s",
-		PurgeACL:    []string{"localhost", "127.0.0.1", "::1"},
+		PurgeACL:    []string{"localhost", "127.0.0.1", "::1", "host.docker.internal"},
 	}
+
+	// Backend host - detect host IP for Docker to reach nginx
+	backendHost := getHostIP()
+	backendPort := 8080 // Nginx listens on 8080
 
 	for _, cfg := range configs {
 		// Each project gets a backend pointing to Nginx
 		backend := BackendConfig{
 			Name:          sanitizeName(cfg.Name),
-			Host:          "127.0.0.1",
-			Port:          80,
+			Host:          backendHost,
+			Port:          backendPort,
 			ProbeURL:      "/health_check.php",
 			ProbeInterval: "5s",
 		}
@@ -112,8 +117,8 @@ func (g *VCLGenerator) buildVCLConfig(configs []*config.Config) VCLConfig {
 	if len(vclCfg.Backends) == 0 {
 		vclCfg.Backends = append(vclCfg.Backends, BackendConfig{
 			Name: "default",
-			Host: "127.0.0.1",
-			Port: 80,
+			Host: backendHost,
+			Port: backendPort,
 		})
 		vclCfg.DefaultBackend = "default"
 	}
@@ -238,4 +243,17 @@ func (c *Controller) Ban(pattern string) error {
 func (c *Controller) FlushAll() error {
 	cmd := exec.Command("varnishadm", "ban", "req.url", "~", ".")
 	return cmd.Run()
+}
+
+// getHostIP returns the host's LAN IP address that Docker containers can reach
+func getHostIP() string {
+	// Try to get the preferred outbound IP
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
 }

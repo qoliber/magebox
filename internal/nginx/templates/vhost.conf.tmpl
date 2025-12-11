@@ -9,7 +9,19 @@ upstream fastcgi_backend_{{.ProjectName}} {
 server {
     listen 8080;
     server_name {{.Domain}};
-    return 301 https://$host$request_uri;
+
+    # Allow health check for Varnish probe on HTTP
+    location = /health_check.php {
+        root {{.DocumentRoot}};
+        fastcgi_pass fastcgi_backend_{{.ProjectName}};
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    # Redirect all other requests to HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {
