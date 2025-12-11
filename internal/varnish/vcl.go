@@ -254,6 +254,9 @@ func getHostIP() string {
 	}
 	defer func() { _ = conn.Close() }()
 
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return "127.0.0.1"
+	}
 	return localAddr.IP.String()
 }
