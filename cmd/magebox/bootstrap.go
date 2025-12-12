@@ -45,6 +45,10 @@ Run this once after installing MageBox to prepare your system.`,
 	RunE: runBootstrap,
 }
 
+func init() {
+	rootCmd.AddCommand(bootstrapCmd)
+}
+
 func runBootstrap(cmd *cobra.Command, args []string) error {
 	p, err := getPlatform()
 	if err != nil {

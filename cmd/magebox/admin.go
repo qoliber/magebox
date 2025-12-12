@@ -67,6 +67,14 @@ You will be prompted for:
 	RunE: runAdminCreate,
 }
 
+func init() {
+	adminCmd.AddCommand(adminPasswordCmd)
+	adminCmd.AddCommand(adminDisable2FACmd)
+	adminCmd.AddCommand(adminListCmd)
+	adminCmd.AddCommand(adminCreateCmd)
+	rootCmd.AddCommand(adminCmd)
+}
+
 func runAdminPassword(cmd *cobra.Command, args []string) error {
 	cwd, err := getCwd()
 	if err != nil {

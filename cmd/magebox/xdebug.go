@@ -46,6 +46,13 @@ var xdebugStatusCmd = &cobra.Command{
 	RunE:  runXdebugStatus,
 }
 
+func init() {
+	xdebugCmd.AddCommand(xdebugOnCmd)
+	xdebugCmd.AddCommand(xdebugOffCmd)
+	xdebugCmd.AddCommand(xdebugStatusCmd)
+	rootCmd.AddCommand(xdebugCmd)
+}
+
 func runXdebugOn(cmd *cobra.Command, args []string) error {
 	cwd, err := getCwd()
 	if err != nil {

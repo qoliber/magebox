@@ -39,6 +39,10 @@ Run this command to diagnose issues with your development environment.`,
 	RunE: runCheck,
 }
 
+func init() {
+	rootCmd.AddCommand(checkCmd)
+}
+
 type checkResult struct {
 	name    string
 	status  string // "ok", "warning", "error"
