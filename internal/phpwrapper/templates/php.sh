@@ -33,6 +33,7 @@ get_php_version_from_config() {
 find_php_binary() {
     local version="$1"
     local php_bin=""
+    local version_no_dot="${version//./}"
 
     # macOS: Use Cellar path directly (more reliable than opt symlinks)
     # Apple Silicon
@@ -49,9 +50,15 @@ find_php_binary() {
         return 0
     fi
 
-    # Linux: Try common paths
+    # Linux Debian/Ubuntu: /usr/bin/php8.2 (with dot)
     if [[ -x "/usr/bin/php$version" ]]; then
         echo "/usr/bin/php$version"
+        return 0
+    fi
+
+    # Linux Fedora/RHEL Remi: /usr/bin/php82 (no dot)
+    if [[ -x "/usr/bin/php$version_no_dot" ]]; then
+        echo "/usr/bin/php$version_no_dot"
         return 0
     fi
 

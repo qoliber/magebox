@@ -570,6 +570,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
 `, currentUser)
 
 			// Write to temp file
