@@ -9,7 +9,8 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	// Test Linux - uses /etc/magebox/certs
+	// Test Linux - now uses ~/.magebox/certs (same as macOS)
+	// nginx runs as current user, so it can access home dir certs
 	p := &platform.Platform{
 		Type:    platform.Linux,
 		HomeDir: "/home/testuser",
@@ -20,7 +21,7 @@ func TestNewManager(t *testing.T) {
 		t.Fatal("NewManager should not return nil")
 	}
 
-	expectedCertsDir := "/etc/magebox/certs"
+	expectedCertsDir := "/home/testuser/.magebox/certs"
 	if m.certsDir != expectedCertsDir {
 		t.Errorf("certsDir = %v, want %v", m.certsDir, expectedCertsDir)
 	}
@@ -38,14 +39,14 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManager_CertsDir(t *testing.T) {
-	// Test Linux
+	// Test Linux - now uses ~/.magebox/certs (same as macOS)
 	p := &platform.Platform{
 		Type:    platform.Linux,
 		HomeDir: "/home/testuser",
 	}
 	m := NewManager(p)
 
-	expected := "/etc/magebox/certs"
+	expected := "/home/testuser/.magebox/certs"
 	if got := m.CertsDir(); got != expected {
 		t.Errorf("CertsDir() = %v, want %v", got, expected)
 	}

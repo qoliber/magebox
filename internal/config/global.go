@@ -108,7 +108,7 @@ func DefaultGlobalConfig() *GlobalConfig {
 			MySQL: "8.0",
 			Redis: true,
 		},
-		Portainer: true,
+		Portainer: false,
 		TLD:       "test",
 		AutoStart: false,
 	}

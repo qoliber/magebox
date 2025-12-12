@@ -27,7 +27,7 @@ import (
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
-var version = "0.6.2"
+var version = "0.7.0"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -818,14 +818,70 @@ func runShell(cmd *cobra.Command, args []string) error {
 	return shellCmd.Run()
 }
 
+// dbInfo holds database connection information
+type dbInfo struct {
+	ContainerName string // e.g., "magebox-mysql-8.0"
+	Version       string // e.g., "8.0"
+	Type          string // "mysql" or "mariadb"
+	Port          int    // e.g., 33080
+}
+
+// getDbInfo extracts database connection info from project config
+func getDbInfo(cfg *config.Config) (*dbInfo, error) {
+	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
+		version := cfg.Services.MySQL.Version
+		port := getDbPort("mysql", version)
+		return &dbInfo{
+			ContainerName: fmt.Sprintf("magebox-mysql-%s", version),
+			Version:       version,
+			Type:          "mysql",
+			Port:          port,
+		}, nil
+	}
+	if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
+		version := cfg.Services.MariaDB.Version
+		port := getDbPort("mariadb", version)
+		return &dbInfo{
+			ContainerName: fmt.Sprintf("magebox-mariadb-%s", version),
+			Version:       version,
+			Type:          "mariadb",
+			Port:          port,
+		}, nil
+	}
+	return nil, fmt.Errorf("no database service configured in %s", config.ConfigFileName)
+}
+
+// getDbPort returns the host port for a database version
+func getDbPort(dbType, version string) int {
+	if dbType == "mysql" {
+		ports := map[string]int{
+			"5.7": 33057,
+			"8.0": 33080,
+			"8.4": 33084,
+		}
+		if port, ok := ports[version]; ok {
+			return port
+		}
+		return 33080
+	}
+	// MariaDB
+	ports := map[string]int{
+		"10.4":  33104,
+		"10.5":  33105,
+		"10.6":  33106,
+		"10.11": 33111,
+		"11.0":  33110,
+		"11.4":  33114,
+	}
+	if port, ok := ports[version]; ok {
+		return port
+	}
+	return 33106
+}
+
 // runDbImport imports a database from a file
 func runDbImport(cmd *cobra.Command, args []string) error {
 	cwd, err := getCwd()
-	if err != nil {
-		return err
-	}
-
-	p, err := getPlatform()
 	if err != nil {
 		return err
 	}
@@ -835,25 +891,17 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Determine service name
-	var serviceName string
-	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
-		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
-		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
-	} else {
-		cli.PrintError("No database service configured in %s", config.ConfigFileName)
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
 		return nil
 	}
 
-	composeGen := docker.NewComposeGenerator(p)
-	composeFile := composeGen.ComposeFilePath()
-
 	sqlFile := args[0]
-	fmt.Printf("Importing %s into database '%s'...\n", sqlFile, cfg.Name)
+	fmt.Printf("Importing %s into database '%s' (%s)...\n", sqlFile, cfg.Name, db.ContainerName)
 
-	// Use docker compose exec to import
-	importCmd := exec.Command("docker", "compose", "-f", composeFile, "exec", "-T", serviceName,
+	// Use docker exec directly with container name
+	importCmd := exec.Command("docker", "exec", "-i", db.ContainerName,
 		"mysql", "-uroot", "-pmagebox", cfg.Name)
 
 	file, err := os.Open(sqlFile)
@@ -870,7 +918,7 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("import failed: %w", err)
 	}
 
-	fmt.Println("Import completed successfully!")
+	cli.PrintSuccess("Import completed successfully!")
 	return nil
 }
 
@@ -881,13 +929,14 @@ func runDbExport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	p, err := getPlatform()
-	if err != nil {
-		return err
-	}
-
 	cfg, ok := loadProjectConfig(cwd)
 	if !ok {
+		return nil
+	}
+
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
 		return nil
 	}
 
@@ -899,24 +948,12 @@ func runDbExport(cmd *cobra.Command, args []string) error {
 		outputFile = fmt.Sprintf("%s.sql", cfg.Name)
 	}
 
-	// Determine service name
-	var serviceName string
-	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
-		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
-		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
-	} else {
-		return fmt.Errorf("no database service configured")
-	}
+	fmt.Printf("Exporting database '%s' to %s (%s)...\n", cfg.Name, outputFile, db.ContainerName)
 
-	composeGen := docker.NewComposeGenerator(p)
-	composeFile := composeGen.ComposeFilePath()
-
-	fmt.Printf("Exporting database '%s' to %s...\n", cfg.Name, outputFile)
-
-	// Use docker compose exec to export
-	exportCmd := exec.Command("docker", "compose", "-f", composeFile, "exec", "-T", serviceName,
-		"mysqldump", "-uroot", "-pmagebox", cfg.Name)
+	// Use docker exec directly with container name
+	// --no-tablespaces: Skip TABLESPACE statements (avoids permission issues on import)
+	exportCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysqldump", "-uroot", "-pmagebox", "--no-tablespaces", cfg.Name)
 
 	file, err := os.Create(outputFile)
 	if err != nil {
@@ -931,7 +968,7 @@ func runDbExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("export failed: %w", err)
 	}
 
-	fmt.Println("Export completed successfully!")
+	cli.PrintSuccess("Export completed: %s", outputFile)
 	return nil
 }
 
@@ -942,33 +979,21 @@ func runDbShell(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	p, err := getPlatform()
-	if err != nil {
-		return err
-	}
-
 	cfg, ok := loadProjectConfig(cwd)
 	if !ok {
 		return nil
 	}
 
-	// Determine service name
-	var serviceName string
-	if cfg.Services.MySQL != nil && cfg.Services.MySQL.Enabled {
-		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-	} else if cfg.Services.MariaDB != nil && cfg.Services.MariaDB.Enabled {
-		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
-	} else {
-		cli.PrintError("No database service configured in %s", config.ConfigFileName)
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
 		return nil
 	}
 
-	composeGen := docker.NewComposeGenerator(p)
-	composeFile := composeGen.ComposeFilePath()
+	fmt.Printf("Connecting to database '%s' (%s)...\n", cfg.Name, db.ContainerName)
 
-	fmt.Printf("Connecting to database '%s'...\n", cfg.Name)
-
-	shellCmd := exec.Command("docker", "compose", "-f", composeFile, "exec", serviceName,
+	// Use docker exec directly with container name
+	shellCmd := exec.Command("docker", "exec", "-it", db.ContainerName,
 		"mysql", "-uroot", "-pmagebox", cfg.Name)
 	shellCmd.Stdin = os.Stdin
 	shellCmd.Stdout = os.Stdout

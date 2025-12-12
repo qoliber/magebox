@@ -308,7 +308,7 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig) Co
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
-		Command:  "sh -c \"bin/opensearch-plugin install --batch analysis-icu && bin/opensearch-plugin install --batch analysis-phonetic && /usr/share/opensearch/opensearch-docker-entrypoint.sh\"",
+		Command:  "sh -c \"(bin/opensearch-plugin list | grep -q analysis-icu || bin/opensearch-plugin install --batch analysis-icu) && (bin/opensearch-plugin list | grep -q analysis-phonetic || bin/opensearch-plugin install --batch analysis-phonetic) && /usr/share/opensearch/opensearch-docker-entrypoint.sh\"",
 	}
 }
 
@@ -339,7 +339,7 @@ func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig)
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
-		Command:  "sh -c \"bin/elasticsearch-plugin install --batch analysis-icu && bin/elasticsearch-plugin install --batch analysis-phonetic && /usr/local/bin/docker-entrypoint.sh eswrapper\"",
+		Command:  "sh -c \"(bin/elasticsearch-plugin list | grep -q analysis-icu || bin/elasticsearch-plugin install --batch analysis-icu) && (bin/elasticsearch-plugin list | grep -q analysis-phonetic || bin/elasticsearch-plugin install --batch analysis-phonetic) && /usr/local/bin/docker-entrypoint.sh eswrapper\"",
 	}
 }
 

@@ -27,8 +27,8 @@ func TestDefaultGlobalConfig(t *testing.T) {
 	if config.TLD != "test" {
 		t.Errorf("TLD = %v, want test", config.TLD)
 	}
-	if !config.Portainer {
-		t.Error("Portainer should be true by default")
+	if config.Portainer {
+		t.Error("Portainer should be false by default")
 	}
 	if !config.DefaultServices.Redis {
 		t.Error("Redis should be true by default")
