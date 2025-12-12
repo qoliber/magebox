@@ -328,6 +328,24 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	nginxCtrl := nginx.NewController(p)
 	fmt.Printf("  Nginx config: %s\n", cli.Highlight(nginxCtrl.GetNginxConfPath()))
 
+	// On Linux, configure nginx to run as current user (so it can access ~/.magebox/certs)
+	if p.Type == platform.Linux {
+		currentUser := os.Getenv("USER")
+		if currentUser == "" {
+			currentUser = os.Getenv("LOGNAME")
+		}
+		if currentUser != "" {
+			fmt.Print("  Configuring nginx to run as " + cli.Highlight(currentUser) + "... ")
+			nginxConf := nginxCtrl.GetNginxConfPath()
+			cmd := exec.Command("sudo", "sed", "-i", fmt.Sprintf("s/^user .*/user %s;/", currentUser), nginxConf)
+			if err := cmd.Run(); err != nil {
+				fmt.Println(cli.Error("failed"))
+			} else {
+				fmt.Println(cli.Success("done"))
+			}
+		}
+	}
+
 	// Create vhosts directory
 	vhostsDir := filepath.Join(p.MageBoxDir(), "nginx", "vhosts")
 	if err := os.MkdirAll(vhostsDir, 0755); err != nil {

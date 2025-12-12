@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.3.2
+                 |___/  0.6.1
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM and Nginx for maximum performance, with Docker for services like MySQL, Redis, OpenSearch, and Varnish.
@@ -230,9 +230,14 @@ This performs:
    - Requires sudo password once during bootstrap
    - After setup, no sudo needed for daily operations
 5. **Nginx Config** - Configures Nginx to include MageBox vhosts
+   - **Linux:** Configures nginx to run as your user (required for SSL cert access)
 6. **Docker Services** - Starts MySQL 8.0, Redis, Mailpit containers
 7. **DNS Setup** - Configures DNS resolution for `.test` domains
+   - **Linux:** Configures dnsmasq + systemd-resolved for `.test` wildcard DNS
+   - **macOS:** Creates `/etc/resolver/test`
 8. **PHP Wrapper** - Installs smart PHP wrapper that automatically uses the correct version
+9. **PHP-FPM Setup** (Linux/Fedora) - Configures PHP-FPM logging to `/var/log/magebox/`
+10. **Sudoers Config** (Linux) - Sets up passwordless sudo for nginx/php-fpm control
 
 After bootstrap, these services are running:
 
@@ -1149,6 +1154,69 @@ sudo systemctl start docker
 ```bash
 magebox ssl trust      # Re-trust CA
 magebox ssl generate   # Regenerate certs
+```
+
+### Linux: HTTPS not working (port 443 not listening)
+
+If nginx is not binding to port 443, check:
+
+1. **SSL cert permissions** - nginx must be able to read `~/.magebox/certs/`
+2. **Nginx user** - Must run as your user on Linux:
+   ```bash
+   # Check nginx user
+   grep "^user" /etc/nginx/nginx.conf
+   # Should show: user yourusername;
+
+   # Fix if needed (run bootstrap or manually)
+   sudo sed -i "s/^user .*/user $USER;/" /etc/nginx/nginx.conf
+   sudo systemctl restart nginx
+   ```
+3. **Check if 443 is listening:**
+   ```bash
+   ss -tlnp | grep 443
+   ```
+
+### Linux: DNS resolution not working
+
+If `.test` domains don't resolve:
+
+1. **Check dnsmasq is running:**
+   ```bash
+   systemctl status dnsmasq
+   ```
+
+2. **Check systemd-resolved config:**
+   ```bash
+   cat /etc/systemd/resolved.conf.d/magebox.conf
+   # Should contain:
+   # [Resolve]
+   # DNS=127.0.0.1
+   # Domains=~test
+   ```
+
+3. **Test DNS resolution:**
+   ```bash
+   resolvectl query mystore.test
+   # Should return 127.0.0.1
+   ```
+
+4. **Re-run bootstrap if needed:**
+   ```bash
+   magebox bootstrap
+   ```
+
+### Linux: SELinux blocking PHP-FPM
+
+If PHP-FPM fails to start on Fedora/RHEL:
+
+```bash
+# Check SELinux status
+getenforce
+
+# Temporarily disable (for testing)
+sudo setenforce 0
+
+# If that fixes it, create proper SELinux policy or use /var/log/magebox for logs
 ```
 
 ---
