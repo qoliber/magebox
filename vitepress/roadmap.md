@@ -6,44 +6,56 @@ This document outlines planned features and improvements for MageBox.
 For completed features and version history, see the [Changelog](/changelog).
 :::
 
+## Recently Completed
+
+The following features have been implemented:
+
+| Feature | Version | Description |
+|---------|---------|-------------|
+| Varnish Full Integration | v0.10.5 | Automatic Nginx proxy, VCL generation, cache purge |
+| Log Viewer | v0.10.10 | `magebox logs` with split-screen multitail |
+| Error Reports | v0.10.10 | `magebox report` with filesystem watching |
+| Elasticsearch Support | v0.9.0 | Elasticsearch 7.x and 8.x alongside OpenSearch |
+| Blackfire Profiler | v0.10.0 | Full Blackfire integration |
+| Tideways Profiler | v0.10.0 | Full Tideways integration |
+| Database Management | v0.10.2 | `db create`, `db drop`, `db reset` commands |
+| Multi-Domain Support | v0.7.1 | Multiple domains per project with store codes |
+
 ## Planned Features
 
-### Database Management Improvements
+### Service-Specific Log Tailing
 
-- Automatic database creation on `magebox start`
+Dedicated log commands for each service:
 
-### Additional Services
+```bash
+magebox logs php      # PHP-FPM logs
+magebox logs nginx    # Nginx access/error logs
+magebox logs mysql    # MySQL query logs
+magebox logs redis    # Redis logs
+```
 
-#### Elasticsearch Support
+### Database Snapshots
 
-- Support for Elasticsearch 7.x and 8.x as alternative to OpenSearch
-- Version configuration in .magebox.yaml
+Quick database backup and restore:
 
-#### Varnish Improvements
+```bash
+magebox db snapshot create mybackup
+magebox db snapshot restore mybackup
+magebox db snapshot list
+```
 
-- Full Varnish integration for production-like caching
-- VCL file generation for Magento
-- Cache purge integration
+### Performance Profiling Dashboard
 
-### Developer Experience
+Web-based performance visualization:
 
-#### Magento CLI Integration
+- Query analysis
+- Cache hit rates
+- Request timing breakdown
 
-- `magebox mage` - Run bin/magento commands with correct PHP version
-- Command completion and suggestions
+### IDE Plugins
 
-#### Log Management
-
-- `magebox logs php` - Tail PHP-FPM logs
-- `magebox logs nginx` - Tail Nginx access/error logs
-- `magebox logs mysql` - Tail MySQL logs
-- Consolidated log viewer
-
-### Multi-Project Support
-
-- Project switching without stopping services
-- Shared service management
-- Resource optimization
+- PHPStorm plugin for MageBox integration
+- VS Code extension
 
 ## Version 2.0 - User-Customizable Templates
 
@@ -52,46 +64,18 @@ For completed features and version history, see the [Changelog](/changelog).
 Move all configuration generation to external template files that users can customize.
 Templates will use Go's `text/template` engine which supports conditionals, loops, and functions.
 
-### Template Engine Features
+### Template Customization
 
-Go's `text/template` supports:
-
-```go
-{{if .HasRedis}}         // Conditionals
-{{else if .HasFiles}}    // Else-if branches
-{{else}}                 // Else branch
-{{end}}                  // End block
-
-{{range .Domains}}       // Loop over arrays/slices
-  {{.Host}}              // Access fields
-{{end}}
-
-{{with .Services}}       // Scoped context
-  {{.MySQL.Version}}
-{{end}}
-
-{{eq .A .B}}             // Equality comparison
-{{ne .A .B}}             // Not equal
-{{and .A .B}}            // Logical AND
-{{or .A .B}}             // Logical OR
-{{not .A}}               // Logical NOT
-
-{{.Value | printf "%s"}} // Pipelines/filters
-```
-
-### Architecture
+Currently, templates are embedded in the binary. Version 2.0 will allow users to override them:
 
 ```
 ~/.magebox/
 ├── templates/                    # User-customizable templates
 │   ├── env.php.tmpl             # Magento env.php
 │   ├── vhost.conf.tmpl          # Nginx virtual host
-│   ├── proxy.conf.tmpl          # Nginx reverse proxy
 │   ├── pool.conf.tmpl           # PHP-FPM pool config
 │   ├── default.vcl.tmpl         # Varnish VCL
-│   ├── dnsmasq.conf.tmpl        # dnsmasq config
-│   ├── composer.json.tmpl       # Composer project template
-│   └── docker-compose.yml.tmpl  # Docker Compose (optional)
+│   └── docker-compose.yml.tmpl  # Docker Compose
 └── ...
 ```
 
@@ -100,75 +84,6 @@ Go's `text/template` supports:
 2. Fall back to embedded default template if not found
 3. Provide `magebox templates init` to copy defaults for customization
 4. Provide `magebox templates reset` to restore defaults
-
-### Planned Templates
-
-#### High Priority
-
-| Template | Description |
-|----------|-------------|
-| `env.php.tmpl` | Magento app/etc/env.php with conditionals for Redis, Varnish, Mailpit |
-| `composer.json.tmpl` | Composer project skeleton |
-
-#### Medium Priority
-
-| Template | Description |
-|----------|-------------|
-| `vhost.conf.tmpl` | Nginx virtual host (already templated internally) |
-| `proxy.conf.tmpl` | Nginx reverse proxy |
-| `pool.conf.tmpl` | PHP-FPM pool configuration |
-| `default.vcl.tmpl` | Varnish VCL |
-
-#### Low Priority
-
-| Template | Description |
-|----------|-------------|
-| `dnsmasq.conf.tmpl` | dnsmasq configuration |
-| `hosts-entry.tmpl` | /etc/hosts entry format |
-
-### Example: env.php.tmpl
-
-```php
-<?php
-return [
-    'backend' => [
-        'frontName' => '{{.AdminPath}}'
-    ],
-    'crypt' => [
-        'key' => '{{.CryptKey}}'
-    ],
-{{if .HasRedis}}
-    'session' => [
-        'save' => 'redis',
-        'redis' => [
-            'host' => '127.0.0.1',
-            'port' => '6379',
-            'database' => '{{.RedisSessionDB}}'
-        ]
-    ],
-{{else}}
-    'session' => [
-        'save' => 'files'
-    ],
-{{end}}
-    'db' => [
-        'connection' => [
-            'default' => [
-                'host' => '{{.DatabaseHost}}:{{.DatabasePort}}',
-                'dbname' => '{{.DatabaseName}}',
-                'username' => '{{.DatabaseUser}}',
-                'password' => '{{.DatabasePassword}}'
-            ]
-        ]
-    ],
-{{if .HasVarnish}}
-    'http_cache_hosts' => [
-        ['host' => '127.0.0.1', 'port' => '6081']
-    ],
-{{end}}
-    'MAGE_MODE' => '{{.MageMode}}'
-];
-```
 
 ### CLI Commands
 
