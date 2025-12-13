@@ -2,6 +2,7 @@ package project
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,7 +52,7 @@ func (d *ProjectDiscovery) DiscoverProjects() ([]ProjectInfo, error) {
 
 	for _, file := range files {
 		info, err := d.parseVhostFile(file)
-		if err != nil {
+		if err != nil || info == nil {
 			continue
 		}
 
@@ -88,7 +89,8 @@ func (d *ProjectDiscovery) parseVhostFile(path string) (*ProjectInfo, error) {
 
 	// Regex patterns
 	serverNameRegex := regexp.MustCompile(`server_name\s+([^;]+);`)
-	rootRegex := regexp.MustCompile(`root\s+([^;]+);`)
+	// Match "set $MAGE_ROOT /path/to/project/pub;" for MageBox vhosts
+	mageRootRegex := regexp.MustCompile(`set\s+\$MAGE_ROOT\s+([^;]+);`)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -100,17 +102,28 @@ func (d *ProjectDiscovery) parseVhostFile(path string) (*ProjectInfo, error) {
 			info.Domains = append(info.Domains, domains...)
 		}
 
-		// Extract root path
-		if matches := rootRegex.FindStringSubmatch(line); len(matches) > 1 {
+		// Extract MAGE_ROOT path (the document root for Magento projects)
+		if matches := mageRootRegex.FindStringSubmatch(line); len(matches) > 1 {
 			rootPath := strings.TrimSpace(matches[1])
-			// Root is typically /path/to/project/pub, so go up one level
+			// MAGE_ROOT is typically /path/to/project/pub, so go up one level
 			info.Path = filepath.Dir(rootPath)
 		}
 	}
 
 	if info.Path == "" {
-		return nil, err
+		return nil, errors.New("no root path found in vhost file")
 	}
+
+	// Deduplicate domains
+	seen := make(map[string]bool)
+	uniqueDomains := make([]string, 0)
+	for _, d := range info.Domains {
+		if !seen[d] {
+			seen[d] = true
+			uniqueDomains = append(uniqueDomains, d)
+		}
+	}
+	info.Domains = uniqueDomains
 
 	// Try to load project config (try new format first, then legacy)
 	configPath := filepath.Join(info.Path, config.ConfigFileName)

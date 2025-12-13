@@ -2,6 +2,14 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.8] - 2025-12-13
+
+### Bug Fixes
+
+- **Fixed `magebox list` panic**: No longer crashes when parsing vhost files without root path
+- **Fixed project discovery**: Now correctly parses `$MAGE_ROOT` variable from vhost files
+- **Fixed duplicate domains**: Domains no longer appear twice in project listings
+
 ## [0.10.7] - 2025-12-13
 
 ### Bug Fixes
