@@ -205,6 +205,44 @@ magebox db export - > backup.sql
 **Arguments:**
 - `file` - Output file (use `-` for stdout)
 
+---
+
+### `magebox db create`
+
+Create the project database.
+
+```bash
+magebox db create
+```
+
+Creates the database defined in `.magebox.yaml` if it doesn't exist.
+
+---
+
+### `magebox db drop`
+
+Drop the project database.
+
+```bash
+magebox db drop
+```
+
+::: danger
+This permanently deletes all data. Requires confirmation.
+:::
+
+---
+
+### `magebox db reset`
+
+Drop and recreate the project database.
+
+```bash
+magebox db reset
+```
+
+Equivalent to `db drop` followed by `db create`. Requires confirmation.
+
 ## Redis Commands
 
 ### `magebox redis shell`
@@ -237,25 +275,42 @@ magebox redis info
 
 ## Log Commands
 
-### `magebox logs [pattern]`
+### `magebox logs`
 
-View Magento logs.
+View Magento logs in split-screen using multitail.
 
 ```bash
-# All logs
 magebox logs
-
-# Specific file
-magebox logs system.log
-magebox logs exception.log
-
-# Pattern matching
-magebox logs "error"
 ```
 
-**Options:**
-- `-f, --follow` - Follow log output (like `tail -f`)
-- `-n, --lines <num>` - Number of lines to show (default: 100)
+Opens `system.log` and `exception.log` side-by-side:
+- Left column: `var/log/system.log`
+- Right column: `var/log/exception.log`
+
+**Keyboard controls:**
+- `q` - Quit
+- `b` - Scroll back in history
+- `↑/↓` - Scroll in current window
+
+::: tip
+Requires `multitail`. Run `magebox bootstrap` to install it.
+:::
+
+---
+
+### `magebox report`
+
+Watch for Magento error reports.
+
+```bash
+magebox report
+```
+
+Monitors `var/report/` directory and displays:
+- Latest error report on startup
+- New reports as they're created in real-time
+
+Press `Ctrl+C` to stop watching.
 
 ## Varnish Commands
 
@@ -286,6 +341,34 @@ Clear all Varnish cache.
 ```bash
 magebox varnish flush
 ```
+
+---
+
+### `magebox varnish enable`
+
+Enable Varnish for the current project.
+
+```bash
+magebox varnish enable
+```
+
+This command:
+1. Updates `.magebox.yaml` to enable Varnish
+2. Regenerates Nginx vhost to proxy through Varnish
+3. Starts the Varnish Docker container
+4. Reloads Nginx
+
+---
+
+### `magebox varnish disable`
+
+Disable Varnish for the current project.
+
+```bash
+magebox varnish disable
+```
+
+Restores direct Nginx → PHP-FPM routing.
 
 ## Global Commands
 
@@ -584,7 +667,128 @@ Show Xdebug installation and configuration status.
 magebox xdebug status
 ```
 
+## Blackfire Commands
+
+### `magebox blackfire on`
+
+Enable Blackfire profiler.
+
+```bash
+magebox blackfire on
+```
+
+---
+
+### `magebox blackfire off`
+
+Disable Blackfire profiler.
+
+```bash
+magebox blackfire off
+```
+
+---
+
+### `magebox blackfire status`
+
+Show Blackfire status.
+
+```bash
+magebox blackfire status
+```
+
+---
+
+### `magebox blackfire install`
+
+Install Blackfire agent and PHP extension.
+
+```bash
+magebox blackfire install
+```
+
+---
+
+### `magebox blackfire config`
+
+Configure Blackfire credentials.
+
+```bash
+magebox blackfire config
+```
+
+Prompts for Server ID, Server Token, Client ID, and Client Token from your [Blackfire account](https://blackfire.io).
+
+## Tideways Commands
+
+### `magebox tideways on`
+
+Enable Tideways profiler.
+
+```bash
+magebox tideways on
+```
+
+---
+
+### `magebox tideways off`
+
+Disable Tideways profiler.
+
+```bash
+magebox tideways off
+```
+
+---
+
+### `magebox tideways status`
+
+Show Tideways status.
+
+```bash
+magebox tideways status
+```
+
+---
+
+### `magebox tideways install`
+
+Install Tideways daemon and PHP extension.
+
+```bash
+magebox tideways install
+```
+
+---
+
+### `magebox tideways config`
+
+Configure Tideways API key.
+
+```bash
+magebox tideways config
+```
+
+Prompts for API key from your [Tideways account](https://tideways.com).
+
 ## Utility Commands
+
+### `magebox check`
+
+Check project health and dependencies.
+
+```bash
+magebox check
+```
+
+Verifies:
+- PHP version and extensions
+- Required services (MySQL, Redis, etc.)
+- SSL certificates
+- Nginx vhost configuration
+- File permissions
+
+---
 
 ### `magebox install`
 
