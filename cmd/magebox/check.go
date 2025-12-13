@@ -206,14 +206,14 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 	printCheckResult(results[len(results)-1])
 
-	// Check vhost exists
+	// Check vhost exists (check for upstream file which is unique per project)
 	if cfg != nil {
-		vhostPath := filepath.Join(p.MageBoxDir(), "nginx", "vhosts", cfg.Name+".conf")
-		if _, err := os.Stat(vhostPath); err == nil {
+		upstreamPath := filepath.Join(p.MageBoxDir(), "nginx", "vhosts", cfg.Name+"-upstream.conf")
+		if _, err := os.Stat(upstreamPath); err == nil {
 			results = append(results, checkResult{
 				name:    "Project Vhost",
 				status:  "ok",
-				message: vhostPath,
+				message: filepath.Join(p.MageBoxDir(), "nginx", "vhosts", cfg.Name+"-*.conf"),
 			})
 		} else {
 			results = append(results, checkResult{
@@ -330,7 +330,8 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		fmt.Println(cli.Header("SSL Certificates"))
 		for _, domain := range cfg.Domains {
 			if domain.IsSSLEnabled() {
-				certPath := filepath.Join(p.MageBoxDir(), "ssl", domain.Host+".pem")
+				// Certificates are stored in ~/.magebox/certs/{domain}/cert.pem
+				certPath := filepath.Join(p.MageBoxDir(), "certs", domain.Host, "cert.pem")
 				if _, err := os.Stat(certPath); err == nil {
 					results = append(results, checkResult{
 						name:    domain.Host,
