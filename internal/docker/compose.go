@@ -561,9 +561,65 @@ func (c *DockerController) StopService(serviceName string) error {
 
 // IsServiceRunning checks if a service is running
 func (c *DockerController) IsServiceRunning(serviceName string) bool {
+	// First try docker-compose (preferred if compose file is up-to-date)
 	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "ps", "-q", serviceName)
 	output, err := cmd.Output()
+	if err == nil && len(strings.TrimSpace(string(output))) > 0 {
+		return true
+	}
+
+	// Fallback: check by container name pattern using docker ps
+	// Container names follow pattern: magebox-{service}-{version} or magebox-{service}
+	// Service names like mysql80, elasticsearch8170 map to containers magebox-mysql-8.0, magebox-elasticsearch-8.17.0
+	containerPattern := serviceNameToContainerPattern(serviceName)
+	cmd = exec.Command("docker", "ps", "-q", "--filter", fmt.Sprintf("name=%s", containerPattern))
+	output, err = cmd.Output()
 	return err == nil && len(strings.TrimSpace(string(output))) > 0
+}
+
+// serviceNameToContainerPattern converts a service name to a container name pattern
+func serviceNameToContainerPattern(serviceName string) string {
+	// Handle versioned services: mysql80 -> magebox-mysql-8.0, elasticsearch8170 -> magebox-elasticsearch-8.17.0
+	prefixes := []string{"mysql", "mariadb", "opensearch", "elasticsearch"}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(serviceName, prefix) {
+			versionPart := strings.TrimPrefix(serviceName, prefix)
+			if len(versionPart) > 0 {
+				// Convert version: 80 -> 8.0, 8170 -> 8.17.0, 2194 -> 2.19.4
+				version := insertVersionDots(versionPart)
+				return fmt.Sprintf("magebox-%s-%s", prefix, version)
+			}
+		}
+	}
+	// For simple services like redis, rabbitmq, mailpit
+	return fmt.Sprintf("magebox-%s", serviceName)
+}
+
+// insertVersionDots converts version string without dots to version with dots
+// Examples: 80 -> 8.0, 84 -> 8.4, 8170 -> 8.17.0, 2194 -> 2.19.4
+func insertVersionDots(v string) string {
+	switch len(v) {
+	case 2:
+		// 80 -> 8.0
+		return v[:1] + "." + v[1:]
+	case 3:
+		// 817 -> 8.17 or 106 -> 10.6
+		if v[0] == '1' && v[1] == '0' {
+			return v[:2] + "." + v[2:]
+		}
+		return v[:1] + "." + v[1:]
+	case 4:
+		// 8170 -> 8.17.0 or 1146 -> 11.4.6
+		if v[0] == '1' && v[1] == '1' {
+			return v[:2] + "." + v[2:3] + "." + v[3:]
+		}
+		return v[:1] + "." + v[1:3] + "." + v[3:]
+	case 5:
+		// 21940 -> 2.19.40 (unlikely) or handle as needed
+		return v[:1] + "." + v[1:3] + "." + v[3:]
+	default:
+		return v
+	}
 }
 
 // Exec executes a command in a running container
