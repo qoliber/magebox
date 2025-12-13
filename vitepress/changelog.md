@@ -2,6 +2,26 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.11] - 2025-12-13
+
+### New Features
+
+- **Xdebug auto-installation**: Bootstrap now installs Xdebug for all detected PHP versions
+  - macOS: Uses `pecl install xdebug`
+  - Fedora: Installs `php*-php-xdebug` package
+  - Ubuntu/Debian: Installs `php*-xdebug` package
+  - Arch: Installs from community repository
+
+### Bug Fixes
+
+- **Fixed service detection**: Improved container detection when compose file is stale
+- **Fixed Elasticsearch detection**: Container names like `magebox-elasticsearch-8.17.0` now correctly detected
+
+### Other
+
+- Added MIT License
+- Added MageBox logo and favicons
+
 ## [0.10.10] - 2025-12-13
 
 ### New Features
