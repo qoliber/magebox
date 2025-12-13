@@ -91,10 +91,18 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
 	}
 
-	// Start PHP-FPM
+	// Start or reload PHP-FPM to pick up new pool configuration
 	fpmController := php.NewFPMController(m.platform, cfg.PHP)
-	if err := fpmController.Start(); err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM: %w", err))
+	if fpmController.IsRunning() {
+		// Reload to pick up new pool
+		if err := fpmController.Reload(); err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM reload: %w", err))
+		}
+	} else {
+		// Start PHP-FPM
+		if err := fpmController.Start(); err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM: %w", err))
+		}
 	}
 
 	// Generate Nginx vhost

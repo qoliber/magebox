@@ -179,19 +179,12 @@ func NewController(p *platform.Platform, vclFile string) *Controller {
 	}
 }
 
-// Reload reloads Varnish configuration
+// Reload reloads Varnish configuration by restarting the container
 func (c *Controller) Reload() error {
-	// Use varnishadm to reload VCL
-	cmd := exec.Command("varnishadm", "vcl.load", "reload", c.vclFile)
+	cmd := exec.Command("docker", "restart", "magebox-varnish")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to load VCL: %w", err)
+		return fmt.Errorf("failed to restart Varnish: %w", err)
 	}
-
-	cmd = exec.Command("varnishadm", "vcl.use", "reload")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to activate VCL: %w", err)
-	}
-
 	return nil
 }
 
@@ -221,10 +214,14 @@ func (c *Controller) Stop() error {
 	return fmt.Errorf("unsupported platform")
 }
 
-// IsRunning checks if Varnish is running
+// IsRunning checks if Varnish Docker container is running
 func (c *Controller) IsRunning() bool {
-	cmd := exec.Command("pgrep", "varnishd")
-	return cmd.Run() == nil
+	cmd := exec.Command("docker", "ps", "--filter", "name=magebox-varnish", "--filter", "status=running", "-q")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return len(output) > 0
 }
 
 // Purge sends a purge request to Varnish
@@ -241,22 +238,23 @@ func (c *Controller) Ban(pattern string) error {
 
 // FlushAll flushes all cached content
 func (c *Controller) FlushAll() error {
-	cmd := exec.Command("varnishadm", "ban", "req.url", "~", ".")
+	cmd := exec.Command("docker", "exec", "magebox-varnish", "varnishadm", "ban", "req.url", "~", ".")
 	return cmd.Run()
 }
 
-// getHostIP returns the host's LAN IP address that Docker containers can reach
+// getHostIP returns the IP address that Docker containers use to reach the host
 func getHostIP() string {
-	// Try to get the preferred outbound IP
+	// Try to get the preferred outbound IP (LAN IP)
+	// This is more reliable than host.docker.internal for some Docker runtimes
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		return "127.0.0.1"
+		return "host.docker.internal"
 	}
 	defer func() { _ = conn.Close() }()
 
 	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
 	if !ok {
-		return "127.0.0.1"
+		return "host.docker.internal"
 	}
 	return localAddr.IP.String()
 }

@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.6.1
+                 |___/  0.10.3
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM and Nginx for maximum performance, with Docker for services like MySQL, Redis, OpenSearch, and Varnish.
@@ -498,6 +498,12 @@ services:
   rabbitmq: true                 # Enable RabbitMQ
   mailpit: true                  # Enable Mailpit (email testing)
 
+  # Varnish HTTP cache (runs in Docker)
+  varnish: true                  # Simple enable
+  # varnish:
+  #   version: "7.5"             # Varnish version
+  #   memory: "256m"             # Cache memory allocation
+
 env:                             # Optional: environment variables
   MAGE_MODE: developer
 
@@ -569,9 +575,11 @@ magebox config set portainer true
 | `magebox redis flush` | Flush Redis data |
 | `magebox redis info` | Show Redis info |
 | `magebox logs [-f] [-n N]` | View/tail logs |
-| `magebox varnish status` | Show Varnish status |
+| `magebox varnish status` | Show Varnish status and backend health |
+| `magebox varnish enable` | Enable Varnish for current project |
+| `magebox varnish disable` | Disable Varnish for current project |
 | `magebox varnish purge <url>` | Purge URL from cache |
-| `magebox varnish flush` | Flush all cache |
+| `magebox varnish flush` | Flush all Varnish cache |
 | `magebox run <name>` | Run custom command |
 | `magebox global start` | Start global services |
 | `magebox global stop` | Stop all services |
@@ -612,6 +620,8 @@ magebox config set portainer true
 | RabbitMQ | 5672 (AMQP), 15672 (Web) |
 | Mailpit SMTP | 1025 |
 | Mailpit Web | 8025 |
+| Varnish HTTP | 6081 |
+| Varnish Admin | 6082 |
 | Portainer | 9000 |
 
 ### Search Engines (OpenSearch / Elasticsearch)

@@ -143,25 +143,39 @@ func runVarnishStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println("==============")
 
 	if ctrl.IsRunning() {
-		fmt.Println("Status: running")
+		fmt.Println("Status: " + cli.Success("running"))
 
-		// Try to get stats
-		statsCmd := exec.Command("varnishstat", "-1")
+		// Get backend health
+		backendCmd := exec.Command("docker", "exec", "magebox-varnish", "varnishadm", "backend.list")
+		backendOutput, err := backendCmd.Output()
+		if err == nil {
+			lines := strings.Split(string(backendOutput), "\n")
+			fmt.Println()
+			fmt.Println("Backends:")
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "Backend name") {
+					fmt.Printf("  %s\n", strings.TrimSpace(line))
+				}
+			}
+		}
+
+		// Get cache stats
+		statsCmd := exec.Command("docker", "exec", "magebox-varnish", "varnishstat", "-1")
 		output, err := statsCmd.Output()
 		if err == nil {
 			lines := strings.Split(string(output), "\n")
 			fmt.Println()
-			fmt.Println("Statistics:")
+			fmt.Println("Cache Statistics:")
 			for _, line := range lines {
-				if strings.Contains(line, "cache_hit") ||
-					strings.Contains(line, "cache_miss") ||
-					strings.Contains(line, "client_req") {
+				if strings.Contains(line, "MAIN.cache_hit ") ||
+					strings.Contains(line, "MAIN.cache_miss ") ||
+					strings.Contains(line, "MAIN.client_req ") {
 					fmt.Printf("  %s\n", strings.TrimSpace(line))
 				}
 			}
 		}
 	} else {
-		fmt.Println("Status: stopped")
+		fmt.Println("Status: " + cli.Warning("stopped"))
 	}
 
 	return nil
@@ -237,9 +251,12 @@ func runVarnishEnable(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  HTTP Port:  %s (for testing)\n", cli.Highlight("6081"))
 	fmt.Printf("  Admin Port: %s\n", cli.Highlight("6082"))
 	fmt.Println()
+	cli.PrintInfo("Test Varnish is working:")
+	fmt.Printf("  curl -I http://127.0.0.1:6081/ -H \"Host: %s\"\n", cfg.Domains[0].Host)
+	fmt.Println()
 	cli.PrintInfo("Configure Magento to use Varnish:")
 	fmt.Println("  bin/magento config:set system/full_page_cache/caching_application 2")
-	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_host host.docker.internal")
+	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_host 127.0.0.1")
 	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_port 8080")
 
 	return nil

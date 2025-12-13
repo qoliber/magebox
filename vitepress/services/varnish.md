@@ -10,10 +10,6 @@ Varnish is a powerful HTTP accelerator that:
 - **Reduces server load** - Dramatically improves performance
 - **Edge Side Includes (ESI)** - Dynamic content in cached pages
 
-::: warning Work in Progress
-Varnish support in MageBox is currently being refined. Basic functionality is available, but some features may require manual configuration.
-:::
-
 ## Configuration
 
 ### Enabling Varnish
@@ -25,35 +21,106 @@ services:
   varnish: true
 ```
 
+Or with custom settings:
+
+```yaml
+services:
+  varnish:
+    version: "7.5"    # Varnish version (default: 7.5)
+    memory: "512m"    # Cache memory (default: 256m)
+```
+
+### Enable/Disable Commands
+
+```bash
+# Enable Varnish for current project
+magebox varnish enable
+
+# Disable Varnish
+magebox varnish disable
+```
+
 ## Connection Details
 
 | Setting | Value |
 |---------|-------|
 | Host | `127.0.0.1` |
-| Port | `6081` |
-| Backend Port | `80` or `8080` (Nginx) |
+| Varnish Port | `6081` |
+| Admin Port | `6082` |
+| Backend Port | `8080` (Nginx) |
+
+## MageBox Commands
+
+### Check Varnish Status
+
+```bash
+magebox varnish status
+```
+
+Shows if Varnish is running and backend health:
+
+```
+Varnish: running
+Backend: 5/5 healthy
+```
+
+### Purge Specific URL
+
+```bash
+# Purge a specific path
+magebox varnish purge /category/page.html
+
+# Purge homepage
+magebox varnish purge /
+```
+
+### Flush All Cache
+
+```bash
+magebox varnish flush
+```
+
+Clears the entire Varnish cache using `varnishadm ban`.
+
+## How It Works
+
+### Request Flow with Varnish
+
+```
+Browser → Varnish (:6081) → Nginx (:8080) → PHP-FPM
+                ↓
+        Cache Hit? → Return cached response
+```
+
+### Without Varnish (Default)
+
+```
+Browser → Nginx (:80/443) → PHP-FPM
+```
+
+### Docker Container
+
+Varnish runs as a Docker container (`magebox-varnish`) with:
+
+- **Image**: `varnish:7.5`
+- **Ports**: 6081 (HTTP), 6082 (admin)
+- **VCL Config**: `~/.magebox/varnish/default.vcl`
+- **Network**: Uses host LAN IP to reach Nginx backend
 
 ## Magento Configuration
-
-### Generate VCL
-
-Magento can generate an optimized VCL configuration:
-
-1. Go to **Stores → Configuration → Advanced → System → Full Page Cache**
-2. Set **Caching Application** to **Varnish Cache**
-3. Click **Export VCL**
 
 ### Via CLI
 
 ```bash
-# Generate VCL for Varnish 7
-php bin/magento varnish:vcl:generate --export-version=7 > varnish.vcl
+# Enable Varnish in Magento
+php bin/magento config:set system/full_page_cache/caching_application 2
 
-# Generate with specific backend
-php bin/magento varnish:vcl:generate \
-    --backend-host=127.0.0.1 \
-    --backend-port=8080 \
-    --export-version=7 > varnish.vcl
+# Configure Varnish backend
+php bin/magento config:set system/full_page_cache/varnish/backend_host 127.0.0.1
+php bin/magento config:set system/full_page_cache/varnish/backend_port 8080
+
+# Clear cache
+php bin/magento cache:flush
 ```
 
 ### Via env.php
@@ -75,56 +142,38 @@ php bin/magento varnish:vcl:generate \
 ]
 ```
 
-## MageBox Commands
+### Generate VCL
 
-### Check Varnish Status
-
-```bash
-magebox varnish status
-```
-
-Displays cache statistics and health information.
-
-### Purge Specific URL
+Magento can generate an optimized VCL configuration:
 
 ```bash
-magebox varnish purge /category/page.html
-```
+# Generate VCL for Varnish 7
+php bin/magento varnish:vcl:generate --export-version=7 > varnish.vcl
 
-### Flush All Cache
-
-```bash
-magebox varnish flush
-```
-
-Clears the entire Varnish cache.
-
-## How It Works
-
-### Request Flow with Varnish
-
-```
-Browser → Varnish (:6081) → Nginx (:80/8080) → PHP-FPM
-                ↓
-        Cache Hit? → Return cached response
-```
-
-### Without Varnish (Default)
-
-```
-Browser → Nginx (:80/443) → PHP-FPM
+# Generate with specific backend
+php bin/magento varnish:vcl:generate \
+    --backend-host=127.0.0.1 \
+    --backend-port=8080 \
+    --export-version=7 > varnish.vcl
 ```
 
 ## VCL Configuration
 
-### Basic VCL Structure
+MageBox generates a default VCL at `~/.magebox/varnish/default.vcl`:
 
 ```vcl
 vcl 4.1;
 
-backend default {
-    .host = "127.0.0.1";
+backend projectname {
+    .host = "192.168.x.x";  # Your LAN IP
     .port = "8080";
+    .probe = {
+        .url = "/health_check.php";
+        .timeout = 2s;
+        .interval = 5s;
+        .window = 5;
+        .threshold = 3;
+    }
 }
 
 sub vcl_recv {
@@ -145,17 +194,6 @@ sub vcl_backend_response {
 }
 ```
 
-### Magento-Specific VCL
-
-Magento's generated VCL includes:
-
-- Health checks
-- Grace mode (serve stale content)
-- ESI support
-- Admin exclusion
-- Static file handling
-- Cookie management
-
 ## Common Operations
 
 ### Check Cache Hit/Miss
@@ -172,27 +210,30 @@ curl -I https://mystore.test/
 
 ### Enable Debug Headers
 
-In Magento Admin:
-1. Go to **Stores → Configuration → Advanced → Developer**
-2. Set **Debug** → **Enable Debug Headers** → **Yes**
-
-Or via CLI:
-
 ```bash
 php bin/magento config:set dev/debug/debug_headers 1
 ```
 
-### Monitor Cache
+### Monitor Cache Statistics
 
 ```bash
-# Watch cache stats
-varnishstat
+# Check backend health
+docker exec magebox-varnish varnishadm backend.list
 
-# View request log
-varnishlog
+# View cache stats
+docker exec magebox-varnish varnishstat -1 | grep cache
+
+# Watch live stats
+docker exec -it magebox-varnish varnishstat
 ```
 
-## Docker Container
+### View Request Log
+
+```bash
+docker exec -it magebox-varnish varnishlog
+```
+
+## Docker Container Management
 
 ### Container Status
 
@@ -215,7 +256,48 @@ docker logs -f magebox-varnish
 docker restart magebox-varnish
 ```
 
+### Check Varnish Internals
+
+```bash
+# Ping daemon
+docker exec magebox-varnish varnishadm ping
+
+# Check status
+docker exec magebox-varnish varnishadm status
+
+# List backends
+docker exec magebox-varnish varnishadm backend.list
+```
+
 ## Troubleshooting
+
+### 503 Backend Fetch Failed
+
+Backend (Nginx) is not responding. Common causes:
+
+**1. PHP-FPM not running:**
+```bash
+# Check if socket exists
+ls -la /tmp/magebox/*.sock
+
+# Restart project to reload PHP-FPM
+magebox stop && magebox start
+```
+
+**2. Backend marked as sick:**
+```bash
+# Check backend health
+docker exec magebox-varnish varnishadm backend.list
+
+# Force backend healthy (temporary)
+docker exec magebox-varnish varnishadm "backend.set_health boot1.projectname healthy"
+```
+
+**3. Network connectivity:**
+```bash
+# Test Nginx is reachable
+curl -I http://127.0.0.1:8080/ -H "Host: mystore.test"
+```
 
 ### Pages Not Caching
 
@@ -231,19 +313,8 @@ docker restart magebox-varnish
    ```
 
 3. Check for cookies preventing caching
+
 4. Verify VCL configuration
-
-### 503 Backend Fetch Failed
-
-Backend (Nginx) is not responding:
-
-```bash
-# Check Nginx is running
-systemctl status nginx
-
-# Check backend port
-curl -I http://127.0.0.1:8080/health_check.php
-```
 
 ### Stale Content
 
@@ -267,9 +338,9 @@ php bin/magento cache:flush
 
 ```bash
 # Benchmark cached page
-ab -n 1000 -c 10 https://mystore.test/
+ab -n 1000 -c 10 http://127.0.0.1:6081/
 
-# Should see high requests/second
+# Should see high requests/second on cache hits
 ```
 
 ### Without Varnish
@@ -277,8 +348,6 @@ ab -n 1000 -c 10 https://mystore.test/
 ```bash
 # Bypass Varnish for comparison
 ab -n 100 -c 10 http://127.0.0.1:8080/
-
-# Compare with Varnish results
 ```
 
 ## Best Practices
@@ -311,7 +380,13 @@ curl -s https://mystore.test/customer/account/login > /dev/null
 
 ## Disabling Varnish
 
-To return to direct Nginx:
+### Via Command
+
+```bash
+magebox varnish disable
+```
+
+### Manually
 
 1. Update `.magebox.yaml`:
    ```yaml
@@ -327,6 +402,11 @@ To return to direct Nginx:
 3. Clear cache:
    ```bash
    php bin/magento cache:flush
+   ```
+
+4. Restart project:
+   ```bash
+   magebox restart
    ```
 
 ## Varnish vs Redis FPC

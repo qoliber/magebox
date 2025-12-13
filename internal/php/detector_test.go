@@ -44,25 +44,28 @@ func TestDetector_DetectAll(t *testing.T) {
 
 func TestDetector_Detect(t *testing.T) {
 	tests := []struct {
-		name         string
-		platformType platform.Type
-		version      string
-		wantBinary   string
-		wantFPM      string
+		name              string
+		platformType      platform.Type
+		version           string
+		wantBinarySuffix  string
+		wantFPMSuffix     string
+		wantBinaryPrefix  string
 	}{
 		{
-			name:         "linux php 8.2",
-			platformType: platform.Linux,
-			version:      "8.2",
-			wantBinary:   "/usr/bin/php8.2",
-			wantFPM:      "/usr/sbin/php-fpm8.2",
+			name:             "linux php 8.2",
+			platformType:     platform.Linux,
+			version:          "8.2",
+			wantBinarySuffix: "php8.2",
+			wantFPMSuffix:    "php-fpm8.2",
+			wantBinaryPrefix: "/usr",
 		},
 		{
-			name:         "darwin arm64 php 8.2",
-			platformType: platform.Darwin,
-			version:      "8.2",
-			wantBinary:   "/opt/homebrew/opt/php@8.2/bin/php",
-			wantFPM:      "/opt/homebrew/opt/php@8.2/sbin/php-fpm",
+			name:             "darwin arm64 php 8.2",
+			platformType:     platform.Darwin,
+			version:          "8.2",
+			wantBinarySuffix: "bin/php",
+			wantFPMSuffix:    "sbin/php-fpm",
+			wantBinaryPrefix: "/opt/homebrew",
 		},
 	}
 
@@ -79,11 +82,12 @@ func TestDetector_Detect(t *testing.T) {
 			if v.Version != tt.version {
 				t.Errorf("Version = %v, want %v", v.Version, tt.version)
 			}
-			if v.PHPBinary != tt.wantBinary {
-				t.Errorf("PHPBinary = %v, want %v", v.PHPBinary, tt.wantBinary)
+			// Check path structure rather than exact paths (symlinks may be resolved)
+			if !strings.HasPrefix(v.PHPBinary, tt.wantBinaryPrefix) || !strings.HasSuffix(v.PHPBinary, tt.wantBinarySuffix) {
+				t.Errorf("PHPBinary = %v, want prefix %v and suffix %v", v.PHPBinary, tt.wantBinaryPrefix, tt.wantBinarySuffix)
 			}
-			if v.FPMBinary != tt.wantFPM {
-				t.Errorf("FPMBinary = %v, want %v", v.FPMBinary, tt.wantFPM)
+			if !strings.HasPrefix(v.FPMBinary, tt.wantBinaryPrefix) || !strings.HasSuffix(v.FPMBinary, tt.wantFPMSuffix) {
+				t.Errorf("FPMBinary = %v, want prefix %v and suffix %v", v.FPMBinary, tt.wantBinaryPrefix, tt.wantFPMSuffix)
 			}
 		})
 	}

@@ -76,12 +76,26 @@ func TestVhostGenerator_Generate(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Verify essential parts are present
+	// Verify essential parts are present (upstream is now in separate file)
 	checks := []string{
 		"server_name mystore.test",
 		"fastcgi_backend_mystore",
 		projectPath + "/pub",
-		".sock",
+	}
+
+	// Also check that upstream file was created
+	upstreamFile := filepath.Join(g.vhostsDir, "mystore-upstream.conf")
+	if _, err := os.Stat(upstreamFile); os.IsNotExist(err) {
+		t.Error("Upstream file should have been created")
+	}
+
+	// Verify upstream file contains socket path
+	upstreamContent, err := os.ReadFile(upstreamFile)
+	if err != nil {
+		t.Fatalf("Failed to read upstream file: %v", err)
+	}
+	if !strings.Contains(string(upstreamContent), ".sock") {
+		t.Error("Upstream content should contain socket path")
 	}
 
 	for _, check := range checks {
@@ -290,6 +304,30 @@ func TestSanitizeDomain(t *testing.T) {
 	}
 }
 
+func TestUpstreamTemplateValidity(t *testing.T) {
+	// Test that the upstream template parses correctly
+	tmpl, err := template.New("upstream").Parse(upstreamTemplate)
+	if err != nil {
+		t.Fatalf("Upstream template parsing failed: %v", err)
+	}
+
+	if tmpl == nil {
+		t.Error("Parsed template should not be nil")
+	}
+
+	// Verify template contains expected sections
+	expectedSections := []string{
+		"upstream fastcgi_backend_{{.ProjectName}}",
+		"server unix:{{.PHPSocketPath}}",
+	}
+
+	for _, section := range expectedSections {
+		if !strings.Contains(upstreamTemplate, section) {
+			t.Errorf("Upstream template should contain section: %s", section)
+		}
+	}
+}
+
 func TestVhostTemplateValidity(t *testing.T) {
 	// Test that the embedded template parses correctly
 	tmpl, err := template.New("vhost").Parse(vhostTemplate)
@@ -301,10 +339,9 @@ func TestVhostTemplateValidity(t *testing.T) {
 		t.Error("Parsed template should not be nil")
 	}
 
-	// Verify template contains expected sections
+	// Verify template contains expected sections (upstream is now in separate template)
 	templateStr := vhostTemplate
 	expectedSections := []string{
-		"upstream fastcgi_backend_{{.ProjectName}}",
 		"server_name {{.Domain}}",
 		"root $MAGE_ROOT",
 		"{{if .SSLEnabled}}",

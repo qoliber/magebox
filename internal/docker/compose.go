@@ -452,6 +452,9 @@ func (g *ComposeGenerator) getVarnishService(svcCfg *config.ServiceConfig) Compo
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
 		Command:  "-p feature=+http2 -f /etc/varnish/default.vcl",
+		ExtraHosts: []string{
+			"host.docker.internal:host-gateway",
+		},
 		HealthCheck: &HealthCheck{
 			Test:     []string{"CMD", "varnishadm", "ping"},
 			Interval: "10s",

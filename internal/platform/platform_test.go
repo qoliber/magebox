@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -150,35 +151,41 @@ func TestPlatform_PHPFPMConfigDir(t *testing.T) {
 
 func TestPlatform_PHPFPMBinary(t *testing.T) {
 	tests := []struct {
-		name     string
-		platform Platform
-		version  string
-		expected string
+		name           string
+		platform       Platform
+		version        string
+		expectedPrefix string
+		expectedSuffix string
 	}{
 		{
-			name:     "darwin arm64 php 8.2",
-			platform: Platform{Type: Darwin, IsAppleSilicon: true},
-			version:  "8.2",
-			expected: "/opt/homebrew/opt/php@8.2/sbin/php-fpm",
+			name:           "darwin arm64 php 8.2",
+			platform:       Platform{Type: Darwin, IsAppleSilicon: true},
+			version:        "8.2",
+			expectedPrefix: "/opt/homebrew/",
+			expectedSuffix: "sbin/php-fpm",
 		},
 		{
-			name:     "darwin amd64 php 8.2",
-			platform: Platform{Type: Darwin, IsAppleSilicon: false},
-			version:  "8.2",
-			expected: "/usr/local/opt/php@8.2/sbin/php-fpm",
+			name:           "darwin amd64 php 8.2",
+			platform:       Platform{Type: Darwin, IsAppleSilicon: false},
+			version:        "8.2",
+			expectedPrefix: "/usr/local/",
+			expectedSuffix: "sbin/php-fpm",
 		},
 		{
-			name:     "linux php 8.2",
-			platform: Platform{Type: Linux},
-			version:  "8.2",
-			expected: "/usr/sbin/php-fpm8.2",
+			name:           "linux php 8.2",
+			platform:       Platform{Type: Linux},
+			version:        "8.2",
+			expectedPrefix: "/usr/sbin/",
+			expectedSuffix: "php-fpm8.2",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.platform.PHPFPMBinary(tt.version); got != tt.expected {
-				t.Errorf("PHPFPMBinary() = %v, want %v", got, tt.expected)
+			got := tt.platform.PHPFPMBinary(tt.version)
+			// Check prefix and suffix to handle both Cellar and opt symlink paths
+			if !strings.HasPrefix(got, tt.expectedPrefix) || !strings.HasSuffix(got, tt.expectedSuffix) {
+				t.Errorf("PHPFPMBinary() = %v, want prefix %v and suffix %v", got, tt.expectedPrefix, tt.expectedSuffix)
 			}
 		})
 	}
@@ -186,29 +193,34 @@ func TestPlatform_PHPFPMBinary(t *testing.T) {
 
 func TestPlatform_PHPBinary(t *testing.T) {
 	tests := []struct {
-		name     string
-		platform Platform
-		version  string
-		expected string
+		name           string
+		platform       Platform
+		version        string
+		expectedPrefix string
+		expectedSuffix string
 	}{
 		{
-			name:     "darwin arm64 php 8.2",
-			platform: Platform{Type: Darwin, IsAppleSilicon: true},
-			version:  "8.2",
-			expected: "/opt/homebrew/opt/php@8.2/bin/php",
+			name:           "darwin arm64 php 8.2",
+			platform:       Platform{Type: Darwin, IsAppleSilicon: true},
+			version:        "8.2",
+			expectedPrefix: "/opt/homebrew/",
+			expectedSuffix: "bin/php",
 		},
 		{
-			name:     "linux php 8.2",
-			platform: Platform{Type: Linux},
-			version:  "8.2",
-			expected: "/usr/bin/php8.2",
+			name:           "linux php 8.2",
+			platform:       Platform{Type: Linux},
+			version:        "8.2",
+			expectedPrefix: "/usr/bin/",
+			expectedSuffix: "php8.2",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.platform.PHPBinary(tt.version); got != tt.expected {
-				t.Errorf("PHPBinary() = %v, want %v", got, tt.expected)
+			got := tt.platform.PHPBinary(tt.version)
+			// Check prefix and suffix to handle both Cellar and opt symlink paths
+			if !strings.HasPrefix(got, tt.expectedPrefix) || !strings.HasSuffix(got, tt.expectedSuffix) {
+				t.Errorf("PHPBinary() = %v, want prefix %v and suffix %v", got, tt.expectedPrefix, tt.expectedSuffix)
 			}
 		})
 	}

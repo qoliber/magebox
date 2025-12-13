@@ -2,6 +2,29 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.3] - 2025-12-13
+
+### Dedicated MageBox PHP-FPM Process
+
+MageBox now runs its own PHP-FPM process instead of relying on system-managed PHP-FPM services. This provides better isolation and control:
+
+- **Per-version PHP-FPM**: Dedicated PHP-FPM process for each PHP version with MageBox-specific configuration
+- **Custom php-fpm.conf**: New template at `~/.magebox/php/php-fpm-{version}.conf`
+- **PID management**: Process tracking via `~/.magebox/run/php-fpm-{version}.pid`
+- **Centralized logs**: Error logs at `~/.magebox/logs/php-fpm/php{version}-error.log`
+
+### Multi-Domain Upstream Fix
+
+- **Fixed duplicate upstream error**: Projects with multiple domains no longer cause nginx "duplicate upstream" errors
+- **Separate upstream.conf**: Each project now has a dedicated `{project}-upstream.conf` file
+- **Cleaner vhost templates**: Upstream configuration moved out of vhost.conf into its own file
+
+### Lifecycle Improvements
+
+- `magebox start` now properly starts PHP-FPM and reloads Nginx
+- `magebox stop` now reloads PHP-FPM and Nginx after removing configurations
+- Better process management without requiring `brew services` or `systemctl`
+
 ## [0.10.2] - 2025-12-13
 
 ### Database Management Commands
