@@ -18,8 +18,8 @@ var logsCmd = &cobra.Command{
 	Long: `Opens system.log and exception.log in a split-screen view using multitail.
 
 The logs are displayed in 2 columns:
-  - Left:  system.log (green header)
-  - Right: exception.log (red header)
+  - Left:  system.log
+  - Right: exception.log
 
 Press 'q' to quit, 'b' to scroll back in history.`,
 	RunE: runLogs,
@@ -74,11 +74,10 @@ func runLogs(cmd *cobra.Command, args []string) error {
 
 	// Run multitail with 2 columns
 	// -s 2: split into 2 columns
-	// -ci color: set header color for each file
 	multitailCmd := exec.Command("multitail",
 		"-s", "2",
-		"-ci", "green", systemLog,
-		"-ci", "red", exceptionLog,
+		systemLog,
+		exceptionLog,
 	)
 	multitailCmd.Stdin = os.Stdin
 	multitailCmd.Stdout = os.Stdout
