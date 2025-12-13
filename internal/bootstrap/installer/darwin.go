@@ -131,8 +131,18 @@ func (d *DarwinInstaller) InstallXdebug(version string) error {
 	if d.BaseInstaller.Platform.IsAppleSilicon {
 		base = "/opt/homebrew"
 	}
+
+	// Check if xdebug is already loaded in this PHP version
+	phpBin := fmt.Sprintf("%s/opt/php@%s/bin/php", base, version)
+	cmd := exec.Command(phpBin, "-m")
+	output, err := cmd.Output()
+	if err == nil && strings.Contains(strings.ToLower(string(output)), "xdebug") {
+		return nil // Already installed
+	}
+
+	// Install via pecl (suppress output)
 	peclBin := fmt.Sprintf("%s/opt/php@%s/bin/pecl", base, version)
-	return d.RunCommand(fmt.Sprintf("%s install xdebug 2>/dev/null || true", peclBin))
+	return d.RunCommandSilent(fmt.Sprintf("%s install xdebug 2>/dev/null || true", peclBin))
 }
 
 // ConfigurePHPFPM configures PHP-FPM on macOS
