@@ -228,7 +228,8 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 	// Check Docker services
 	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
 	if cfg.Services.HasMySQL() {
-		serviceName := fmt.Sprintf("mysql%s", cfg.Services.MySQL.Version)
+		// Service name in docker-compose removes dots from version (e.g., mysql80)
+		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
 		status.Services["mysql"] = ServiceStatus{
 			Name:      fmt.Sprintf("MySQL %s", cfg.Services.MySQL.Version),
 			IsRunning: dockerController.IsServiceRunning(serviceName),
@@ -241,9 +242,19 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 		}
 	}
 	if cfg.Services.HasOpenSearch() {
+		// Service name in docker-compose removes dots from version (e.g., opensearch2194)
+		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", ""))
 		status.Services["opensearch"] = ServiceStatus{
 			Name:      fmt.Sprintf("OpenSearch %s", cfg.Services.OpenSearch.Version),
-			IsRunning: dockerController.IsServiceRunning("opensearch"),
+			IsRunning: dockerController.IsServiceRunning(serviceName),
+		}
+	}
+	if cfg.Services.HasElasticsearch() {
+		// Service name in docker-compose removes dots from version (e.g., elasticsearch8170)
+		serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", ""))
+		status.Services["elasticsearch"] = ServiceStatus{
+			Name:      fmt.Sprintf("Elasticsearch %s", cfg.Services.Elasticsearch.Version),
+			IsRunning: dockerController.IsServiceRunning(serviceName),
 		}
 	}
 

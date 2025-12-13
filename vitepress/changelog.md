@@ -2,6 +2,13 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.7] - 2025-12-13
+
+### Bug Fixes
+
+- **Fixed `magebox status` service detection**: MySQL, OpenSearch, and Elasticsearch now correctly detected as running
+- **Added Elasticsearch to status**: Shows Elasticsearch service status when configured
+
 ## [0.10.6] - 2025-12-13
 
 ### Bug Fixes
