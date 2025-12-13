@@ -8,7 +8,7 @@
 | | | | | | (_| | (_| |  __/ |_) | (_) >  <
 |_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
                   __/ |
-                 |___/  0.10.9
+                 |___/  0.10.10
 ```
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM and Nginx for maximum performance, with Docker for services like MySQL, Redis, OpenSearch, and Varnish.
