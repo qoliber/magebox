@@ -120,6 +120,11 @@ func (d *DarwinInstaller) InstallDnsmasq() error {
 	return d.RunCommand("brew install dnsmasq")
 }
 
+// InstallMultitail installs multitail via Homebrew
+func (d *DarwinInstaller) InstallMultitail() error {
+	return d.RunCommand("brew install multitail")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on macOS
 // On macOS, PHP-FPM is typically started via brew services
 func (d *DarwinInstaller) ConfigurePHPFPM(versions []string) error {

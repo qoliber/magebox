@@ -532,6 +532,19 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println(cli.Success("done"))
 		}
 	}
+
+	// Multitail for log viewing
+	if platform.CommandExists("multitail") {
+		fmt.Println("  multitail already installed " + cli.Success("✓"))
+	} else {
+		fmt.Print("  Installing multitail for log viewing... ")
+		if err := bootstrapper.GetInstaller().InstallMultitail(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("multitail installation failed: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
 	fmt.Println()
 
 	// Step 10: Setup sudoers for passwordless nginx/php-fpm control (Linux only)

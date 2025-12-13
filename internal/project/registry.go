@@ -91,6 +91,8 @@ func (d *ProjectDiscovery) parseVhostFile(path string) (*ProjectInfo, error) {
 	serverNameRegex := regexp.MustCompile(`server_name\s+([^;]+);`)
 	// Match "set $MAGE_ROOT /path/to/project/pub;" for MageBox vhosts
 	mageRootRegex := regexp.MustCompile(`set\s+\$MAGE_ROOT\s+([^;]+);`)
+	// Match plain "root /path/to/project/pub;" for legacy/simple vhosts
+	rootRegex := regexp.MustCompile(`^\s*root\s+(/[^;$]+);`)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -107,6 +109,15 @@ func (d *ProjectDiscovery) parseVhostFile(path string) (*ProjectInfo, error) {
 			rootPath := strings.TrimSpace(matches[1])
 			// MAGE_ROOT is typically /path/to/project/pub, so go up one level
 			info.Path = filepath.Dir(rootPath)
+		}
+
+		// Fallback: extract plain root path (skip if it's a variable like $MAGE_ROOT)
+		if info.Path == "" {
+			if matches := rootRegex.FindStringSubmatch(line); len(matches) > 1 {
+				rootPath := strings.TrimSpace(matches[1])
+				// Root is typically /path/to/project/pub, so go up one level
+				info.Path = filepath.Dir(rootPath)
+			}
 		}
 	}
 

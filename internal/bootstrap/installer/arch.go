@@ -121,6 +121,11 @@ func (a *ArchInstaller) InstallDnsmasq() error {
 	return a.RunSudo("pacman", "-S", "--noconfirm", "dnsmasq")
 }
 
+// InstallMultitail installs multitail
+func (a *ArchInstaller) InstallMultitail() error {
+	return a.RunSudo("pacman", "-S", "--noconfirm", "multitail")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Arch Linux
 func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
 	// Create log directory

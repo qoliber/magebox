@@ -2,7 +2,11 @@
 
 All notable changes to MageBox will be documented here.
 
-## [0.10.8] - 2025-12-13
+## [0.10.9] - 2025-12-13
+
+### New Features
+
+- **multitail installation**: Bootstrap now installs `multitail` for viewing multiple log files
 
 ### Bug Fixes
 

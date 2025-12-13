@@ -67,6 +67,9 @@ type Installer interface {
 	// InstallDnsmasq installs dnsmasq for DNS resolution
 	InstallDnsmasq() error
 
+	// InstallMultitail installs multitail for log viewing
+	InstallMultitail() error
+
 	// ConfigurePHPFPM configures PHP-FPM for the platform
 	ConfigurePHPFPM(versions []string) error
 

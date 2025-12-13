@@ -147,6 +147,11 @@ func (f *FedoraInstaller) InstallDnsmasq() error {
 	return f.RunSudo("dnf", "install", "-y", "dnsmasq")
 }
 
+// InstallMultitail installs multitail
+func (f *FedoraInstaller) InstallMultitail() error {
+	return f.RunSudo("dnf", "install", "-y", "multitail")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Fedora
 func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 	// Create log directory

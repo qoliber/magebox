@@ -147,6 +147,11 @@ func (u *UbuntuInstaller) InstallDnsmasq() error {
 	return u.RunSudo("apt", "install", "-y", "dnsmasq")
 }
 
+// InstallMultitail installs multitail
+func (u *UbuntuInstaller) InstallMultitail() error {
+	return u.RunSudo("apt", "install", "-y", "multitail")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
 func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
 	// Create log directory
