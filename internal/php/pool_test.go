@@ -74,7 +74,7 @@ func TestPoolGenerator_Generate(t *testing.T) {
 
 	phpIni := map[string]string{}
 
-	err := g.Generate("mystore", "8.2", env, phpIni)
+	err := g.Generate("mystore", "8.2", env, phpIni, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestPoolGenerator_Generate(t *testing.T) {
 func TestPoolGenerator_GenerateWithoutEnv(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
-	err := g.Generate("mystore", "8.3", nil, nil)
+	err := g.Generate("mystore", "8.3", nil, nil, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestPoolGenerator_Remove(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Generate pool first
-	if err := g.Generate("mystore", "8.2", nil, nil); err != nil {
+	if err := g.Generate("mystore", "8.2", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -158,10 +158,10 @@ func TestPoolGenerator_ListPools(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Create some pool files
-	if err := g.Generate("project1", "8.2", nil, nil); err != nil {
+	if err := g.Generate("project1", "8.2", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	if err := g.Generate("project2", "8.3", nil, nil); err != nil {
+	if err := g.Generate("project2", "8.3", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -188,7 +188,7 @@ func TestPoolConfig_Defaults(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Generate and read back to verify defaults
-	if err := g.Generate("testproject", "8.2", nil, nil); err != nil {
+	if err := g.Generate("testproject", "8.2", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -358,7 +358,7 @@ func TestGenerate_WithPHPINI(t *testing.T) {
 		"display_errors": "On",
 	}
 
-	err := g.Generate("testproject", "8.2", nil, phpIni)
+	err := g.Generate("testproject", "8.2", nil, phpIni, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -378,5 +378,58 @@ func TestGenerate_WithPHPINI(t *testing.T) {
 	}
 	if !strings.Contains(contentStr, "php_admin_value[display_errors] = On") {
 		t.Error("Pool should contain display_errors override")
+	}
+}
+
+func TestGenerate_WithMailpit(t *testing.T) {
+	g, tmpDir := setupTestPoolGenerator(t)
+
+	err := g.Generate("testproject", "8.2", nil, nil, true)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Read the generated file
+	poolFile := filepath.Join(g.poolsDir, "testproject.conf")
+	content, err := os.ReadFile(poolFile)
+	if err != nil {
+		t.Fatalf("Failed to read pool file: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// Verify Mailpit configuration is present
+	if !strings.Contains(contentStr, "sendmail_path") {
+		t.Error("Pool should contain sendmail_path when Mailpit is enabled")
+	}
+	if !strings.Contains(contentStr, "smtp_port] = 1025") {
+		t.Error("Pool should contain smtp_port = 1025 when Mailpit is enabled")
+	}
+	if !strings.Contains(contentStr, "env[MAILPIT_HOST]") {
+		t.Error("Pool should contain MAILPIT_HOST env var when Mailpit is enabled")
+	}
+	if !strings.Contains(contentStr, "env[MAILPIT_PORT]") {
+		t.Error("Pool should contain MAILPIT_PORT env var when Mailpit is enabled")
+	}
+
+	// Verify mailpit-sendmail script was created
+	sendmailPath := filepath.Join(tmpDir, ".magebox", "bin", "mailpit-sendmail")
+	if _, err := os.Stat(sendmailPath); os.IsNotExist(err) {
+		t.Error("mailpit-sendmail script should have been created")
+	}
+}
+
+func TestMailpitConstants(t *testing.T) {
+	if MailpitSMTPHost != "127.0.0.1" {
+		t.Errorf("MailpitSMTPHost = %v, want 127.0.0.1", MailpitSMTPHost)
+	}
+	if MailpitSMTPPort != 1025 {
+		t.Errorf("MailpitSMTPPort = %v, want 1025", MailpitSMTPPort)
+	}
+	if MailpitWebHost != "127.0.0.1" {
+		t.Errorf("MailpitWebHost = %v, want 127.0.0.1", MailpitWebHost)
+	}
+	if MailpitWebPort != 8025 {
+		t.Errorf("MailpitWebPort = %v, want 8025", MailpitWebPort)
 	}
 }

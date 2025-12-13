@@ -159,6 +159,9 @@ func (l *Loader) mergeServices(main, local Services) Services {
 	if local.Mailpit != nil {
 		result.Mailpit = local.Mailpit
 	}
+	if local.Varnish != nil {
+		result.Varnish = local.Varnish
+	}
 
 	return result
 }

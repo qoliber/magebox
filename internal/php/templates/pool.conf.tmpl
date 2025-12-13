@@ -46,6 +46,14 @@ php_admin_value[opcache.interned_strings_buffer] = 20
 ; Realpath cache
 php_admin_value[realpath_cache_size] = 10M
 php_admin_value[realpath_cache_ttl] = 7200
+{{if .HasMailpit}}
+
+; Mailpit email configuration
+; Routes PHP mail() to Mailpit SMTP server at {{.SendmailPath}}
+php_admin_value[sendmail_path] = {{.SendmailPath}}
+php_admin_value[SMTP] = 127.0.0.1
+php_admin_value[smtp_port] = 1025
+{{end}}
 
 ; Custom PHP INI overrides from .magebox
 {{range $key, $value := .PHPINI}}

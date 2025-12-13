@@ -77,6 +77,51 @@ const (
 	DistMageOS  = "mageos"
 )
 
+// Service readiness configuration
+const (
+	// OpenSearchReadinessMaxRetries is the number of retries when waiting for OpenSearch
+	OpenSearchReadinessMaxRetries = 30
+	// OpenSearchReadinessRetryInterval is the time between readiness checks
+	OpenSearchReadinessRetryInterval = 2 * time.Second
+	// OpenSearchDefaultPort is the default port for OpenSearch
+	OpenSearchDefaultPort = 9200
+)
+
+// Default service versions for quick install
+const (
+	DefaultPHPVersion        = "8.3"
+	DefaultMySQLVersion      = "8.0"
+	DefaultOpenSearchVersion = "2.19.4"
+)
+
+// Default database credentials
+const (
+	DefaultDBUser     = "root"
+	DefaultDBPassword = "magebox"
+)
+
+// Default admin credentials for quick install
+const (
+	DefaultAdminUser     = "admin"
+	DefaultAdminPassword = "admin123"
+	DefaultAdminEmail    = "admin@example.com"
+)
+
+// Redis default ports and database numbers
+const (
+	RedisDefaultPort     = 6379
+	RedisSessionDB       = 2
+	RedisCacheDB         = 0
+	RedisFullPageCacheDB = 1
+)
+
+// RabbitMQ defaults
+const (
+	RabbitMQDefaultPort = 5672
+	RabbitMQDefaultUser = "guest"
+	RabbitMQDefaultPass = "guest"
+)
+
 // Available Magento versions
 var magentoVersions = []MagentoVersion{
 	{Name: "Magento 2.4.7-p3 (Latest)", Version: "2.4.7-p3", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
@@ -747,9 +792,9 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 
 	// Defaults for quick mode
 	selectedVersion := mageosVersions[0] // MageOS 1.0.4 (latest)
-	selectedPHP := "8.3"
-	dbVersion := "8.0"
-	searchVersion := "2.19.4"
+	selectedPHP := DefaultPHPVersion
+	dbVersion := DefaultMySQLVersion
+	searchVersion := DefaultOpenSearchVersion
 
 	// Determine project name and directory
 	var projectName string
@@ -932,17 +977,18 @@ commands:
 	fmt.Println()
 	cli.PrintInfo("Waiting for OpenSearch to be ready...")
 	dbPort := "33080" // MySQL 8.0 default port
-	for i := 0; i < 30; i++ {
-		checkCmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://127.0.0.1:9200")
+	opensearchURL := fmt.Sprintf("http://127.0.0.1:%d", OpenSearchDefaultPort)
+	for i := 0; i < OpenSearchReadinessMaxRetries; i++ {
+		checkCmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", opensearchURL)
 		output, err := checkCmd.Output()
 		if err == nil && string(output) == "200" {
 			fmt.Println("  OpenSearch ready " + cli.Success("✓"))
 			break
 		}
-		if i == 29 {
+		if i == OpenSearchReadinessMaxRetries-1 {
 			cli.PrintWarning("OpenSearch may not be ready, continuing anyway...")
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(OpenSearchReadinessRetryInterval)
 	}
 
 	// Step 6: Run Magento setup:install
@@ -955,38 +1001,38 @@ commands:
 		"--backend-frontname=admin",
 		"--db-host=127.0.0.1:" + dbPort,
 		"--db-name=" + projectName,
-		"--db-user=root",
-		"--db-password=magebox",
+		fmt.Sprintf("--db-user=%s", DefaultDBUser),
+		fmt.Sprintf("--db-password=%s", DefaultDBPassword),
 		"--admin-firstname=Admin",
 		"--admin-lastname=User",
-		"--admin-email=admin@example.com",
-		"--admin-user=admin",
-		"--admin-password=admin123",
+		fmt.Sprintf("--admin-email=%s", DefaultAdminEmail),
+		fmt.Sprintf("--admin-user=%s", DefaultAdminUser),
+		fmt.Sprintf("--admin-password=%s", DefaultAdminPassword),
 		"--language=en_US",
 		"--currency=USD",
 		"--timezone=America/New_York",
 		"--use-rewrites=1",
 		"--search-engine=opensearch",
 		"--opensearch-host=127.0.0.1",
-		"--opensearch-port=9200",
+		fmt.Sprintf("--opensearch-port=%d", OpenSearchDefaultPort),
 		"--opensearch-index-prefix=magento2",
 		"--opensearch-timeout=15",
 		"--session-save=redis",
 		"--session-save-redis-host=127.0.0.1",
-		"--session-save-redis-port=6379",
-		"--session-save-redis-db=2",
+		fmt.Sprintf("--session-save-redis-port=%d", RedisDefaultPort),
+		fmt.Sprintf("--session-save-redis-db=%d", RedisSessionDB),
 		"--cache-backend=redis",
 		"--cache-backend-redis-server=127.0.0.1",
-		"--cache-backend-redis-port=6379",
-		"--cache-backend-redis-db=0",
+		fmt.Sprintf("--cache-backend-redis-port=%d", RedisDefaultPort),
+		fmt.Sprintf("--cache-backend-redis-db=%d", RedisCacheDB),
 		"--page-cache=redis",
 		"--page-cache-redis-server=127.0.0.1",
-		"--page-cache-redis-port=6379",
-		"--page-cache-redis-db=1",
+		fmt.Sprintf("--page-cache-redis-port=%d", RedisDefaultPort),
+		fmt.Sprintf("--page-cache-redis-db=%d", RedisFullPageCacheDB),
 		"--amqp-host=127.0.0.1",
-		"--amqp-port=5672",
-		"--amqp-user=guest",
-		"--amqp-password=guest",
+		fmt.Sprintf("--amqp-port=%d", RabbitMQDefaultPort),
+		fmt.Sprintf("--amqp-user=%s", RabbitMQDefaultUser),
+		fmt.Sprintf("--amqp-password=%s", RabbitMQDefaultPass),
 	}
 
 	setupCmd := exec.Command(wrapperPath, setupArgs...)
@@ -1065,8 +1111,8 @@ commands:
 	fmt.Println("Admin panel: " + cli.URL("https://"+domainInput+"/admin"))
 	fmt.Println()
 	fmt.Println("Admin credentials:")
-	fmt.Println("  Username: " + cli.Highlight("admin"))
-	fmt.Println("  Password: " + cli.Highlight("admin123"))
+	fmt.Println("  Username: " + cli.Highlight(DefaultAdminUser))
+	fmt.Println("  Password: " + cli.Highlight(DefaultAdminPassword))
 	fmt.Println()
 
 	return nil

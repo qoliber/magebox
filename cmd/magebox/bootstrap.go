@@ -13,6 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/qoliber/magebox/internal/bootstrap"
+	"github.com/qoliber/magebox/internal/bootstrap/installer"
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/dns"
@@ -31,8 +33,8 @@ var bootstrapCmd = &cobra.Command{
 	Long: `Sets up the MageBox development environment for first-time use.
 
 This command performs the following steps:
-  1. Checks all required dependencies (Docker, Nginx, mkcert)
-  2. Installs PHP versions 8.1-8.4 via Homebrew (macOS)
+  1. Validates OS version and checks dependencies (Docker, Nginx, mkcert)
+  2. Installs PHP versions 8.1-8.4 via platform package manager
   3. Initializes global configuration (~/.magebox/config.yaml)
   4. Sets up mkcert CA for HTTPS support
   5. Configures port forwarding (macOS: 80→8080, 443→8443)
@@ -40,6 +42,13 @@ This command performs the following steps:
   7. Creates and starts Docker services (MySQL, Redis, Mailpit)
   8. Sets up DNS resolution (dnsmasq or /etc/hosts)
   9. Installs PHP and Composer wrappers for automatic version switching
+  10. Configures sudoers for passwordless service control (Linux)
+
+Supported platforms:
+  - macOS 12-15 (Monterey, Ventura, Sonoma, Sequoia)
+  - Fedora 38-42
+  - Ubuntu 20.04, 22.04, 24.04
+  - Arch Linux (rolling release)
 
 Run this once after installing MageBox to prepare your system.`,
 	RunE: runBootstrap,
@@ -55,10 +64,39 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Create bootstrapper for this platform
+	bootstrapper, err := bootstrap.NewBootstrapper(p)
+	if err != nil {
+		return fmt.Errorf("unsupported platform: %w", err)
+	}
+
 	cli.PrintLogoSmall(version)
 	fmt.Println()
 	cli.PrintTitle("MageBox Bootstrap")
 	fmt.Println()
+
+	// Step 0: Validate OS version
+	fmt.Println(cli.Header("Step 0: Platform Detection"))
+	osInfo, err := bootstrapper.ValidateOS()
+	if err != nil {
+		cli.PrintWarning("Could not detect OS version: %v", err)
+	} else {
+		fmt.Printf("  OS: %s %s", cli.Highlight(osInfo.Name), osInfo.Version)
+		if osInfo.Codename != "" {
+			fmt.Printf(" (%s)", osInfo.Codename)
+		}
+		fmt.Println()
+		if osInfo.Supported {
+			fmt.Println("  Status: " + cli.Success("Supported"))
+		} else {
+			fmt.Println("  Status: " + cli.Warning("Not officially tested"))
+			if osInfo.Message != "" {
+				cli.PrintInfo(osInfo.Message)
+			}
+		}
+	}
+	fmt.Println()
+
 	fmt.Println("Setting up MageBox development environment...")
 	fmt.Println()
 
@@ -72,11 +110,10 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	dockerInstalled := platform.CommandExists("docker")
 	fmt.Printf("  %-15s %s\n", "Docker:", cli.StatusInstalled(dockerInstalled))
 	if !dockerInstalled {
-		errors = append(errors, "Docker is not installed. Install: "+p.DockerInstallCommand())
+		errors = append(errors, "Docker is not installed. Install: "+bootstrapper.DockerInstallInstructions())
 	} else {
 		// Check if Docker daemon is running
-		dockerCmd := exec.Command("docker", "info")
-		if dockerCmd.Run() != nil {
+		if !bootstrapper.CheckDockerRunning() {
 			cli.PrintWarning("Docker is installed but not running. Please start Docker.")
 			errors = append(errors, "Docker daemon is not running")
 		}
@@ -110,15 +147,11 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 		// Show what's missing
 		var missingDeps []string
-		var installCmds []string
-
 		if !nginxInstalled {
 			missingDeps = append(missingDeps, "Nginx")
-			installCmds = append(installCmds, p.NginxInstallCommand())
 		}
 		if !mkcertInstalled {
 			missingDeps = append(missingDeps, "mkcert")
-			installCmds = append(installCmds, p.MkcertInstallCommand())
 		}
 
 		fmt.Println("  Missing: " + cli.Highlight(strings.Join(missingDeps, ", ")))
@@ -132,18 +165,29 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 		if answer == "" || answer == "y" || answer == "yes" {
 			fmt.Println()
-			for i, cmd := range installCmds {
-				fmt.Printf("  Installing %s...\n", missingDeps[i])
-				fmt.Printf("  Running: %s\n", cli.Command(cmd))
+			inst := bootstrapper.GetInstaller()
 
-				// Parse and execute the command
-				if err := runInstallCommand(cmd); err != nil {
-					cli.PrintError("Failed to install %s: %v", missingDeps[i], err)
+			if !nginxInstalled {
+				fmt.Println("  Installing Nginx...")
+				if err := inst.InstallNginx(); err != nil {
+					cli.PrintError("Failed to install Nginx: %v", err)
 					fmt.Println()
 					cli.PrintInfo("Please install manually and run " + cli.Command("magebox bootstrap") + " again")
 					return nil
 				}
-				fmt.Printf("  %s installed %s\n", missingDeps[i], cli.Success("✓"))
+				fmt.Printf("  Nginx installed %s\n", cli.Success("✓"))
+				fmt.Println()
+			}
+
+			if !mkcertInstalled {
+				fmt.Println("  Installing mkcert...")
+				if err := inst.InstallMkcert(); err != nil {
+					cli.PrintError("Failed to install mkcert: %v", err)
+					fmt.Println()
+					cli.PrintInfo("Please install manually and run " + cli.Command("magebox bootstrap") + " again")
+					return nil
+				}
+				fmt.Printf("  mkcert installed %s\n", cli.Success("✓"))
 				fmt.Println()
 			}
 
@@ -167,7 +211,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	if !dockerInstalled {
 		cli.PrintError("Docker is required but not installed")
 		fmt.Println()
-		fmt.Printf("  Install Docker: %s\n", cli.Command(p.DockerInstallCommand()))
+		fmt.Printf("  Install Docker: %s\n", cli.Command(bootstrapper.DockerInstallInstructions()))
 		fmt.Println()
 		cli.PrintInfo("After installing Docker, run " + cli.Command("magebox bootstrap") + " again")
 		return nil
@@ -178,7 +222,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// All PHP versions we want for Magento compatibility (8.5 is bleeding edge/dev)
-	allPHPVersions := []string{"8.1", "8.2", "8.3", "8.4", "8.5"}
+	allPHPVersions := installer.PHPVersions
 
 	// Check which versions are installed vs missing
 	installedMap := make(map[string]bool)
@@ -197,7 +241,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	if len(installedPHPVersions) > 0 {
 		fmt.Println("  Installed PHP versions:")
 		for _, ver := range installedPHPVersions {
-			fmt.Printf("    %s PHP %s\n", cli.Success(""), ver.Version)
+			fmt.Printf("    %s PHP %s\n", cli.Success("✓"), ver.Version)
 		}
 		fmt.Println()
 	}
@@ -214,15 +258,13 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 		if answer == "" || answer == "y" || answer == "yes" {
 			fmt.Println()
+			inst := bootstrapper.GetInstaller()
 			for _, phpVer := range missingVersions {
 				fmt.Printf("  Installing PHP %s...\n", phpVer)
-				installCmd := p.PHPInstallCommand(phpVer)
-				fmt.Printf("  Running: %s\n", cli.Command(installCmd))
-
-				if err := runInstallCommand(installCmd); err != nil {
+				if err := inst.InstallPHP(phpVer); err != nil {
 					cli.PrintWarning("Failed to install PHP %s: %v", phpVer, err)
 				} else {
-					fmt.Printf("  PHP %s installed %s\n", phpVer, cli.Success(""))
+					fmt.Printf("  PHP %s installed %s\n", phpVer, cli.Success("✓"))
 				}
 				fmt.Println()
 			}
@@ -230,36 +272,25 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			installedPHPVersions = detector.DetectInstalled()
 		}
 	} else {
-		fmt.Println("  All recommended PHP versions are installed " + cli.Success(""))
+		fmt.Println("  All recommended PHP versions are installed " + cli.Success("✓"))
 	}
 
-	// On Linux (Fedora/Remi), configure PHP-FPM logs to /var/log/magebox
-	if p.Type == platform.Linux && p.LinuxDistro == platform.DistroFedora {
+	// Configure PHP-FPM for installed versions
+	if p.Type == platform.Linux && len(installedPHPVersions) > 0 {
 		fmt.Println()
 		fmt.Print("  Setting up PHP-FPM services... ")
 
-		// Create /var/log/magebox for PHP-FPM logs
-		_ = exec.Command("sudo", "mkdir", "-p", "/var/log/magebox").Run()
-		_ = exec.Command("sudo", "chmod", "755", "/var/log/magebox").Run()
-
-		// Configure each PHP version to use /var/log/magebox
-		phpVersions := []string{"81", "82", "83", "84", "85"}
-		for _, v := range phpVersions {
-			fpmConf := fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.conf", v)
-			logFile := fmt.Sprintf("/var/log/magebox/php%s-fpm.log", v)
-
-			// Update error_log path in php-fpm.conf
-			_ = exec.Command("sudo", "sed", "-i", fmt.Sprintf("s|^error_log = .*|error_log = %s|", logFile), fpmConf).Run()
+		versions := make([]string, len(installedPHPVersions))
+		for i, ver := range installedPHPVersions {
+			versions[i] = ver.Version
 		}
 
-		// Enable and start PHP-FPM services for installed versions
-		for _, ver := range installedPHPVersions {
-			remiVer := strings.ReplaceAll(ver.Version, ".", "")
-			serviceName := fmt.Sprintf("php%s-php-fpm", remiVer)
-			_ = exec.Command("sudo", "systemctl", "enable", serviceName).Run()
-			_ = exec.Command("sudo", "systemctl", "restart", serviceName).Run()
+		if err := bootstrapper.ConfigurePHPFPM(versions); err != nil {
+			fmt.Println(cli.Warning("done with warnings"))
+			errors = append(errors, fmt.Sprintf("PHP-FPM setup: %v", err))
+		} else {
+			fmt.Println(cli.Success("done"))
 		}
-		fmt.Println(cli.Success("done"))
 	}
 	fmt.Println()
 
@@ -332,22 +363,9 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	nginxCtrl := nginx.NewController(p)
 	fmt.Printf("  Nginx config: %s\n", cli.Highlight(nginxCtrl.GetNginxConfPath()))
 
-	// On Linux, configure nginx to run as current user (so it can access ~/.magebox/certs)
-	if p.Type == platform.Linux {
-		currentUser := os.Getenv("USER")
-		if currentUser == "" {
-			currentUser = os.Getenv("LOGNAME")
-		}
-		if currentUser != "" {
-			fmt.Print("  Configuring nginx to run as " + cli.Highlight(currentUser) + "... ")
-			nginxConf := nginxCtrl.GetNginxConfPath()
-			cmd := exec.Command("sudo", "sed", "-i", fmt.Sprintf("s/^user .*/user %s;/", currentUser), nginxConf)
-			if err := cmd.Run(); err != nil {
-				fmt.Println(cli.Error("failed"))
-			} else {
-				fmt.Println(cli.Success("done"))
-			}
-		}
+	// Configure nginx for this platform
+	if err := bootstrapper.ConfigureNginx(); err != nil {
+		cli.PrintWarning("Nginx configuration failed: %v", err)
 	}
 
 	// Create vhosts directory
@@ -447,7 +465,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 8: DNS setup - auto-configure dnsmasq on Linux
+	// Step 8: DNS setup
 	fmt.Println(cli.Header("Step 8: DNS Configuration"))
 
 	dnsManager := dns.NewDnsmasqManager(p)
@@ -455,32 +473,13 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	if p.Type == platform.Linux {
 		// On Linux, auto-configure dnsmasq for *.test wildcard DNS
 		if dnsManager.IsConfigured() && dnsManager.IsRunning() {
-			fmt.Println("  dnsmasq configured and running " + cli.Success(""))
+			fmt.Println("  dnsmasq configured and running " + cli.Success("✓"))
 		} else {
 			if dnsManager.IsInstalled() {
 				fmt.Print("  Configuring dnsmasq for *.test domains... ")
-				if err := dnsManager.Configure(); err != nil {
+				if err := bootstrapper.SetupDNS(); err != nil {
 					fmt.Println(cli.Error("failed"))
 					cli.PrintWarning("dnsmasq config failed: %v", err)
-				} else {
-					fmt.Println(cli.Success("done"))
-				}
-
-				fmt.Print("  Starting dnsmasq... ")
-				if err := dnsManager.Start(); err != nil {
-					// Try restart if already running
-					if err := dnsManager.Restart(); err != nil {
-						fmt.Println(cli.Error("failed"))
-					} else {
-						fmt.Println(cli.Success("restarted"))
-					}
-				} else {
-					fmt.Println(cli.Success("started"))
-				}
-
-				fmt.Print("  Enabling dnsmasq on boot... ")
-				if err := dnsManager.Enable(); err != nil {
-					fmt.Println(cli.Error("failed"))
 				} else {
 					fmt.Println(cli.Success("done"))
 				}
@@ -492,7 +491,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	} else if globalCfg.UseDnsmasq() {
 		// macOS - check if dnsmasq configured
 		if dnsManager.IsConfigured() {
-			fmt.Println("  dnsmasq configured for *.test " + cli.Success(""))
+			fmt.Println("  dnsmasq configured for *.test " + cli.Success("✓"))
 		} else {
 			fmt.Println("  dnsmasq not yet configured")
 			cli.PrintInfo("Run " + cli.Command("magebox dns setup") + " to configure wildcard DNS")
@@ -541,69 +540,14 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 		sudoersFile := "/etc/sudoers.d/magebox"
 		if _, err := os.Stat(sudoersFile); err == nil {
-			fmt.Println("  Sudoers already configured " + cli.Success(""))
+			fmt.Println("  Sudoers already configured " + cli.Success("✓"))
 		} else {
 			fmt.Print("  Setting up passwordless nginx/php-fpm control... ")
-
-			// Get current user
-			currentUser := os.Getenv("USER")
-			if currentUser == "" {
-				currentUser = os.Getenv("LOGNAME")
-			}
-
-			// Create sudoers content for nginx and php-fpm control
-			sudoersContent := fmt.Sprintf(`# MageBox - Allow %[1]s to control nginx and php-fpm without password
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
-%[1]s ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx -s reload
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx -t
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
-`, currentUser)
-
-			// Write to temp file
-			tmpFile, err := os.CreateTemp("", "magebox-sudoers-*")
-			if err != nil {
+			if err := bootstrapper.ConfigureSudoers(); err != nil {
 				fmt.Println(cli.Error("failed"))
-				cli.PrintWarning("Failed to create temp file: %v", err)
+				cli.PrintWarning("Failed to setup sudoers: %v", err)
 			} else {
-				tmpPath := tmpFile.Name()
-				_, _ = tmpFile.WriteString(sudoersContent)
-				_ = tmpFile.Close()
-
-				// Set correct permissions (sudoers files must be 0440)
-				_ = os.Chmod(tmpPath, 0440)
-
-				// Copy to sudoers.d with sudo
-				cmd := exec.Command("sudo", "cp", tmpPath, sudoersFile)
-				cmd.Stdin = os.Stdin
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				if err := cmd.Run(); err != nil {
-					fmt.Println(cli.Error("failed"))
-					cli.PrintWarning("Failed to setup sudoers: %v", err)
-				} else {
-					// Set correct ownership
-					_ = exec.Command("sudo", "chmod", "0440", sudoersFile).Run()
-					fmt.Println(cli.Success("done"))
-				}
-				_ = os.Remove(tmpPath)
+				fmt.Println(cli.Success("done"))
 			}
 		}
 		fmt.Println()
@@ -642,14 +586,4 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	return nil
-}
-
-// runInstallCommand runs an install command with proper shell handling
-func runInstallCommand(cmdStr string) error {
-	// Use shell to handle complex commands (pipes, &&, etc.)
-	cmd := exec.Command("sh", "-c", cmdStr)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }

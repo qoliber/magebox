@@ -13,6 +13,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Default database credentials
+const (
+	DefaultDBRootPassword = "magebox"
+)
+
+// Default RabbitMQ credentials
+const (
+	DefaultRabbitMQUser = "magebox"
+	DefaultRabbitMQPass = "magebox"
+)
+
 // ComposeGenerator generates Docker Compose configurations for global services
 type ComposeGenerator struct {
 	platform   *platform.Platform
@@ -97,17 +108,15 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 	// Add MySQL services
 	for version, svcCfg := range requiredServices.mysql {
 		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(version, ".", ""))
-		compose.Services[serviceName] = g.getMySQLService(version)
+		compose.Services[serviceName] = g.getMySQLService(svcCfg)
 		compose.Volumes[fmt.Sprintf("mysql%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
-		_ = svcCfg // Will use this for memory config in the future
 	}
 
 	// Add MariaDB services
 	for version, svcCfg := range requiredServices.mariadb {
 		serviceName := fmt.Sprintf("mariadb%s", strings.ReplaceAll(version, ".", ""))
-		compose.Services[serviceName] = g.getMariaDBService(version)
+		compose.Services[serviceName] = g.getMariaDBService(svcCfg)
 		compose.Volumes[fmt.Sprintf("mariadb%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
-		_ = svcCfg // Will use this for memory config in the future
 	}
 
 	// Add Redis if needed
@@ -135,10 +144,9 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		compose.Volumes["rabbitmq_data"] = ComposeVolume{}
 	}
 
-	// Add Mailpit if needed
-	if requiredServices.mailpit {
-		compose.Services["mailpit"] = g.getMailpitService()
-	}
+	// Always add Mailpit for local development safety
+	// This prevents accidental emails to real addresses
+	compose.Services["mailpit"] = g.getMailpitService()
 
 	// Add Varnish if needed
 	if requiredServices.varnish != nil {
@@ -172,8 +180,8 @@ type requiredServices struct {
 	opensearch    map[string]*config.ServiceConfig
 	elasticsearch map[string]*config.ServiceConfig
 	rabbitmq      bool
-	mailpit       bool
 	varnish       *config.ServiceConfig
+	// Note: Mailpit is always enabled for local dev safety, not tracked here
 }
 
 // collectRequiredServices collects all required services from configs
@@ -204,9 +212,7 @@ func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) req
 		if cfg.Services.HasRabbitMQ() {
 			rs.rabbitmq = true
 		}
-		if cfg.Services.HasMailpit() {
-			rs.mailpit = true
-		}
+		// Note: Mailpit is always enabled, no need to track
 		if cfg.Services.HasVarnish() {
 			rs.varnish = cfg.Services.Varnish
 		}
@@ -216,22 +222,31 @@ func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) req
 }
 
 // getMySQLService returns a MySQL service configuration
-func (g *ComposeGenerator) getMySQLService(version string) ComposeService {
+func (g *ComposeGenerator) getMySQLService(svcCfg *config.ServiceConfig) ComposeService {
+	version := svcCfg.Version
 	port := g.getMySQLPort(version)
+
+	env := map[string]string{
+		"MYSQL_ROOT_PASSWORD": DefaultDBRootPassword,
+	}
+
+	// Add memory configuration if specified
+	if svcCfg.Memory != "" {
+		env["MYSQL_INNODB_BUFFER_POOL_SIZE"] = svcCfg.Memory
+	}
+
 	return ComposeService{
 		ContainerName: fmt.Sprintf("magebox-mysql-%s", version),
 		Image:         fmt.Sprintf("mysql:%s", version),
 		Ports:         []string{fmt.Sprintf("%d:3306", port)},
-		Environment: map[string]string{
-			"MYSQL_ROOT_PASSWORD": "magebox",
-		},
+		Environment:   env,
 		Volumes: []string{
 			fmt.Sprintf("mysql%s_data:/var/lib/mysql", strings.ReplaceAll(version, ".", "")),
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
 		HealthCheck: &HealthCheck{
-			Test:     []string{"CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pmagebox"},
+			Test:     []string{"CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p" + DefaultDBRootPassword},
 			Interval: "10s",
 			Timeout:  "5s",
 			Retries:  5,
@@ -240,15 +255,24 @@ func (g *ComposeGenerator) getMySQLService(version string) ComposeService {
 }
 
 // getMariaDBService returns a MariaDB service configuration
-func (g *ComposeGenerator) getMariaDBService(version string) ComposeService {
+func (g *ComposeGenerator) getMariaDBService(svcCfg *config.ServiceConfig) ComposeService {
+	version := svcCfg.Version
 	port := g.getMariaDBPort(version)
+
+	env := map[string]string{
+		"MYSQL_ROOT_PASSWORD": DefaultDBRootPassword,
+	}
+
+	// Add memory configuration if specified
+	if svcCfg.Memory != "" {
+		env["MARIADB_INNODB_BUFFER_POOL_SIZE"] = svcCfg.Memory
+	}
+
 	return ComposeService{
 		ContainerName: fmt.Sprintf("magebox-mariadb-%s", version),
 		Image:         fmt.Sprintf("mariadb:%s", version),
 		Ports:         []string{fmt.Sprintf("%d:3306", port)},
-		Environment: map[string]string{
-			"MYSQL_ROOT_PASSWORD": "magebox",
-		},
+		Environment:   env,
 		Volumes: []string{
 			fmt.Sprintf("mariadb%s_data:/var/lib/mysql", strings.ReplaceAll(version, ".", "")),
 		},
@@ -353,8 +377,8 @@ func (g *ComposeGenerator) getRabbitMQService() ComposeService {
 			"15672:15672",
 		},
 		Environment: map[string]string{
-			"RABBITMQ_DEFAULT_USER": "magebox",
-			"RABBITMQ_DEFAULT_PASS": "magebox",
+			"RABBITMQ_DEFAULT_USER": DefaultRabbitMQUser,
+			"RABBITMQ_DEFAULT_PASS": DefaultRabbitMQPass,
 		},
 		Volumes: []string{
 			"rabbitmq_data:/var/lib/rabbitmq",
@@ -559,14 +583,14 @@ func (c *DockerController) ExecSilent(serviceName string, command ...string) err
 // CreateDatabase creates a database in the MySQL/MariaDB service
 func (c *DockerController) CreateDatabase(serviceName, dbName string) error {
 	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "exec", "-T", serviceName,
-		"mysql", "-uroot", "-pmagebox", "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
+		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
 	return cmd.Run()
 }
 
 // DatabaseExists checks if a database exists
 func (c *DockerController) DatabaseExists(serviceName, dbName string) bool {
 	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "exec", "-T", serviceName,
-		"mysql", "-uroot", "-pmagebox", "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
+		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
 	output, err := cmd.Output()
 	return err == nil && strings.Contains(string(output), dbName)
 }
@@ -591,11 +615,19 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 	if globalCfg.DefaultServices.MySQL != "" {
 		version := globalCfg.DefaultServices.MySQL
 		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(version, ".", ""))
-		compose.Services[serviceName] = g.getMySQLService(version)
+		svcCfg := &config.ServiceConfig{
+			Enabled: true,
+			Version: version,
+		}
+		compose.Services[serviceName] = g.getMySQLService(svcCfg)
 		compose.Volumes[fmt.Sprintf("mysql%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	} else {
 		// Default to MySQL 8.0
-		compose.Services["mysql80"] = g.getMySQLService("8.0")
+		svcCfg := &config.ServiceConfig{
+			Enabled: true,
+			Version: "8.0",
+		}
+		compose.Services["mysql80"] = g.getMySQLService(svcCfg)
 		compose.Volumes["mysql80_data"] = ComposeVolume{}
 	}
 

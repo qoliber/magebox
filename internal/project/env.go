@@ -1,15 +1,53 @@
 package project
 
 import (
+	"bytes"
 	"crypto/rand"
+	_ "embed"
 	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/config"
 )
+
+//go:embed templates/env.php.tmpl
+var envPHPTemplate string
+
+// EnvPHPData contains all variables available in env.php.tmpl
+type EnvPHPData struct {
+	// Project
+	ProjectName   string
+	MageMode      string
+	CryptKey      string
+	CacheIDPrefix string
+
+	// Database
+	DatabaseHost     string
+	DatabasePort     string
+	DatabaseName     string
+	DatabaseUser     string
+	DatabasePassword string
+
+	// Service flags (for conditionals)
+	HasRedis   bool
+	HasVarnish bool
+	HasMailpit bool
+
+	// Redis configuration
+	RedisHost        string
+	RedisPort        string
+	RedisSessionDB   string
+	RedisCacheDB     string
+	RedisPageCacheDB string
+
+	// Mailpit configuration
+	MailpitHost string
+	MailpitPort string
+}
 
 // envGenerator generates Magento 2 app/etc/env.php configuration
 type envGenerator struct {
@@ -29,11 +67,14 @@ func newEnvGenerator(projectPath string, cfg *config.Config) *envGenerator {
 func (g *envGenerator) Generate() error {
 	envPath := filepath.Join(g.projectPath, "app", "etc", "env.php")
 
-	// Generate random prefix for Redis cache (3 chars + underscore)
-	idPrefix := g.generateRandomPrefix(3) + "_"
+	// Build template data
+	data := g.buildTemplateData()
 
-	// Build the env.php content
-	content := g.buildEnvPHP(idPrefix)
+	// Render template
+	content, err := g.renderTemplate(data)
+	if err != nil {
+		return fmt.Errorf("failed to render env.php template: %w", err)
+	}
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(envPath), 0755); err != nil {
@@ -46,6 +87,92 @@ func (g *envGenerator) Generate() error {
 	}
 
 	return nil
+}
+
+// buildTemplateData constructs the data structure for the template
+func (g *envGenerator) buildTemplateData() EnvPHPData {
+	data := EnvPHPData{
+		// Project settings
+		ProjectName:   g.config.Name,
+		MageMode:      g.getMageMode(),
+		CryptKey:      g.generateCryptKey(),
+		CacheIDPrefix: g.generateRandomPrefix(3) + "_",
+
+		// Database defaults
+		DatabaseHost:     "127.0.0.1",
+		DatabasePort:     g.getDatabasePort(),
+		DatabaseName:     g.config.Name,
+		DatabaseUser:     "root",
+		DatabasePassword: "magebox",
+
+		// Service flags
+		HasRedis:   g.config.Services.HasRedis(),
+		HasVarnish: g.config.Services.HasVarnish(),
+		HasMailpit: true, // Always enabled for local dev safety
+
+		// Redis configuration
+		RedisHost:        "127.0.0.1",
+		RedisPort:        "6379",
+		RedisSessionDB:   "2",
+		RedisCacheDB:     "0",
+		RedisPageCacheDB: "1",
+
+		// Mailpit configuration
+		MailpitHost: "127.0.0.1",
+		MailpitPort: "1025",
+	}
+
+	return data
+}
+
+// getMageMode returns the MAGE_MODE from config or defaults to "developer"
+func (g *envGenerator) getMageMode() string {
+	if g.config.Env != nil {
+		if mode, ok := g.config.Env["MAGE_MODE"]; ok {
+			return mode
+		}
+	}
+	return "developer"
+}
+
+// getDatabasePort returns the appropriate database port based on service config
+func (g *envGenerator) getDatabasePort() string {
+	if g.config.Services.HasMySQL() {
+		version := g.config.Services.MySQL.Version
+		// Map version to port: 8.0 -> 33080, 8.4 -> 33084
+		versionNoDots := strings.ReplaceAll(version, ".", "")
+		if len(versionNoDots) >= 2 {
+			return fmt.Sprintf("330%s", versionNoDots[:2])
+		}
+		return "33080" // Default MySQL 8.0 port
+	}
+
+	if g.config.Services.HasMariaDB() {
+		version := g.config.Services.MariaDB.Version
+		versionNoDots := strings.ReplaceAll(version, ".", "")
+		// MariaDB ports: 10.6 -> 33110, 11.4 -> 33111
+		if len(versionNoDots) >= 2 {
+			return fmt.Sprintf("331%s", versionNoDots[:2])
+		}
+		return "33106" // Default MariaDB port
+	}
+
+	return "33080" // Default fallback
+}
+
+// renderTemplate renders the env.php template with the given data
+func (g *envGenerator) renderTemplate(data EnvPHPData) (string, error) {
+	tmpl, err := template.New("env.php").Parse(envPHPTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // generateRandomPrefix generates a random alphanumeric prefix
@@ -64,229 +191,4 @@ func (g *envGenerator) generateCryptKey() string {
 		return "0000000000000000000000000000000000000000"
 	}
 	return hex.EncodeToString(bytes)
-}
-
-// buildEnvPHP builds the complete env.php content
-func (g *envGenerator) buildEnvPHP(idPrefix string) string {
-	var sb strings.Builder
-
-	sb.WriteString("<?php\nreturn [\n")
-
-	// Backend
-	sb.WriteString("    'backend' => [\n")
-	sb.WriteString("        'frontName' => 'admin'\n")
-	sb.WriteString("    ],\n")
-
-	// Crypt key
-	sb.WriteString("    'crypt' => [\n")
-	sb.WriteString(fmt.Sprintf("        'key' => '%s'\n", g.generateCryptKey()))
-	sb.WriteString("    ],\n")
-
-	// Session config
-	g.buildSessionConfig(&sb, idPrefix)
-
-	// Database config
-	g.buildDatabaseConfig(&sb)
-
-	// Resource
-	sb.WriteString("    'resource' => [\n")
-	sb.WriteString("        'default_setup' => [\n")
-	sb.WriteString("            'connection' => 'default'\n")
-	sb.WriteString("        ]\n")
-	sb.WriteString("    ],\n")
-
-	// X-Frame-Options
-	sb.WriteString("    'x-frame-options' => 'SAMEORIGIN',\n")
-
-	// MAGE_MODE
-	mageMode := "developer"
-	if g.config.Env != nil {
-		if mode, ok := g.config.Env["MAGE_MODE"]; ok {
-			mageMode = mode
-		}
-	}
-	sb.WriteString(fmt.Sprintf("    'MAGE_MODE' => '%s',\n", mageMode))
-
-	// Cache types
-	g.buildCacheTypes(&sb)
-
-	// Install date
-	sb.WriteString("    'install' => [\n")
-	sb.WriteString("        'date' => 'Generated by MageBox'\n")
-	sb.WriteString("    ],\n")
-
-	// Document root
-	sb.WriteString("    'document_root_is_pub' => true,\n")
-
-	// HTTP cache hosts (Varnish) - only if enabled
-	if g.config.Services.HasVarnish() {
-		g.buildVarnishConfig(&sb)
-	}
-
-	// Cache config (Redis or file)
-	g.buildCacheConfig(&sb, idPrefix)
-
-	// Lock provider
-	sb.WriteString("    'lock' => [\n")
-	sb.WriteString("        'provider' => 'db',\n")
-	sb.WriteString("        'config' => [\n")
-	sb.WriteString("            'prefix' => null\n")
-	sb.WriteString("        ]\n")
-	sb.WriteString("    ]\n")
-
-	sb.WriteString("];\n")
-
-	return sb.String()
-}
-
-// buildSessionConfig builds session configuration
-func (g *envGenerator) buildSessionConfig(sb *strings.Builder, idPrefix string) {
-	sb.WriteString("    'session' => [\n")
-
-	if g.config.Services.HasRedis() {
-		sb.WriteString("        'save' => 'redis',\n")
-		sb.WriteString("        'redis' => [\n")
-		sb.WriteString("            'host' => '127.0.0.1',\n")
-		sb.WriteString("            'port' => '6379',\n")
-		sb.WriteString("            'password' => '',\n")
-		sb.WriteString("            'timeout' => '2.5',\n")
-		sb.WriteString("            'persistent_identifier' => '',\n")
-		sb.WriteString("            'database' => '2',\n")
-		sb.WriteString("            'compression_threshold' => '2048',\n")
-		sb.WriteString("            'compression_library' => 'gzip',\n")
-		sb.WriteString("            'log_level' => '4',\n")
-		sb.WriteString("            'max_concurrency' => '24',\n")
-		sb.WriteString("            'break_after_frontend' => '5',\n")
-		sb.WriteString("            'break_after_adminhtml' => '30',\n")
-		sb.WriteString("            'first_lifetime' => '600',\n")
-		sb.WriteString("            'bot_first_lifetime' => '60',\n")
-		sb.WriteString("            'bot_lifetime' => '7200',\n")
-		sb.WriteString("            'disable_locking' => '1',\n")
-		sb.WriteString("            'min_lifetime' => '60',\n")
-		sb.WriteString("            'max_lifetime' => '2592000'\n")
-		sb.WriteString("        ]\n")
-	} else {
-		sb.WriteString("        'save' => 'files'\n")
-	}
-
-	sb.WriteString("    ],\n")
-}
-
-// buildDatabaseConfig builds database configuration
-func (g *envGenerator) buildDatabaseConfig(sb *strings.Builder) {
-	sb.WriteString("    'db' => [\n")
-	sb.WriteString("        'table_prefix' => '',\n")
-	sb.WriteString("        'connection' => [\n")
-	sb.WriteString("            'default' => [\n")
-
-	// Determine host and port based on MySQL/MariaDB version
-	dbHost := "127.0.0.1"
-	dbPort := "33080" // Default MySQL 8.0 port
-
-	if g.config.Services.HasMySQL() {
-		version := g.config.Services.MySQL.Version
-		// Map version to port: 8.0 -> 33080, 8.4 -> 33084
-		versionNoDots := strings.ReplaceAll(version, ".", "")
-		if len(versionNoDots) >= 2 {
-			dbPort = fmt.Sprintf("330%s", versionNoDots[:2])
-		}
-	} else if g.config.Services.HasMariaDB() {
-		version := g.config.Services.MariaDB.Version
-		versionNoDots := strings.ReplaceAll(version, ".", "")
-		// MariaDB ports: 10.6 -> 33106, 11.4 -> 33114
-		if len(versionNoDots) >= 2 {
-			dbPort = fmt.Sprintf("331%s", versionNoDots[:2])
-		}
-	}
-
-	sb.WriteString(fmt.Sprintf("                'host' => '%s:%s',\n", dbHost, dbPort))
-	sb.WriteString(fmt.Sprintf("                'dbname' => '%s',\n", g.config.Name))
-	sb.WriteString("                'username' => 'root',\n")
-	sb.WriteString("                'password' => 'magebox',\n")
-	sb.WriteString("                'model' => 'mysql4',\n")
-	sb.WriteString("                'engine' => 'innodb',\n")
-	sb.WriteString("                'initStatements' => 'SET NAMES utf8;',\n")
-	sb.WriteString("                'active' => '1',\n")
-	sb.WriteString("                'driver_options' => [\n")
-	sb.WriteString("                    1014 => false\n")
-	sb.WriteString("                ]\n")
-	sb.WriteString("            ]\n")
-	sb.WriteString("        ]\n")
-	sb.WriteString("    ],\n")
-}
-
-// buildCacheTypes builds cache types configuration
-func (g *envGenerator) buildCacheTypes(sb *strings.Builder) {
-	sb.WriteString("    'cache_types' => [\n")
-	sb.WriteString("        'config' => 1,\n")
-	sb.WriteString("        'layout' => 1,\n")
-	sb.WriteString("        'block_html' => 1,\n")
-	sb.WriteString("        'collections' => 1,\n")
-	sb.WriteString("        'reflection' => 1,\n")
-	sb.WriteString("        'db_ddl' => 1,\n")
-	sb.WriteString("        'eav' => 1,\n")
-	sb.WriteString("        'customer_notification' => 1,\n")
-	sb.WriteString("        'full_page' => 1,\n")
-	sb.WriteString("        'config_integration' => 1,\n")
-	sb.WriteString("        'config_integration_api' => 1,\n")
-	sb.WriteString("        'translate' => 1,\n")
-	sb.WriteString("        'config_webservice' => 1,\n")
-	sb.WriteString("        'compiled_config' => 1\n")
-	sb.WriteString("    ],\n")
-}
-
-// buildVarnishConfig builds Varnish http_cache_hosts configuration
-func (g *envGenerator) buildVarnishConfig(sb *strings.Builder) {
-	sb.WriteString("    'http_cache_hosts' => [\n")
-	sb.WriteString("        [\n")
-	sb.WriteString("            'host' => '127.0.0.1',\n")
-	sb.WriteString("            'port' => '6081'\n")
-	sb.WriteString("        ]\n")
-	sb.WriteString("    ],\n")
-}
-
-// buildCacheConfig builds cache frontend configuration
-func (g *envGenerator) buildCacheConfig(sb *strings.Builder, idPrefix string) {
-	sb.WriteString("    'cache' => [\n")
-	sb.WriteString("        'frontend' => [\n")
-
-	if g.config.Services.HasRedis() {
-		// Redis cache backend
-		sb.WriteString("            'default' => [\n")
-		sb.WriteString(fmt.Sprintf("                'id_prefix' => '%s',\n", idPrefix))
-		sb.WriteString("                'backend' => 'Magento\\\\Framework\\\\Cache\\\\Backend\\\\Redis',\n")
-		sb.WriteString("                'backend_options' => [\n")
-		sb.WriteString("                    'server' => '127.0.0.1',\n")
-		sb.WriteString("                    'database' => '0',\n")
-		sb.WriteString("                    'port' => '6379',\n")
-		sb.WriteString("                    'password' => '',\n")
-		sb.WriteString("                    'compress_data' => '1',\n")
-		sb.WriteString("                    'compression_lib' => ''\n")
-		sb.WriteString("                ]\n")
-		sb.WriteString("            ],\n")
-		sb.WriteString("            'page_cache' => [\n")
-		sb.WriteString(fmt.Sprintf("                'id_prefix' => '%s',\n", idPrefix))
-		sb.WriteString("                'backend' => 'Magento\\\\Framework\\\\Cache\\\\Backend\\\\Redis',\n")
-		sb.WriteString("                'backend_options' => [\n")
-		sb.WriteString("                    'server' => '127.0.0.1',\n")
-		sb.WriteString("                    'database' => '1',\n")
-		sb.WriteString("                    'port' => '6379',\n")
-		sb.WriteString("                    'password' => '',\n")
-		sb.WriteString("                    'compress_data' => '1',\n")
-		sb.WriteString("                    'compression_lib' => ''\n")
-		sb.WriteString("                ]\n")
-		sb.WriteString("            ]\n")
-	} else {
-		// File cache backend (default)
-		sb.WriteString("            'default' => [\n")
-		sb.WriteString(fmt.Sprintf("                'id_prefix' => '%s'\n", idPrefix))
-		sb.WriteString("            ],\n")
-		sb.WriteString("            'page_cache' => [\n")
-		sb.WriteString(fmt.Sprintf("                'id_prefix' => '%s'\n", idPrefix))
-		sb.WriteString("            ]\n")
-	}
-
-	sb.WriteString("        ],\n")
-	sb.WriteString("        'allow_parallel_generation' => false\n")
-	sb.WriteString("    ],\n")
 }

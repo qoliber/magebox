@@ -2,13 +2,24 @@ package dns
 
 import (
 	"bufio"
+	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
 )
+
+//go:embed templates/hosts-section.tmpl
+var hostsSectionTemplate string
+
+// HostsSectionData contains data for the hosts section template
+type HostsSectionData struct {
+	Domains []string
+}
 
 const (
 	// MageBoxStartMarker marks the beginning of MageBox entries
@@ -232,13 +243,32 @@ func GenerateMageBoxSection(domains []string) string {
 		return ""
 	}
 
-	var sb strings.Builder
-	sb.WriteString(MageBoxStartMarker + "\n")
-	for _, domain := range domains {
-		sb.WriteString(fmt.Sprintf("127.0.0.1 %s\n", domain))
+	tmpl, err := template.New("hosts-section").Parse(hostsSectionTemplate)
+	if err != nil {
+		// Fallback to simple generation if template fails
+		var sb strings.Builder
+		sb.WriteString(MageBoxStartMarker + "\n")
+		for _, domain := range domains {
+			sb.WriteString(fmt.Sprintf("127.0.0.1 %s\n", domain))
+		}
+		sb.WriteString(MageBoxEndMarker + "\n")
+		return sb.String()
 	}
-	sb.WriteString(MageBoxEndMarker + "\n")
-	return sb.String()
+
+	data := HostsSectionData{Domains: domains}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		// Fallback on error
+		var sb strings.Builder
+		sb.WriteString(MageBoxStartMarker + "\n")
+		for _, domain := range domains {
+			sb.WriteString(fmt.Sprintf("127.0.0.1 %s\n", domain))
+		}
+		sb.WriteString(MageBoxEndMarker + "\n")
+		return sb.String()
+	}
+
+	return buf.String()
 }
 
 // ParseHostsLine parses a single hosts file line

@@ -167,7 +167,15 @@ func (p *Platform) PHPFPMConfigDir(version string) string {
 		}
 		return filepath.Join(base, "etc", "php", normalizedVersion, "php-fpm.d")
 	case Linux:
-		return filepath.Join("/etc", "php", normalizedVersion, "fpm", "pool.d")
+		switch p.LinuxDistro {
+		case DistroFedora:
+			// Remi uses php82, php83, etc. format
+			remiVersion := strings.ReplaceAll(normalizedVersion, ".", "")
+			return fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.d", remiVersion)
+		default:
+			// Debian/Ubuntu uses php8.2, php8.3 format
+			return filepath.Join("/etc", "php", normalizedVersion, "fpm", "pool.d")
+		}
 	default:
 		return ""
 	}

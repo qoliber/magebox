@@ -85,8 +85,9 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("SSL: %v", err))
 	}
 
-	// Generate PHP-FPM pool
-	if err := m.poolGenerator.Generate(cfg.Name, cfg.PHP, cfg.Env, cfg.PHPINI); err != nil {
+	// Generate PHP-FPM pool (Mailpit always enabled for local dev safety)
+	// This prevents accidental emails to real addresses during development
+	if err := m.poolGenerator.Generate(cfg.Name, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
 	}
 
@@ -303,9 +304,8 @@ func (m *Manager) getStartedServices(cfg *config.Config) []string {
 	if cfg.Services.HasRabbitMQ() {
 		services = append(services, "RabbitMQ")
 	}
-	if cfg.Services.HasMailpit() {
-		services = append(services, "Mailpit")
-	}
+	// Mailpit is always enabled for local dev safety
+	services = append(services, "Mailpit")
 
 	return services
 }

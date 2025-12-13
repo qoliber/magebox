@@ -16,6 +16,17 @@ import (
 //go:embed templates/pool.conf.tmpl
 var poolTemplate string
 
+//go:embed templates/mailpit-sendmail.sh
+var mailpitSendmailScript string
+
+// Mailpit SMTP configuration constants
+const (
+	MailpitSMTPHost = "127.0.0.1"
+	MailpitSMTPPort = 1025
+	MailpitWebHost  = "127.0.0.1"
+	MailpitWebPort  = 8025
+)
+
 // Template variables available in pool.conf.tmpl:
 // - ProjectName: Name of the project (e.g., "mystore")
 // - PHPVersion: PHP version (e.g., "8.2")
@@ -53,6 +64,8 @@ type PoolConfig struct {
 	MaxRequests     int
 	Env             map[string]string
 	PHPINI          map[string]string
+	HasMailpit      bool
+	SendmailPath    string
 }
 
 // NewPoolGenerator creates a new pool generator
@@ -65,7 +78,7 @@ func NewPoolGenerator(p *platform.Platform) *PoolGenerator {
 }
 
 // Generate generates a PHP-FPM pool configuration for a project
-func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]string, phpIni map[string]string) error {
+func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool) error {
 	// Ensure directories exist
 	if err := os.MkdirAll(g.poolsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create pools directory: %w", err)
@@ -78,6 +91,23 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 	logsDir := filepath.Join(g.platform.MageBoxDir(), "logs", "php-fpm")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create logs directory: %w", err)
+	}
+
+	// Setup Mailpit sendmail wrapper if Mailpit is enabled
+	var sendmailPath string
+	if hasMailpit {
+		var err error
+		sendmailPath, err = g.setupMailpitSendmail()
+		if err != nil {
+			return fmt.Errorf("failed to setup mailpit sendmail: %w", err)
+		}
+
+		// Add Mailpit environment variables
+		if env == nil {
+			env = make(map[string]string)
+		}
+		env["MAILPIT_HOST"] = MailpitSMTPHost
+		env["MAILPIT_PORT"] = fmt.Sprintf("%d", MailpitSMTPPort)
 	}
 
 	cfg := PoolConfig{
@@ -94,6 +124,8 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 		MaxRequests:     500,
 		Env:             env,
 		PHPINI:          phpIni,
+		HasMailpit:      hasMailpit,
+		SendmailPath:    sendmailPath,
 	}
 
 	content, err := g.renderPool(cfg)
@@ -107,6 +139,23 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 	}
 
 	return nil
+}
+
+// setupMailpitSendmail creates the Mailpit sendmail wrapper script
+func (g *PoolGenerator) setupMailpitSendmail() (string, error) {
+	binDir := filepath.Join(g.platform.MageBoxDir(), "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create bin directory: %w", err)
+	}
+
+	sendmailPath := filepath.Join(binDir, "mailpit-sendmail")
+
+	// Write the sendmail wrapper script
+	if err := os.WriteFile(sendmailPath, []byte(mailpitSendmailScript), 0755); err != nil {
+		return "", fmt.Errorf("failed to write mailpit-sendmail script: %w", err)
+	}
+
+	return sendmailPath, nil
 }
 
 // Remove removes the pool configuration for a project

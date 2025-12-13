@@ -224,7 +224,11 @@ func TestComposeGenerator_getMariaDBPort(t *testing.T) {
 func TestComposeService_MySQL(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
-	svc := g.getMySQLService("8.0")
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "8.0",
+	}
+	svc := g.getMySQLService(svcCfg)
 
 	if svc.Image != "mysql:8.0" {
 		t.Errorf("Image = %v, want mysql:8.0", svc.Image)
@@ -232,14 +236,29 @@ func TestComposeService_MySQL(t *testing.T) {
 	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "33080:3306") {
 		t.Errorf("Ports = %v, want 33080:3306", svc.Ports)
 	}
-	if svc.Environment["MYSQL_ROOT_PASSWORD"] != "magebox" {
-		t.Error("MYSQL_ROOT_PASSWORD should be magebox")
+	if svc.Environment["MYSQL_ROOT_PASSWORD"] != DefaultDBRootPassword {
+		t.Errorf("MYSQL_ROOT_PASSWORD should be %s", DefaultDBRootPassword)
 	}
 	if svc.Restart != "unless-stopped" {
 		t.Error("Restart should be unless-stopped")
 	}
 	if svc.HealthCheck == nil {
 		t.Error("HealthCheck should not be nil")
+	}
+}
+
+func TestComposeService_MySQL_WithMemory(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "8.0",
+		Memory:  "1g",
+	}
+	svc := g.getMySQLService(svcCfg)
+
+	if svc.Environment["MYSQL_INNODB_BUFFER_POOL_SIZE"] != "1g" {
+		t.Error("MYSQL_INNODB_BUFFER_POOL_SIZE should be 1g when memory is specified")
 	}
 }
 

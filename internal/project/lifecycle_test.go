@@ -274,8 +274,8 @@ services:
 
 	services := m.getStartedServices(cfg)
 
-	// Should include PHP-FPM, Nginx, MySQL, Redis, OpenSearch
-	expectedServices := []string{"PHP-FPM", "Nginx", "MySQL", "Redis", "OpenSearch"}
+	// Should include PHP-FPM, Nginx, MySQL, Redis, OpenSearch, Mailpit (always enabled)
+	expectedServices := []string{"PHP-FPM", "Nginx", "MySQL", "Redis", "OpenSearch", "Mailpit"}
 	for _, expected := range expectedServices {
 		found := false
 		for _, svc := range services {
@@ -287,5 +287,45 @@ services:
 		if !found {
 			t.Errorf("Services should include %s", expected)
 		}
+	}
+}
+
+func TestManager_getStartedServicesAlwaysIncludesMailpit(t *testing.T) {
+	m, tmpDir := setupTestManager(t)
+
+	projectPath := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(projectPath, 0755); err != nil {
+		t.Fatalf("failed to create project dir: %v", err)
+	}
+
+	// Create a minimal .magebox file without mailpit explicitly configured
+	configContent := `name: mystore
+domains:
+  - host: mystore.test
+php: "8.2"
+services:
+  mysql: "8.0"
+`
+	if err := os.WriteFile(filepath.Join(projectPath, config.ConfigFileName), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, _, err := m.ValidateConfig(projectPath)
+	if err != nil {
+		t.Fatalf("ValidateConfig failed: %v", err)
+	}
+
+	services := m.getStartedServices(cfg)
+
+	// Mailpit should always be included for local dev safety
+	found := false
+	for _, svc := range services {
+		if strings.Contains(svc, "Mailpit") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Services should always include Mailpit for local dev safety")
 	}
 }

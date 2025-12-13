@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 // Config represents the merged configuration from .magebox and .magebox.local
 type Config struct {
 	Name     string             `yaml:"name"`
@@ -169,7 +171,7 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string {
 	if e.Index > 0 {
-		return e.Field + "[" + string(rune('0'+e.Index)) + "]: " + e.Message
+		return fmt.Sprintf("%s[%d]: %s", e.Field, e.Index, e.Message)
 	}
 	return e.Field + ": " + e.Message
 }
