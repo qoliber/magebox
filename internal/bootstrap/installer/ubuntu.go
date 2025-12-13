@@ -152,6 +152,11 @@ func (u *UbuntuInstaller) InstallMultitail() error {
 	return u.RunSudo("apt", "install", "-y", "multitail")
 }
 
+// InstallXdebug installs Xdebug for a specific PHP version
+func (u *UbuntuInstaller) InstallXdebug(version string) error {
+	return u.RunSudo("apt", "install", "-y", fmt.Sprintf("php%s-xdebug", version))
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
 func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
 	// Create log directory

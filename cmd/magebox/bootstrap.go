@@ -292,6 +292,23 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println(cli.Success("done"))
 		}
 	}
+
+	// Install Xdebug for all installed PHP versions
+	if len(installedPHPVersions) > 0 {
+		fmt.Println()
+		fmt.Print("  Installing Xdebug for all PHP versions... ")
+		xdebugErrors := 0
+		for _, ver := range installedPHPVersions {
+			if err := bootstrapper.InstallXdebug(ver.Version); err != nil {
+				xdebugErrors++
+			}
+		}
+		if xdebugErrors > 0 {
+			fmt.Println(cli.Warning("done with warnings"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
 	fmt.Println()
 
 	// Step 3: Initialize global config

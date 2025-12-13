@@ -96,6 +96,11 @@ func (b *Bootstrapper) InstallPHP(version string) error {
 	return nil
 }
 
+// InstallXdebug installs Xdebug for a specific PHP version
+func (b *Bootstrapper) InstallXdebug(version string) error {
+	return b.installer.InstallXdebug(version)
+}
+
 // ConfigurePHPFPM configures PHP-FPM for installed versions
 func (b *Bootstrapper) ConfigurePHPFPM(versions []string) error {
 	return b.installer.ConfigurePHPFPM(versions)

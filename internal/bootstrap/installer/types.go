@@ -70,6 +70,9 @@ type Installer interface {
 	// InstallMultitail installs multitail for log viewing
 	InstallMultitail() error
 
+	// InstallXdebug installs Xdebug for a specific PHP version
+	InstallXdebug(version string) error
+
 	// ConfigurePHPFPM configures PHP-FPM for the platform
 	ConfigurePHPFPM(versions []string) error
 

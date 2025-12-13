@@ -152,6 +152,12 @@ func (f *FedoraInstaller) InstallMultitail() error {
 	return f.RunSudo("dnf", "install", "-y", "multitail")
 }
 
+// InstallXdebug installs Xdebug for a specific PHP version
+func (f *FedoraInstaller) InstallXdebug(version string) error {
+	remiVersion := strings.ReplaceAll(version, ".", "")
+	return f.RunSudo("dnf", "install", "-y", fmt.Sprintf("php%s-php-xdebug", remiVersion))
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Fedora
 func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 	// Create log directory

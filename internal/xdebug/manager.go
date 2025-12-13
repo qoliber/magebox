@@ -52,36 +52,31 @@ func NewManager(p *platform.Platform) *Manager {
 
 // IsInstalled checks if Xdebug is installed for a specific PHP version
 func (m *Manager) IsInstalled(phpVersion string) bool {
-	iniFile := m.getXdebugIniPath(phpVersion)
-	if iniFile == "" {
+	// First check if xdebug.so exists
+	if m.findXdebugSo(phpVersion) != "" {
+		return true
+	}
+
+	// Also check via php -m if the module is loaded
+	phpBin := m.platform.PHPBinary(phpVersion)
+	cmd := exec.Command(phpBin, "-m")
+	output, err := cmd.Output()
+	if err != nil {
 		return false
 	}
-	_, err := os.Stat(iniFile)
-	return err == nil
+	return strings.Contains(strings.ToLower(string(output)), "xdebug")
 }
 
 // IsEnabled checks if Xdebug is enabled for a specific PHP version
 func (m *Manager) IsEnabled(phpVersion string) bool {
-	iniFile := m.getXdebugIniPath(phpVersion)
-	if iniFile == "" {
-		return false
-	}
-
-	content, err := os.ReadFile(iniFile)
+	// Check via php -m if xdebug module is loaded
+	phpBin := m.platform.PHPBinary(phpVersion)
+	cmd := exec.Command(phpBin, "-m")
+	output, err := cmd.Output()
 	if err != nil {
 		return false
 	}
-
-	// Check if the zend_extension line is not commented out
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "zend_extension") && strings.Contains(trimmed, "xdebug") {
-			return true
-		}
-	}
-
-	return false
+	return strings.Contains(strings.ToLower(string(output)), "xdebug")
 }
 
 // Enable enables Xdebug for a specific PHP version
@@ -176,12 +171,18 @@ func (m *Manager) getXdebugIniPath(phpVersion string) string {
 			}
 		}
 
-		// Check if xdebug.so exists but no ini file (need to create one)
+		// Check main php.ini (pecl often adds xdebug there)
+		phpIni := filepath.Join(base, "etc", "php", phpVersion, "php.ini")
+		if content, err := os.ReadFile(phpIni); err == nil {
+			if strings.Contains(string(content), "xdebug") {
+				return phpIni
+			}
+		}
+
+		// If xdebug.so exists but no ini file, return conf.d path for creating one
 		xdebugSo := m.findXdebugSo(phpVersion)
 		if xdebugSo != "" {
-			// Create the ini file
-			iniPath := filepath.Join(confDir, "ext-xdebug.ini")
-			return iniPath
+			return filepath.Join(confDir, "ext-xdebug.ini")
 		}
 
 	case platform.Linux:

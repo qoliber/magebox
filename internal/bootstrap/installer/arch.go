@@ -126,6 +126,12 @@ func (a *ArchInstaller) InstallMultitail() error {
 	return a.RunSudo("pacman", "-S", "--noconfirm", "multitail")
 }
 
+// InstallXdebug installs Xdebug for a specific PHP version
+func (a *ArchInstaller) InstallXdebug(version string) error {
+	// On Arch, xdebug is available from community repo
+	return a.RunSudo("pacman", "-S", "--noconfirm", "xdebug")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Arch Linux
 func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
 	// Create log directory

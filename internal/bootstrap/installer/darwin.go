@@ -125,6 +125,16 @@ func (d *DarwinInstaller) InstallMultitail() error {
 	return d.RunCommand("brew install multitail")
 }
 
+// InstallXdebug installs Xdebug for a specific PHP version via PECL
+func (d *DarwinInstaller) InstallXdebug(version string) error {
+	base := "/usr/local"
+	if d.BaseInstaller.Platform.IsAppleSilicon {
+		base = "/opt/homebrew"
+	}
+	peclBin := fmt.Sprintf("%s/opt/php@%s/bin/pecl", base, version)
+	return d.RunCommand(fmt.Sprintf("%s install xdebug 2>/dev/null || true", peclBin))
+}
+
 // ConfigurePHPFPM configures PHP-FPM on macOS
 // On macOS, PHP-FPM is typically started via brew services
 func (d *DarwinInstaller) ConfigurePHPFPM(versions []string) error {
