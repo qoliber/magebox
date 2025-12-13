@@ -96,6 +96,7 @@ export default defineConfig({
             { text: 'Multiple Projects', link: '/guide/multiple-projects' },
             { text: 'PHP Version Wrapper', link: '/guide/php-wrapper' },
             { text: 'Xdebug', link: '/guide/xdebug' },
+            { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' }
           ]
@@ -178,6 +179,7 @@ export default defineConfig({
             { text: 'Multiple Projects', link: '/guide/multiple-projects' },
             { text: 'PHP Version Wrapper', link: '/guide/php-wrapper' },
             { text: 'Xdebug', link: '/guide/xdebug' },
+            { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' }
           ]
