@@ -1,0 +1,6 @@
+# MageBox upstream configuration for {{.ProjectName}}
+# Do not edit manually - regenerated on magebox start
+
+upstream fastcgi_backend_{{.ProjectName}} {
+    server unix:{{.PHPSocketPath}};
+}

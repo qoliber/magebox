@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
@@ -15,6 +16,9 @@ import (
 
 //go:embed templates/pool.conf.tmpl
 var poolTemplate string
+
+//go:embed templates/php-fpm.conf.tmpl
+var fpmConfigTemplate string
 
 //go:embed templates/mailpit-sendmail.sh
 var mailpitSendmailScript string
@@ -233,6 +237,14 @@ func getCurrentGroup() string {
 	return user
 }
 
+// FPMConfig contains data for generating the master php-fpm.conf
+type FPMConfig struct {
+	PHPVersion   string
+	PIDPath      string
+	ErrorLogPath string
+	PoolsDir     string
+}
+
 // FPMController manages PHP-FPM service for a specific version
 type FPMController struct {
 	platform *platform.Platform
@@ -247,66 +259,174 @@ func NewFPMController(p *platform.Platform, version string) *FPMController {
 	}
 }
 
-// Reload reloads PHP-FPM configuration
-func (c *FPMController) Reload() error {
+// getPIDPath returns the path to the PID file for this PHP version
+func (c *FPMController) getPIDPath() string {
+	return filepath.Join(c.platform.MageBoxDir(), "run", fmt.Sprintf("php-fpm-%s.pid", c.version))
+}
+
+// getConfigPath returns the path to the php-fpm.conf for this PHP version
+func (c *FPMController) getConfigPath() string {
+	return filepath.Join(c.platform.MageBoxDir(), "php", fmt.Sprintf("php-fpm-%s.conf", c.version))
+}
+
+// getErrorLogPath returns the path to the error log for this PHP version
+func (c *FPMController) getErrorLogPath() string {
+	return filepath.Join(c.platform.MageBoxDir(), "logs", "php-fpm", fmt.Sprintf("php%s-error.log", c.version))
+}
+
+// getPoolsDir returns the path to the pools directory
+func (c *FPMController) getPoolsDir() string {
+	return filepath.Join(c.platform.MageBoxDir(), "php", "pools")
+}
+
+// getBinaryPath returns the path to php-fpm binary for this version
+func (c *FPMController) getBinaryPath() string {
 	switch c.platform.Type {
 	case platform.Darwin:
-		cmd := exec.Command("brew", "services", "restart", fmt.Sprintf("php@%s", c.version))
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to reload php-fpm: %w\nOutput: %s", err, output)
+		// Check ARM Homebrew first
+		armPath := fmt.Sprintf("/opt/homebrew/opt/php@%s/sbin/php-fpm", c.version)
+		if _, err := os.Stat(armPath); err == nil {
+			return armPath
 		}
+		// Fall back to Intel Homebrew
+		return fmt.Sprintf("/usr/local/opt/php@%s/sbin/php-fpm", c.version)
 	case platform.Linux:
-		cmd := exec.Command("sudo", "systemctl", "reload", fmt.Sprintf("php%s-fpm", c.version))
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to reload php-fpm: %w\nOutput: %s", err, output)
-		}
+		return fmt.Sprintf("/usr/sbin/php-fpm%s", c.version)
+	}
+	return "php-fpm"
+}
+
+// GenerateConfig generates the master php-fpm.conf for MageBox
+func (c *FPMController) GenerateConfig() error {
+	// Ensure directories exist
+	configDir := filepath.Dir(c.getConfigPath())
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	runDir := filepath.Dir(c.getPIDPath())
+	if err := os.MkdirAll(runDir, 0755); err != nil {
+		return fmt.Errorf("failed to create run directory: %w", err)
+	}
+
+	logDir := filepath.Dir(c.getErrorLogPath())
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	poolsDir := c.getPoolsDir()
+	if err := os.MkdirAll(poolsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create pools directory: %w", err)
+	}
+
+	cfg := FPMConfig{
+		PHPVersion:   c.version,
+		PIDPath:      c.getPIDPath(),
+		ErrorLogPath: c.getErrorLogPath(),
+		PoolsDir:     poolsDir,
+	}
+
+	tmpl, err := template.New("fpm").Parse(fpmConfigTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to parse fpm config template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return fmt.Errorf("failed to execute fpm config template: %w", err)
+	}
+
+	return os.WriteFile(c.getConfigPath(), buf.Bytes(), 0644)
+}
+
+// Reload reloads PHP-FPM configuration by sending SIGUSR2
+func (c *FPMController) Reload() error {
+	pid, err := c.getPID()
+	if err != nil {
+		// Not running, start instead
+		return c.Start()
+	}
+
+	// Send SIGUSR2 to reload
+	cmd := exec.Command("kill", "-USR2", fmt.Sprintf("%d", pid))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to reload php-fpm: %w", err)
 	}
 	return nil
 }
 
-// Start starts PHP-FPM
+// Start starts the dedicated MageBox PHP-FPM process
 func (c *FPMController) Start() error {
-	switch c.platform.Type {
-	case platform.Darwin:
-		cmd := exec.Command("brew", "services", "start", fmt.Sprintf("php@%s", c.version))
-		return cmd.Run()
-	case platform.Linux:
-		cmd := exec.Command("sudo", "systemctl", "start", fmt.Sprintf("php%s-fpm", c.version))
-		return cmd.Run()
+	// Check if already running
+	if c.IsRunning() {
+		return nil
 	}
-	return fmt.Errorf("unsupported platform")
+
+	// Generate config
+	if err := c.GenerateConfig(); err != nil {
+		return fmt.Errorf("failed to generate php-fpm config: %w", err)
+	}
+
+	// Start php-fpm with our custom config
+	binary := c.getBinaryPath()
+	configPath := c.getConfigPath()
+
+	cmd := exec.Command(binary, "-y", configPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start php-fpm: %w\nOutput: %s", err, output)
+	}
+
+	return nil
 }
 
-// Stop stops PHP-FPM
+// Stop stops the MageBox PHP-FPM process
 func (c *FPMController) Stop() error {
-	switch c.platform.Type {
-	case platform.Darwin:
-		cmd := exec.Command("brew", "services", "stop", fmt.Sprintf("php@%s", c.version))
-		return cmd.Run()
-	case platform.Linux:
-		cmd := exec.Command("sudo", "systemctl", "stop", fmt.Sprintf("php%s-fpm", c.version))
-		return cmd.Run()
+	pid, err := c.getPID()
+	if err != nil {
+		// Not running
+		return nil
 	}
-	return fmt.Errorf("unsupported platform")
+
+	// Send SIGTERM
+	cmd := exec.Command("kill", fmt.Sprintf("%d", pid))
+	if err := cmd.Run(); err != nil {
+		// Try SIGKILL
+		cmd = exec.Command("kill", "-9", fmt.Sprintf("%d", pid))
+		_ = cmd.Run()
+	}
+
+	// Remove PID file
+	_ = os.Remove(c.getPIDPath())
+	return nil
 }
 
-// IsRunning checks if PHP-FPM is running
+// IsRunning checks if MageBox PHP-FPM is running for this version
 func (c *FPMController) IsRunning() bool {
-	switch c.platform.Type {
-	case platform.Darwin:
-		cmd := exec.Command("pgrep", "-f", fmt.Sprintf("php-fpm.*%s", c.version))
-		return cmd.Run() == nil
-	case platform.Linux:
-		cmd := exec.Command("systemctl", "is-active", fmt.Sprintf("php%s-fpm", c.version))
-		output, err := cmd.Output()
-		if err != nil {
-			return false
-		}
-		return string(output) == "active\n"
+	pid, err := c.getPID()
+	if err != nil {
+		return false
 	}
-	return false
+
+	// Check if process exists
+	cmd := exec.Command("kill", "-0", fmt.Sprintf("%d", pid))
+	return cmd.Run() == nil
+}
+
+// getPID reads the PID from the PID file
+func (c *FPMController) getPID() (int, error) {
+	pidPath := c.getPIDPath()
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return 0, err
+	}
+
+	var pid int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid); err != nil {
+		return 0, err
+	}
+
+	return pid, nil
 }
 
 // GetIncludeDirective returns the include path for the pools directory

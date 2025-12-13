@@ -91,9 +91,21 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
 	}
 
+	// Start PHP-FPM
+	fpmController := php.NewFPMController(m.platform, cfg.PHP)
+	if err := fpmController.Start(); err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM: %w", err))
+	}
+
 	// Generate Nginx vhost
 	if err := m.vhostGenerator.Generate(cfg, projectPath); err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("nginx vhost: %w", err))
+	}
+
+	// Reload Nginx to pick up new vhost
+	nginxController := nginx.NewController(m.platform)
+	if err := nginxController.Reload(); err != nil {
+		result.Warnings = append(result.Warnings, fmt.Sprintf("Nginx reload: %v", err))
 	}
 
 	// Add domains to /etc/hosts only if using hosts mode (not dnsmasq)
@@ -144,10 +156,18 @@ func (m *Manager) Stop(projectPath string) error {
 		return fmt.Errorf("failed to remove nginx vhost: %w", err)
 	}
 
+	// Reload Nginx
+	nginxController := nginx.NewController(m.platform)
+	_ = nginxController.Reload()
+
 	// Remove PHP-FPM pool
 	if err := m.poolGenerator.Remove(cfg.Name); err != nil {
 		return fmt.Errorf("failed to remove php-fpm pool: %w", err)
 	}
+
+	// Reload PHP-FPM to unload the pool
+	fpmController := php.NewFPMController(m.platform, cfg.PHP)
+	_ = fpmController.Reload()
 
 	// Remove domains from /etc/hosts only if using hosts mode (not dnsmasq)
 	globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)

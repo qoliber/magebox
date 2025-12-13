@@ -1,10 +1,6 @@
 # MageBox generated vhost for {{.ProjectName}} - {{.Domain}}
 # Do not edit manually - regenerated on magebox start
 
-upstream fastcgi_backend_{{.ProjectName}} {
-    server unix:{{.PHPSocketPath}};
-}
-
 {{if .SSLEnabled}}
 server {
     listen {{.HTTPPort}};

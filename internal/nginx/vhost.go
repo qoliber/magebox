@@ -21,6 +21,9 @@ var vhostTemplate string
 //go:embed templates/proxy.conf.tmpl
 var proxyTemplate string
 
+//go:embed templates/upstream.conf.tmpl
+var upstreamTemplate string
+
 // Template variables available in vhost.conf.tmpl:
 // - ProjectName: Name of the project (e.g., "mystore")
 // - Domain: Domain name (e.g., "mystore.test")
@@ -70,6 +73,12 @@ type ProxyConfig struct {
 	HTTPSPort   int
 }
 
+// UpstreamConfig contains data needed to generate an upstream config
+type UpstreamConfig struct {
+	ProjectName   string
+	PHPSocketPath string
+}
+
 // NewVhostGenerator creates a new vhost generator
 func NewVhostGenerator(p *platform.Platform, sslMgr *ssl.Manager) *VhostGenerator {
 	return &VhostGenerator{
@@ -84,6 +93,15 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 	// Ensure vhosts directory exists
 	if err := os.MkdirAll(g.vhostsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create vhosts directory: %w", err)
+	}
+
+	// Generate upstream config (once per project, not per domain)
+	upstreamCfg := UpstreamConfig{
+		ProjectName:   cfg.Name,
+		PHPSocketPath: g.getPHPSocketPath(cfg.Name, cfg.PHP),
+	}
+	if err := g.generateUpstream(upstreamCfg); err != nil {
+		return fmt.Errorf("failed to generate upstream config: %w", err)
 	}
 
 	// Determine ports based on platform
@@ -156,6 +174,32 @@ func (g *VhostGenerator) getPHPSocketPath(projectName, phpVersion string) string
 // renderVhost renders the vhost template
 func (g *VhostGenerator) renderVhost(cfg VhostConfig) (string, error) {
 	tmpl, err := template.New("vhost").Parse(vhostTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+// generateUpstream generates the upstream config file for a project
+func (g *VhostGenerator) generateUpstream(cfg UpstreamConfig) error {
+	content, err := g.renderUpstream(cfg)
+	if err != nil {
+		return err
+	}
+
+	upstreamFile := filepath.Join(g.vhostsDir, fmt.Sprintf("%s-upstream.conf", cfg.ProjectName))
+	return os.WriteFile(upstreamFile, []byte(content), 0644)
+}
+
+// renderUpstream renders the upstream template
+func (g *VhostGenerator) renderUpstream(cfg UpstreamConfig) (string, error) {
+	tmpl, err := template.New("upstream").Parse(upstreamTemplate)
 	if err != nil {
 		return "", err
 	}
