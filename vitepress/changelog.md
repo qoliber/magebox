@@ -2,6 +2,26 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.4] - 2025-12-13
+
+### Varnish Improvements
+
+- **Docker-based Varnish management**: Varnish controller now uses Docker commands for reliable container management
+- **Backend connectivity**: Added `host.docker.internal` support for Varnish to reach Nginx backend
+- **Enhanced status command**: `magebox varnish status` now shows backend health and cache statistics (hits, misses, requests)
+- **Improved documentation**: Added `varnish enable/disable` commands to README and reference docs
+
+### PHP-FPM Lifecycle
+
+- **Smart reload/start**: `magebox start` now reloads PHP-FPM if already running, starts if stopped
+- Prevents unnecessary restarts when switching between projects
+
+### Test Improvements
+
+- Fixed nginx vhost tests for upstream separation architecture (from v0.10.3)
+- Fixed platform and PHP detector tests for flexible path checking on different systems
+- Tests now handle both Homebrew symlink and Cellar paths correctly
+
 ## [0.10.3] - 2025-12-13
 
 ### Dedicated MageBox PHP-FPM Process

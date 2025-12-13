@@ -121,7 +121,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			PHPVersion:    cfg.PHP,
 			PHPSocketPath: g.getPHPSocketPath(cfg.Name, cfg.PHP),
 			SSLEnabled:    domain.IsSSLEnabled(),
-			UseVarnish:    false, // TODO: Add varnish support
+			UseVarnish:    cfg.Services.HasVarnish(),
 			VarnishPort:   6081,
 			HTTPPort:      httpPort,
 			HTTPSPort:     httpsPort,
