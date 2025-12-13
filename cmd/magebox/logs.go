@@ -3,38 +3,29 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
+	"os/exec"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
 	"github.com/qoliber/magebox/internal/cli"
+	"github.com/qoliber/magebox/internal/platform"
 )
 
 var logsCmd = &cobra.Command{
-	Use:   "logs [pattern]",
-	Short: "Tail project logs",
-	Long: `Tails log files from var/log directory.
+	Use:   "logs",
+	Short: "View Magento logs with multitail",
+	Long: `Opens system.log and exception.log in a split-screen view using multitail.
 
-Examples:
-  magebox logs              # Tail all .log files
-  magebox logs system.log   # Tail only system.log
-  magebox logs "*.log"      # Tail all .log files
-  magebox logs -f           # Follow mode (continuous)
-  magebox logs -n 50        # Show last 50 lines`,
-	Args: cobra.MaximumNArgs(1),
+The logs are displayed in 2 columns:
+  - Left:  system.log (green header)
+  - Right: exception.log (red header)
+
+Press 'q' to quit, 'b' to scroll back in history.`,
 	RunE: runLogs,
 }
 
-var (
-	logsFollow bool
-	logsLines  int
-)
-
 func init() {
-	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "Follow log files for changes")
-	logsCmd.Flags().IntVarP(&logsLines, "lines", "n", 20, "Number of lines to show initially")
 	rootCmd.AddCommand(logsCmd)
 }
 
@@ -44,38 +35,54 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine log directory
-	logDir := filepath.Join(cwd, "var", "log")
+	// Check if multitail is installed
+	if !platform.CommandExists("multitail") {
+		cli.PrintError("multitail is not installed")
+		cli.PrintInfo("Run 'magebox bootstrap' to install it, or install manually:")
+		fmt.Println("  brew install multitail  # macOS")
+		fmt.Println("  sudo dnf install multitail  # Fedora")
+		fmt.Println("  sudo apt install multitail  # Ubuntu/Debian")
+		return nil
+	}
 
-	// Check if log directory exists
+	// Check for log directory
+	logDir := filepath.Join(cwd, "var", "log")
 	if _, err := os.Stat(logDir); os.IsNotExist(err) {
 		cli.PrintError("Log directory not found: %s", logDir)
 		cli.PrintInfo("Make sure you're in a Magento project root directory")
 		return nil
 	}
 
-	// Determine pattern
-	pattern := "*.log"
-	if len(args) > 0 {
-		pattern = args[0]
+	systemLog := filepath.Join(logDir, "system.log")
+	exceptionLog := filepath.Join(logDir, "exception.log")
+
+	// Create log files if they don't exist (touch them)
+	for _, logFile := range []string{systemLog, exceptionLog} {
+		if _, err := os.Stat(logFile); os.IsNotExist(err) {
+			f, err := os.Create(logFile)
+			if err != nil {
+				cli.PrintWarning("Could not create %s: %v", filepath.Base(logFile), err)
+				continue
+			}
+			f.Close()
+		}
 	}
 
-	cli.PrintTitle("MageBox Log Viewer")
-	fmt.Printf("Directory: %s\n", cli.Path(logDir))
-	fmt.Printf("Pattern: %s\n", pattern)
+	fmt.Println("Watching: " + cli.Path(logDir))
+	fmt.Println("Press 'q' to quit, 'b' to scroll back")
+	fmt.Println()
 
-	// Create tailer
-	tailer := cli.NewLogTailer(logDir, pattern, logsFollow, logsLines)
+	// Run multitail with 2 columns
+	// -s 2: split into 2 columns
+	// -ci color: set header color for each file
+	multitailCmd := exec.Command("multitail",
+		"-s", "2",
+		"-ci", "green", systemLog,
+		"-ci", "red", exceptionLog,
+	)
+	multitailCmd.Stdin = os.Stdin
+	multitailCmd.Stdout = os.Stdout
+	multitailCmd.Stderr = os.Stderr
 
-	// Handle Ctrl+C
-	if logsFollow {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		go func() {
-			<-sigChan
-			tailer.Stop()
-		}()
-	}
-
-	return tailer.Start()
+	return multitailCmd.Run()
 }

@@ -2,6 +2,13 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.10] - 2025-12-13
+
+### New Features
+
+- **`magebox logs`**: View system.log and exception.log in 2-column split-screen using multitail
+- **`magebox report`**: Watch var/report directory for new error reports with auto-refresh
+
 ## [0.10.9] - 2025-12-13
 
 ### New Features
