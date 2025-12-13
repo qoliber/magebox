@@ -105,6 +105,14 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Reference',
+          items: [
+            { text: 'CLI Commands', link: '/reference/commands' },
+            { text: 'Configuration Options', link: '/reference/config-options' },
+            { text: 'Service Ports', link: '/reference/ports' }
+          ]
+        },
+        {
           text: 'Help',
           items: [
             { text: 'Troubleshooting', link: '/guide/troubleshooting' }
@@ -185,6 +193,14 @@ export default defineConfig({
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' }
+          ]
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'CLI Commands', link: '/reference/commands' },
+            { text: 'Configuration Options', link: '/reference/config-options' },
+            { text: 'Service Ports', link: '/reference/ports' }
           ]
         },
         {
