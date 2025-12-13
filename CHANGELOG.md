@@ -5,6 +5,49 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2024-12-13
+
+### Added
+- `magebox db create` - Create project database from config
+- `magebox db drop` - Drop project database (with confirmation)
+- `magebox db reset` - Drop and recreate project database (with confirmation)
+- Database commands now use `DefaultDBRootPassword` constant for consistency
+
+### Changed
+- Updated `db import`, `db export`, `db shell` to use password constant
+
+## [0.10.1] - 2024-12-13
+
+### Fixed
+- Linting issues: unchecked error return, unused functions, gofmt formatting
+
+## [0.10.0] - 2024-12-13
+
+### Added
+- **Blackfire profiler integration**:
+  - `magebox blackfire on/off` - Enable/disable Blackfire profiling
+  - `magebox blackfire status` - Show current Blackfire status
+  - `magebox blackfire install` - Install Blackfire agent and PHP extension
+  - `magebox blackfire config` - Configure Blackfire credentials
+  - Platform support: macOS (Homebrew), Fedora (dnf), Ubuntu/Debian (apt), Arch (AUR)
+  - Automatic Xdebug disable when enabling Blackfire to avoid conflicts
+- **Tideways profiler integration**:
+  - `magebox tideways on/off` - Enable/disable Tideways profiling
+  - `magebox tideways status` - Show current Tideways status
+  - `magebox tideways install` - Install Tideways daemon and PHP extension
+  - `magebox tideways config` - Configure Tideways API key
+  - Platform support: macOS (Homebrew), Fedora (dnf), Ubuntu/Debian (apt), Arch (AUR)
+  - Automatic Xdebug disable when enabling Tideways to avoid conflicts
+- **Global profiling credentials storage**:
+  - New `profiling` section in `~/.magebox/config.yaml`
+  - Secure credential storage (no credentials in per-project config)
+  - Environment variable fallback (`BLACKFIRE_*`, `TIDEWAYS_API_KEY`)
+- New packages: `internal/blackfire/`, `internal/tideways/`
+
+### Changed
+- `GlobalConfig` now includes `Profiling` configuration section
+- Added helper methods for credential management with environment variable precedence
+
 ## [0.9.1] - 2024-12-13
 
 ### Added

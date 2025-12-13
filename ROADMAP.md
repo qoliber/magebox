@@ -2,7 +2,7 @@
 
 This document outlines planned features and improvements for MageBox.
 
-## Current Version: 0.9.1
+## Current Version: 0.10.2
 
 ### Completed Features
 
@@ -16,38 +16,13 @@ This document outlines planned features and improvements for MageBox.
 - DNS configuration (dnsmasq and /etc/hosts)
 - Health check command (`magebox check`)
 - Xdebug toggle (`magebox xdebug on/off`)
+- Blackfire profiler integration (`magebox blackfire on/off/install/config`)
+- Tideways profiler integration (`magebox tideways on/off/install/config`)
+- Global profiling credentials storage (`~/.magebox/config.yaml`)
+- Database management (`magebox db create/drop/reset`)
+- Automatic database creation on `magebox start`
 
 ## Planned Features
-
-### Performance Profiling (v0.5.0)
-
-#### Blackfire Integration
-
-Integrate Blackfire profiler for performance analysis:
-
-- `magebox blackfire on` - Enable Blackfire profiling
-- `magebox blackfire off` - Disable Blackfire profiling
-- `magebox blackfire profile` - Run a profile session
-- Automatic probe installation per PHP version
-- Docker agent container for profile collection
-- Configuration via environment variables or .magebox.yaml
-
-#### Tideways Integration
-
-Integrate Tideways for application performance monitoring:
-
-- `magebox tideways on` - Enable Tideways monitoring
-- `magebox tideways off` - Disable Tideways monitoring
-- `magebox tideways status` - Show current status
-- Automatic daemon configuration
-- Environment variable configuration
-
-### Database Management Improvements (v0.5.0)
-
-- `magebox db create` - Create database from project config
-- `magebox db drop` - Drop project database
-- `magebox db reset` - Drop and recreate database
-- Automatic database creation on `magebox start`
 
 ### Additional Services
 

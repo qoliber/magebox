@@ -30,6 +30,28 @@ type GlobalConfig struct {
 
 	// AutoStart enables automatic service startup
 	AutoStart bool `yaml:"auto_start,omitempty"`
+
+	// Profiling contains credentials for profiling tools (Blackfire, Tideways)
+	Profiling ProfilingConfig `yaml:"profiling,omitempty"`
+}
+
+// ProfilingConfig contains credentials for profiling tools
+type ProfilingConfig struct {
+	Blackfire BlackfireCredentials `yaml:"blackfire,omitempty"`
+	Tideways  TidewaysCredentials  `yaml:"tideways,omitempty"`
+}
+
+// BlackfireCredentials contains Blackfire API credentials
+type BlackfireCredentials struct {
+	ServerID    string `yaml:"server_id,omitempty"`
+	ServerToken string `yaml:"server_token,omitempty"`
+	ClientID    string `yaml:"client_id,omitempty"`
+	ClientToken string `yaml:"client_token,omitempty"`
+}
+
+// TidewaysCredentials contains Tideways API credentials
+type TidewaysCredentials struct {
+	APIKey string `yaml:"api_key,omitempty"`
 }
 
 // DefaultServices represents default service configurations
@@ -145,6 +167,54 @@ func (c *GlobalConfig) GetTLD() string {
 		return "test"
 	}
 	return c.TLD
+}
+
+// HasBlackfireCredentials returns true if Blackfire server credentials are configured
+func (c *GlobalConfig) HasBlackfireCredentials() bool {
+	return c.Profiling.Blackfire.ServerID != "" && c.Profiling.Blackfire.ServerToken != ""
+}
+
+// HasBlackfireClientCredentials returns true if Blackfire client credentials are configured
+func (c *GlobalConfig) HasBlackfireClientCredentials() bool {
+	return c.Profiling.Blackfire.ClientID != "" && c.Profiling.Blackfire.ClientToken != ""
+}
+
+// HasTidewaysCredentials returns true if Tideways credentials are configured
+func (c *GlobalConfig) HasTidewaysCredentials() bool {
+	return c.Profiling.Tideways.APIKey != ""
+}
+
+// GetBlackfireCredentials returns Blackfire credentials, checking environment variables first
+func (c *GlobalConfig) GetBlackfireCredentials() BlackfireCredentials {
+	creds := c.Profiling.Blackfire
+
+	// Environment variables take precedence
+	if env := os.Getenv("BLACKFIRE_SERVER_ID"); env != "" {
+		creds.ServerID = env
+	}
+	if env := os.Getenv("BLACKFIRE_SERVER_TOKEN"); env != "" {
+		creds.ServerToken = env
+	}
+	if env := os.Getenv("BLACKFIRE_CLIENT_ID"); env != "" {
+		creds.ClientID = env
+	}
+	if env := os.Getenv("BLACKFIRE_CLIENT_TOKEN"); env != "" {
+		creds.ClientToken = env
+	}
+
+	return creds
+}
+
+// GetTidewaysCredentials returns Tideways credentials, checking environment variables first
+func (c *GlobalConfig) GetTidewaysCredentials() TidewaysCredentials {
+	creds := c.Profiling.Tideways
+
+	// Environment variables take precedence
+	if env := os.Getenv("TIDEWAYS_API_KEY"); env != "" {
+		creds.APIKey = env
+	}
+
+	return creds
 }
 
 // InitGlobalConfig creates the initial global config file with defaults

@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
+	"github.com/qoliber/magebox/internal/docker"
 )
 
 var dbCmd = &cobra.Command{
@@ -40,10 +42,34 @@ var dbShellCmd = &cobra.Command{
 	RunE:  runDbShell,
 }
 
+var dbCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create database",
+	Long:  "Creates the project database if it doesn't exist",
+	RunE:  runDbCreate,
+}
+
+var dbDropCmd = &cobra.Command{
+	Use:   "drop",
+	Short: "Drop database",
+	Long:  "Drops the project database (DESTRUCTIVE - use with caution)",
+	RunE:  runDbDrop,
+}
+
+var dbResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Reset database",
+	Long:  "Drops and recreates the project database (DESTRUCTIVE - use with caution)",
+	RunE:  runDbReset,
+}
+
 func init() {
 	dbCmd.AddCommand(dbImportCmd)
 	dbCmd.AddCommand(dbExportCmd)
 	dbCmd.AddCommand(dbShellCmd)
+	dbCmd.AddCommand(dbCreateCmd)
+	dbCmd.AddCommand(dbDropCmd)
+	dbCmd.AddCommand(dbResetCmd)
 	rootCmd.AddCommand(dbCmd)
 }
 
@@ -130,7 +156,7 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 
 	// Use docker exec directly with container name
 	importCmd := exec.Command("docker", "exec", "-i", db.ContainerName,
-		"mysql", "-uroot", "-pmagebox", cfg.Name)
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, cfg.Name)
 
 	file, err := os.Open(sqlFile)
 	if err != nil {
@@ -180,7 +206,7 @@ func runDbExport(cmd *cobra.Command, args []string) error {
 	// Use docker exec directly with container name
 	// --no-tablespaces: Skip TABLESPACE statements (avoids permission issues on import)
 	exportCmd := exec.Command("docker", "exec", db.ContainerName,
-		"mysqldump", "-uroot", "-pmagebox", "--no-tablespaces", cfg.Name)
+		"mysqldump", "-uroot", "-p"+docker.DefaultDBRootPassword, "--no-tablespaces", cfg.Name)
 
 	file, err := os.Create(outputFile)
 	if err != nil {
@@ -220,10 +246,175 @@ func runDbShell(cmd *cobra.Command, args []string) error {
 
 	// Use docker exec directly with container name
 	shellCmd := exec.Command("docker", "exec", "-it", db.ContainerName,
-		"mysql", "-uroot", "-pmagebox", cfg.Name)
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, cfg.Name)
 	shellCmd.Stdin = os.Stdin
 	shellCmd.Stdout = os.Stdout
 	shellCmd.Stderr = os.Stderr
 
 	return shellCmd.Run()
+}
+
+func runDbCreate(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
+	}
+
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
+		return nil
+	}
+
+	cli.PrintTitle("Creating Database")
+	fmt.Printf("Database: %s\n", cli.Highlight(cfg.Name))
+	fmt.Printf("Container: %s\n", cli.Highlight(db.ContainerName))
+	fmt.Println()
+
+	// Check if database already exists
+	checkCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, "-e",
+		fmt.Sprintf("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '%s'", cfg.Name))
+	output, err := checkCmd.Output()
+	if err == nil && strings.Contains(string(output), cfg.Name) {
+		cli.PrintInfo("Database '%s' already exists", cfg.Name)
+		return nil
+	}
+
+	// Create database
+	fmt.Print("Creating database... ")
+	createCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, "-e",
+		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.Name))
+	createCmd.Stderr = os.Stderr
+
+	if err := createCmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to create database: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	fmt.Println()
+	cli.PrintSuccess("Database '%s' created!", cfg.Name)
+	return nil
+}
+
+func runDbDrop(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
+	}
+
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
+		return nil
+	}
+
+	cli.PrintTitle("Drop Database")
+	fmt.Printf("Database: %s\n", cli.Highlight(cfg.Name))
+	fmt.Printf("Container: %s\n", cli.Highlight(db.ContainerName))
+	fmt.Println()
+
+	cli.PrintWarning("This will permanently delete the database '%s'!", cfg.Name)
+	fmt.Print("Are you sure? [y/N]: ")
+
+	var confirm string
+	_, _ = fmt.Scanln(&confirm)
+	if confirm != "y" && confirm != "Y" {
+		cli.PrintInfo("Aborted")
+		return nil
+	}
+
+	fmt.Println()
+	fmt.Print("Dropping database... ")
+	dropCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, "-e",
+		fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", cfg.Name))
+	dropCmd.Stderr = os.Stderr
+
+	if err := dropCmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to drop database: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	fmt.Println()
+	cli.PrintSuccess("Database '%s' dropped!", cfg.Name)
+	return nil
+}
+
+func runDbReset(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
+	}
+
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
+		return nil
+	}
+
+	cli.PrintTitle("Reset Database")
+	fmt.Printf("Database: %s\n", cli.Highlight(cfg.Name))
+	fmt.Printf("Container: %s\n", cli.Highlight(db.ContainerName))
+	fmt.Println()
+
+	cli.PrintWarning("This will permanently delete ALL DATA in database '%s'!", cfg.Name)
+	fmt.Print("Are you sure? [y/N]: ")
+
+	var confirm string
+	_, _ = fmt.Scanln(&confirm)
+	if confirm != "y" && confirm != "Y" {
+		cli.PrintInfo("Aborted")
+		return nil
+	}
+
+	fmt.Println()
+
+	// Drop database
+	fmt.Print("Dropping database... ")
+	dropCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, "-e",
+		fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", cfg.Name))
+	dropCmd.Stderr = os.Stderr
+
+	if err := dropCmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to drop database: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Create database
+	fmt.Print("Creating database... ")
+	createCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, "-e",
+		fmt.Sprintf("CREATE DATABASE `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.Name))
+	createCmd.Stderr = os.Stderr
+
+	if err := createCmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to create database: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	fmt.Println()
+	cli.PrintSuccess("Database '%s' reset!", cfg.Name)
+	return nil
 }

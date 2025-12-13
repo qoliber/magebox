@@ -125,7 +125,7 @@ func (d *DarwinInstaller) InstallDnsmasq() error {
 func (d *DarwinInstaller) ConfigurePHPFPM(versions []string) error {
 	for _, v := range versions {
 		// Stop any running PHP-FPM service first (ignore errors)
-		d.RunCommandSilent(fmt.Sprintf("brew services stop php@%s 2>/dev/null || true", v))
+		_ = d.RunCommandSilent(fmt.Sprintf("brew services stop php@%s 2>/dev/null || true", v))
 
 		// Start PHP-FPM service
 		if err := d.RunCommand(fmt.Sprintf("brew services start php@%s", v)); err != nil {
