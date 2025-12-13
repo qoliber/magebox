@@ -8,6 +8,8 @@ All notable changes to MageBox will be documented here.
 
 - **multitail installation**: Bootstrap now installs `multitail` for viewing multiple log files
 
+## [0.10.8] - 2025-12-13
+
 ### Bug Fixes
 
 - **Fixed `magebox list` panic**: No longer crashes when parsing vhost files without root path
