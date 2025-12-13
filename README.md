@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/qoliber/magebox/releases"><img src="https://img.shields.io/github/v/release/qoliber/magebox" alt="Release"></a>
-  <a href="https://github.com/qoliber/magebox/blob/main/LICENSE"><img src="https://img.shields.io/github/license/qoliber/magebox" alt="License"></a>
+  <a href="https://github.com/qoliber/magebox/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
 ---
