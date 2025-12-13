@@ -2,6 +2,13 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.6] - 2025-12-13
+
+### Bug Fixes
+
+- **Fixed `magebox check` SSL detection**: Now correctly looks for certificates in `~/.magebox/certs/{domain}/cert.pem`
+- **Fixed `magebox check` vhost detection**: Now correctly detects `{project}-upstream.conf` pattern
+
 ## [0.10.5] - 2025-12-13
 
 ### Varnish Full-Page Cache Integration
