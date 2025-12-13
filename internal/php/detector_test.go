@@ -44,12 +44,12 @@ func TestDetector_DetectAll(t *testing.T) {
 
 func TestDetector_Detect(t *testing.T) {
 	tests := []struct {
-		name              string
-		platformType      platform.Type
-		version           string
-		wantBinarySuffix  string
-		wantFPMSuffix     string
-		wantBinaryPrefix  string
+		name             string
+		platformType     platform.Type
+		version          string
+		wantBinarySuffix string
+		wantFPMSuffix    string
+		wantBinaryPrefix string
 	}{
 		{
 			name:             "linux php 8.2",
