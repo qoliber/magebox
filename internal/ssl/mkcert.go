@@ -1,14 +1,25 @@
 package ssl
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
 )
+
+//go:embed templates/not-installed-error.tmpl
+var notInstalledErrorTemplate string
+
+// NotInstalledErrorData contains data for the not-installed error template
+type NotInstalledErrorData struct {
+	InstallCommand string
+}
 
 // Manager handles SSL certificate management using mkcert
 type Manager struct {
@@ -235,12 +246,22 @@ type MkcertNotInstalledError struct {
 }
 
 func (e *MkcertNotInstalledError) Error() string {
-	var sb strings.Builder
-	sb.WriteString("mkcert is not installed\n\n")
-	sb.WriteString("Install it with:\n")
-	sb.WriteString("  " + e.Platform.MkcertInstallCommand() + "\n\n")
-	sb.WriteString("Then run: magebox ssl:trust\n")
-	return sb.String()
+	data := NotInstalledErrorData{
+		InstallCommand: e.Platform.MkcertInstallCommand(),
+	}
+
+	tmpl, err := template.New("not-installed-error").Parse(notInstalledErrorTemplate)
+	if err != nil {
+		// Fallback to simple message
+		return fmt.Sprintf("mkcert is not installed\n\nInstall it with:\n  %s\n\nThen run: magebox ssl:trust\n", e.Platform.MkcertInstallCommand())
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("mkcert is not installed\n\nInstall it with:\n  %s\n\nThen run: magebox ssl:trust\n", e.Platform.MkcertInstallCommand())
+	}
+
+	return buf.String()
 }
 
 // ExtractBaseDomain extracts the base domain from a hostname

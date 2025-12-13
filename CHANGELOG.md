@@ -5,6 +5,23 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2024-12-13
+
+### Added
+- Additional template files for better maintainability:
+  - `internal/dns/templates/systemd-resolved.conf.tmpl` - systemd-resolved configuration
+  - `internal/xdebug/templates/xdebug.ini.tmpl` - Xdebug INI configuration
+  - `internal/php/templates/not-installed-message.tmpl` - PHP installation instructions (platform-aware)
+  - `internal/ssl/templates/not-installed-error.tmpl` - mkcert installation error
+- `XdebugConfig` struct for customizable Xdebug settings
+- `SystemdResolvedConfig` struct for DNS configuration
+
+### Changed
+- Refactored Xdebug configuration to use template
+- Refactored PHP not-installed message to use template with platform detection
+- Refactored systemd-resolved config generation to use template
+- Refactored mkcert error message to use template
+
 ## [0.9.0] - 2024-12-13
 
 ### Added

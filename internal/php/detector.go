@@ -1,13 +1,26 @@
 package php
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
 )
+
+//go:embed templates/not-installed-message.tmpl
+var notInstalledMessageTemplate string
+
+// NotInstalledMessageData contains data for the not-installed message template
+type NotInstalledMessageData struct {
+	Version      string
+	VersionNoDot string
+	Platform     string
+}
 
 // SupportedVersions lists all PHP versions that MageBox supports
 var SupportedVersions = []string{"8.1", "8.2", "8.3", "8.4", "8.5"}
@@ -259,22 +272,36 @@ func normalizeVersion(version string) string {
 
 // FormatNotInstalledMessage formats a message for when PHP is not installed
 func FormatNotInstalledMessage(version string, p *platform.Platform) string {
-	var sb strings.Builder
-
-	sb.WriteString(fmt.Sprintf("✗ PHP %s not found\n\n", version))
-	sb.WriteString("  Install it with:\n")
-
+	// Determine platform string for template
+	platformStr := "linux" // default to Ubuntu/Debian
 	switch p.Type {
 	case platform.Darwin:
-		sb.WriteString(fmt.Sprintf("    brew install php@%s\n", version))
+		platformStr = "darwin"
 	case platform.Linux:
-		sb.WriteString("    sudo add-apt-repository ppa:ondrej/php\n")
-		sb.WriteString(fmt.Sprintf("    sudo apt install php%s-fpm php%s-cli php%s-common \\\n", version, version, version))
-		sb.WriteString(fmt.Sprintf("      php%s-mysql php%s-xml php%s-curl php%s-mbstring \\\n", version, version, version, version))
-		sb.WriteString(fmt.Sprintf("      php%s-zip php%s-gd php%s-intl php%s-bcmath php%s-soap\n", version, version, version, version, version))
+		switch p.LinuxDistro {
+		case platform.DistroFedora:
+			platformStr = "fedora"
+		case platform.DistroArch:
+			platformStr = "arch"
+		}
 	}
 
-	sb.WriteString("\n  Then run: magebox start\n")
+	data := NotInstalledMessageData{
+		Version:      version,
+		VersionNoDot: strings.ReplaceAll(version, ".", ""),
+		Platform:     platformStr,
+	}
 
-	return sb.String()
+	tmpl, err := template.New("not-installed").Parse(notInstalledMessageTemplate)
+	if err != nil {
+		// Fallback to simple message
+		return fmt.Sprintf("✗ PHP %s not found\n\nInstall it and run: magebox start\n", version)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Sprintf("✗ PHP %s not found\n\nInstall it and run: magebox start\n", version)
+	}
+
+	return buf.String()
 }

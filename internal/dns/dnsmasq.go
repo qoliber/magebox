@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"os"
@@ -8,12 +9,45 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/dnsmasq.conf.tmpl
 var dnsmasqConfigTemplate string
+
+//go:embed templates/systemd-resolved.conf.tmpl
+var systemdResolvedTemplate string
+
+// SystemdResolvedConfig contains data for systemd-resolved configuration
+type SystemdResolvedConfig struct {
+	DNS     string
+	Domains string
+}
+
+// DefaultSystemdResolvedConfig returns the default systemd-resolved configuration for .test domains
+func DefaultSystemdResolvedConfig() SystemdResolvedConfig {
+	return SystemdResolvedConfig{
+		DNS:     "127.0.0.1",
+		Domains: "~test",
+	}
+}
+
+// GenerateSystemdResolvedConfig generates systemd-resolved configuration from template
+func GenerateSystemdResolvedConfig(cfg SystemdResolvedConfig) (string, error) {
+	tmpl, err := template.New("systemd-resolved").Parse(systemdResolvedTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse systemd-resolved template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", fmt.Errorf("failed to execute systemd-resolved template: %w", err)
+	}
+
+	return buf.String(), nil
+}
 
 // DnsmasqManager manages dnsmasq configuration for wildcard DNS resolution
 type DnsmasqManager struct {
@@ -324,11 +358,11 @@ func (m *DnsmasqManager) setupSystemdResolved() error {
 		return fmt.Errorf("failed to create resolved.conf.d: %w", err)
 	}
 
-	// Write resolved config for .test domain
-	resolvedConfig := `[Resolve]
-DNS=127.0.0.1
-Domains=~test
-`
+	// Generate resolved config from template
+	resolvedConfig, err := GenerateSystemdResolvedConfig(DefaultSystemdResolvedConfig())
+	if err != nil {
+		return fmt.Errorf("failed to generate systemd-resolved config: %w", err)
+	}
 
 	tmpFile, err := os.CreateTemp("", "resolved-magebox-*.conf")
 	if err != nil {

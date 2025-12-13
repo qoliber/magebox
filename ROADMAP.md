@@ -2,7 +2,7 @@
 
 This document outlines planned features and improvements for MageBox.
 
-## Current Version: 0.9.0
+## Current Version: 0.9.1
 
 ### Completed Features
 

@@ -5,14 +5,40 @@ package xdebug
 
 import (
 	"bufio"
+	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/qoliber/magebox/internal/platform"
 )
+
+//go:embed templates/xdebug.ini.tmpl
+var xdebugIniTemplate string
+
+// XdebugConfig contains configuration for Xdebug
+type XdebugConfig struct {
+	Mode             string
+	StartWithRequest string
+	ClientHost       string
+	ClientPort       string
+	IdeKey           string
+}
+
+// DefaultXdebugConfig returns the default Xdebug configuration
+func DefaultXdebugConfig() XdebugConfig {
+	return XdebugConfig{
+		Mode:             "debug",
+		StartWithRequest: "trigger",
+		ClientHost:       "127.0.0.1",
+		ClientPort:       "9003",
+		IdeKey:           "PHPSTORM",
+	}
+}
 
 // Manager handles Xdebug enable/disable operations
 type Manager struct {
@@ -213,15 +239,11 @@ func (m *Manager) ensureXdebugConfig(phpVersion string) error {
 		return nil
 	}
 
-	// Append default xdebug configuration
-	config := `
-; MageBox Xdebug configuration
-xdebug.mode=debug
-xdebug.start_with_request=trigger
-xdebug.client_host=127.0.0.1
-xdebug.client_port=9003
-xdebug.idekey=PHPSTORM
-`
+	// Generate configuration from template
+	config, err := GenerateXdebugConfig(DefaultXdebugConfig())
+	if err != nil {
+		return fmt.Errorf("failed to generate xdebug config: %w", err)
+	}
 
 	f, err := os.OpenFile(iniFile, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -229,8 +251,23 @@ xdebug.idekey=PHPSTORM
 	}
 	defer f.Close()
 
-	_, err = f.WriteString(config)
+	_, err = f.WriteString("\n" + config)
 	return err
+}
+
+// GenerateXdebugConfig generates Xdebug configuration from template
+func GenerateXdebugConfig(cfg XdebugConfig) (string, error) {
+	tmpl, err := template.New("xdebug.ini").Parse(xdebugIniTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse xdebug template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", fmt.Errorf("failed to execute xdebug template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // Install installs Xdebug for a specific PHP version
