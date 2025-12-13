@@ -1,6 +1,7 @@
 # Binaries (in root directory only)
 /magebox
 /magebox-*
+!/magebox-logo.svg
 *.exe
 
 # Test coverage
