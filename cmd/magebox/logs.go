@@ -74,8 +74,12 @@ func runLogs(cmd *cobra.Command, args []string) error {
 
 	// Run multitail with 2 columns
 	// -s 2: split into 2 columns
+	// -n 200: show last 200 lines
+	// -m 500: scrollback buffer for 'b' key
 	multitailCmd := exec.Command("multitail",
 		"-s", "2",
+		"-n", "200",
+		"-m", "500",
 		systemLog,
 		exceptionLog,
 	)
