@@ -293,17 +293,35 @@ func NewController(p *platform.Platform) *Controller {
 
 // Reload reloads Nginx configuration
 func (c *Controller) Reload() error {
-	cmd := exec.Command("sudo", "nginx", "-s", "reload")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to reload nginx: %w\nOutput: %s", err, output)
+	switch c.platform.Type {
+	case platform.Darwin:
+		// On macOS, use brew services to reload nginx (no sudo required)
+		cmd := exec.Command("brew", "services", "reload", "nginx")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to reload nginx: %w\nOutput: %s", err, output)
+		}
+		return nil
+	case platform.Linux:
+		cmd := exec.Command("sudo", "systemctl", "reload", "nginx")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to reload nginx: %w\nOutput: %s", err, output)
+		}
+		return nil
 	}
-	return nil
+	return fmt.Errorf("unsupported platform")
 }
 
 // Test tests Nginx configuration
 func (c *Controller) Test() error {
-	cmd := exec.Command("sudo", "nginx", "-t")
+	var cmd *exec.Cmd
+	switch c.platform.Type {
+	case platform.Darwin:
+		cmd = exec.Command("nginx", "-t")
+	default:
+		cmd = exec.Command("sudo", "nginx", "-t")
+	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("nginx configuration test failed: %w\nOutput: %s", err, output)

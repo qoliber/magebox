@@ -2,6 +2,28 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.5] - 2025-12-13
+
+### Varnish Full-Page Cache Integration
+
+Complete Varnish integration with automatic Nginx configuration:
+
+- **Automatic Nginx proxy**: When Varnish is enabled, HTTPS traffic is automatically proxied through Varnish
+- **Traffic flow**: Browser → Nginx (HTTPS) → Varnish (6081) → Nginx (HTTP) → PHP-FPM
+- **Vhost regeneration**: `varnish enable/disable` automatically regenerates Nginx vhosts and reloads Nginx
+- **SSL offloading**: Proper `Ssl-Offloaded` and `X-Forwarded-*` headers for Magento compatibility
+- **No sudo required**: Nginx reload uses `brew services` on macOS, eliminating password prompts
+
+### Commands
+
+```bash
+magebox varnish enable   # Enable Varnish, update Nginx config, reload
+magebox varnish disable  # Disable Varnish, restore direct PHP-FPM routing
+magebox varnish status   # Show cache statistics and backend health
+magebox varnish flush    # Flush all cached content
+magebox varnish purge /  # Purge specific URL from cache
+```
+
 ## [0.10.4] - 2025-12-13
 
 ### Varnish Improvements

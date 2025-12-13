@@ -10,6 +10,8 @@ import (
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/docker"
+	"github.com/qoliber/magebox/internal/nginx"
+	"github.com/qoliber/magebox/internal/ssl"
 	"github.com/qoliber/magebox/internal/varnish"
 )
 
@@ -244,20 +246,30 @@ func runVarnishEnable(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(cli.Success("done"))
 
+	// Regenerate vhost configuration to proxy to Varnish
+	fmt.Print("Regenerating Nginx vhosts... ")
+	sslMgr := ssl.NewManager(p)
+	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
+	if err := vhostGen.Generate(cfg, cwd); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to regenerate vhosts: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Reload Nginx to apply changes
+	fmt.Print("Reloading Nginx... ")
+	nginxCtrl := nginx.NewController(p)
+	if err := nginxCtrl.Reload(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to reload nginx: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
 	fmt.Println()
 	cli.PrintSuccess("Varnish enabled!")
 	fmt.Println()
-	fmt.Println("Configuration:")
-	fmt.Printf("  HTTP Port:  %s (for testing)\n", cli.Highlight("6081"))
-	fmt.Printf("  Admin Port: %s\n", cli.Highlight("6082"))
-	fmt.Println()
-	cli.PrintInfo("Test Varnish is working:")
-	fmt.Printf("  curl -I http://127.0.0.1:6081/ -H \"Host: %s\"\n", cfg.Domains[0].Host)
-	fmt.Println()
 	cli.PrintInfo("Configure Magento to use Varnish:")
 	fmt.Println("  bin/magento config:set system/full_page_cache/caching_application 2")
-	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_host 127.0.0.1")
-	fmt.Println("  bin/magento config:set system/full_page_cache/varnish/backend_port 8080")
 
 	return nil
 }
@@ -312,6 +324,25 @@ func runVarnishDisable(cmd *cobra.Command, args []string) error {
 	if err := composeGen.GenerateGlobalServices([]*config.Config{cfg}); err != nil {
 		return fmt.Errorf("failed to update docker-compose: %w", err)
 	}
+
+	// Regenerate vhost configuration to remove Varnish proxy
+	fmt.Print("Regenerating Nginx vhosts... ")
+	sslMgr := ssl.NewManager(p)
+	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
+	if err := vhostGen.Generate(cfg, cwd); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to regenerate vhosts: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Reload Nginx to apply changes
+	fmt.Print("Reloading Nginx... ")
+	nginxCtrl := nginx.NewController(p)
+	if err := nginxCtrl.Reload(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to reload nginx: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
 
 	fmt.Println()
 	cli.PrintSuccess("Varnish disabled!")
