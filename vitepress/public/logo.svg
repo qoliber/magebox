@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="boxGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f26322"/>
+      <stop offset="100%" style="stop-color:#eb5202"/>
+    </linearGradient>
+    <linearGradient id="topGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff8c4c"/>
+      <stop offset="100%" style="stop-color:#f26322"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Box back face -->
+  <path d="M64 8 L112 32 L112 80 L64 104 L16 80 L16 32 Z" fill="url(#boxGradient)"/>
+
+  <!-- Box top face -->
+  <path d="M64 8 L112 32 L64 56 L16 32 Z" fill="url(#topGradient)"/>
+
+  <!-- Box right face (darker) -->
+  <path d="M64 56 L112 32 L112 80 L64 104 Z" fill="#d14c0a"/>
+
+  <!-- Box left face -->
+  <path d="M64 56 L16 32 L16 80 L64 104 Z" fill="#f26322"/>
+
+  <!-- M letter on front -->
+  <path d="M40 52 L40 82 L46 82 L46 62 L54 74 L62 62 L62 82 L68 82 L68 52 L62 52 L54 66 L46 52 Z" fill="white" opacity="0.9"/>
+
+  <!-- Shine effect -->
+  <path d="M64 8 L88 20 L64 32 L40 20 Z" fill="white" opacity="0.2"/>
+</svg>

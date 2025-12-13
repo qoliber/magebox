@@ -1,0 +1,19 @@
+{
+  "name": "magebox-docs",
+  "version": "1.0.0",
+  "description": "MageBox Documentation",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev --port 3200",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview",
+    "docs:serve": "vitepress serve --port 3200"
+  },
+  "keywords": ["magento", "magebox", "documentation"],
+  "author": "qoliber",
+  "license": "MIT",
+  "devDependencies": {
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.25"
+  }
+}
