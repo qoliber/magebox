@@ -50,8 +50,16 @@ export default defineConfig({
           items: [
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
-            { text: 'Bootstrap', link: '/guide/bootstrap' },
-            { text: 'Migrating from Herd', link: '/guide/migrating-from-herd' }
+            { text: 'Bootstrap', link: '/guide/bootstrap' }
+          ]
+        },
+        {
+          text: 'Migration Guides',
+          items: [
+            { text: 'From Warden', link: '/guide/migrating-from-warden' },
+            { text: 'From DDEV', link: '/guide/migrating-from-ddev' },
+            { text: 'From Valet/Valet+', link: '/guide/migrating-from-valet' },
+            { text: 'From Herd', link: '/guide/migrating-from-herd' }
           ]
         },
         {
@@ -124,8 +132,16 @@ export default defineConfig({
           items: [
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
-            { text: 'Bootstrap', link: '/guide/bootstrap' },
-            { text: 'Migrating from Herd', link: '/guide/migrating-from-herd' }
+            { text: 'Bootstrap', link: '/guide/bootstrap' }
+          ]
+        },
+        {
+          text: 'Migration Guides',
+          items: [
+            { text: 'From Warden', link: '/guide/migrating-from-warden' },
+            { text: 'From DDEV', link: '/guide/migrating-from-ddev' },
+            { text: 'From Valet/Valet+', link: '/guide/migrating-from-valet' },
+            { text: 'From Herd', link: '/guide/migrating-from-herd' }
           ]
         },
         {
