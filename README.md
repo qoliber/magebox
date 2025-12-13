@@ -1,15 +1,17 @@
-# MageBox
+<p align="center">
+  <img src="magebox-logo.svg" alt="MageBox" width="400">
+</p>
 
-```
-                            _
-                           | |
- _ __ ___   __ _  __ _  ___| |__   _____  __
-| '_ ` _ \ / _` |/ _` |/ _ \ '_ \ / _ \ \/ /
-| | | | | | (_| | (_| |  __/ |_) | (_) >  <
-|_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\
-                  __/ |
-                 |___/  0.10.10
-```
+<p align="center">
+  <strong>A modern, fast development environment for Magento 2.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/qoliber/magebox/releases"><img src="https://img.shields.io/github/v/release/qoliber/magebox" alt="Release"></a>
+  <a href="https://github.com/qoliber/magebox/blob/main/LICENSE"><img src="https://img.shields.io/github/license/qoliber/magebox" alt="License"></a>
+</p>
+
+---
 
 A modern, fast development environment for Magento 2. Uses native PHP-FPM and Nginx for maximum performance, with Docker for services like MySQL, Redis, OpenSearch, and Varnish.
 

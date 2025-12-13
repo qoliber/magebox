@@ -1,30 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="uuid-396a220c-06f6-48a2-b722-359bed8a862a" data-name="Warstwa 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 397.65 396.09">
   <defs>
-    <linearGradient id="boxGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f26322"/>
-      <stop offset="100%" style="stop-color:#eb5202"/>
+    <linearGradient id="uuid-bbd139de-babb-4bf6-a11e-aaa434f14dfb" data-name="Gradient bez nazwy 6" x1="198.83" y1="328.81" x2="198.83" y2="61.52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffef26"/>
+      <stop offset=".02" stop-color="#fee921"/>
+      <stop offset=".1" stop-color="#fdd70e"/>
+      <stop offset=".19" stop-color="#fdcb03"/>
+      <stop offset=".28" stop-color="#fdc800"/>
+      <stop offset=".67" stop-color="#f18f34"/>
+      <stop offset=".89" stop-color="#e95f32"/>
+      <stop offset="1" stop-color="#e3312d"/>
     </linearGradient>
-    <linearGradient id="topGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#ff8c4c"/>
-      <stop offset="100%" style="stop-color:#f26322"/>
+    <linearGradient id="uuid-7c9fc4c3-0c15-40a5-a9da-73089ddb64f9" data-name="Gradient bez nazwy 6" x1="200.54" y1="327.83" x2="84.8" y2="127.36" xlink:href="#uuid-bbd139de-babb-4bf6-a11e-aaa434f14dfb"/>
+    <linearGradient id="uuid-e0f7acb3-4e87-4384-a3e3-0d36e8cf3295" data-name="Gradient bez nazwy 20" x1="256.7" y1="328.81" x2="256.7" y2="128.34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffef26"/>
+      <stop offset=".02" stop-color="#fee921"/>
+      <stop offset=".1" stop-color="#fdd70e"/>
+      <stop offset=".19" stop-color="#fdcb03"/>
+      <stop offset=".28" stop-color="#fdc800"/>
+      <stop offset=".67" stop-color="#f18f34"/>
+      <stop offset=".89" stop-color="#e95f32"/>
+      <stop offset="1" stop-color="#e3312d"/>
     </linearGradient>
   </defs>
-
-  <!-- Box back face -->
-  <path d="M64 8 L112 32 L112 80 L64 104 L16 80 L16 32 Z" fill="url(#boxGradient)"/>
-
-  <!-- Box top face -->
-  <path d="M64 8 L112 32 L64 56 L16 32 Z" fill="url(#topGradient)"/>
-
-  <!-- Box right face (darker) -->
-  <path d="M64 56 L112 32 L112 80 L64 104 Z" fill="#d14c0a"/>
-
-  <!-- Box left face -->
-  <path d="M64 56 L16 32 L16 80 L64 104 Z" fill="#f26322"/>
-
-  <!-- M letter on front -->
-  <path d="M40 52 L40 82 L46 82 L46 62 L54 74 L62 62 L62 82 L68 82 L68 52 L62 52 L54 66 L46 52 Z" fill="white" opacity="0.9"/>
-
-  <!-- Shine effect -->
-  <path d="M64 8 L88 20 L64 32 L40 20 Z" fill="white" opacity="0.2"/>
+  <polygon points="314.57 261.99 314.57 128.34 198.83 61.52 83.09 128.34 83.09 261.99 198.83 328.81 314.57 261.99" style="fill: url(#uuid-bbd139de-babb-4bf6-a11e-aaa434f14dfb);"/>
+  <polygon points="83.09 128.34 198.97 187.52 198.83 328.81 83.09 261.99 83.09 128.34" style="fill: url(#uuid-7c9fc4c3-0c15-40a5-a9da-73089ddb64f9);"/>
+  <polygon points="198.97 187.52 314.57 128.34 314.57 261.99 198.83 328.81 198.97 187.52" style="fill: url(#uuid-e0f7acb3-4e87-4384-a3e3-0d36e8cf3295);"/>
+  <g>
+    <line x1="255.62" y1="159.46" x2="255.62" y2="227.07" style="fill: none; stroke: #fff; stroke-miterlimit: 10; stroke-width: 8px;"/>
+    <g>
+      <g>
+        <line x1="154.21" y1="269.83" x2="110.64" y2="244.99" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+        <path d="M160.17,259.38c5.77,3.29,7.78,10.64,4.49,16.41-3.29,5.77-10.64,7.78-16.41,4.49-5.77-3.29-7.78-10.64-4.49-16.41,3.29-5.77,10.64-7.78,16.41-4.49Z" style="fill: #fff;"/>
+      </g>
+      <line x1="110.64" y1="143.99" x2="110.64" y2="244.99" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+      <line x1="196.57" y1="92.67" x2="110.64" y2="143.99" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+      <line x1="211.64" y1="101.63" x2="196.57" y2="92.67" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+      <line x1="211.64" y1="252.32" x2="211.64" y2="101.63" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+      <line x1="255.62" y1="227.07" x2="211.64" y2="252.32" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+      <line x1="211.64" y1="135.84" x2="255.62" y2="159.46" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+      <line x1="211.64" y1="193.26" x2="255.62" y2="193.26" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+    </g>
+  </g>
+  <g>
+    <polyline points="240.35 118.33 284.13 143.99 284.13 244.99 198.97 296.86 182.72 287.3 182.72 135.84 158.29 191.22 138.74 159.46 138.74 227.07" style="fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 8px;"/>
+    <path d="M234.27,128.71c-5.73-3.36-7.66-10.73-4.3-16.46,3.36-5.73,10.73-7.66,16.46-4.3,5.73,3.36,7.66,10.73,4.3,16.46-3.36,5.73-10.73,7.66-16.46,4.3Z" style="fill: #fff;"/>
+  </g>
 </svg>
