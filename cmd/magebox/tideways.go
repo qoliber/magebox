@@ -68,7 +68,13 @@ The API key is stored in ~/.magebox/config.yaml.`,
 	RunE: runTidewaysConfig,
 }
 
+// Flags for tideways config
+var tidewaysAPIKey string
+
 func init() {
+	// Add flags for non-interactive config
+	tidewaysConfigCmd.Flags().StringVar(&tidewaysAPIKey, "api-key", "", "Tideways API Key")
+
 	tidewaysCmd.AddCommand(tidewaysOnCmd)
 	tidewaysCmd.AddCommand(tidewaysOffCmd)
 	tidewaysCmd.AddCommand(tidewaysStatusCmd)
@@ -327,12 +333,6 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cli.PrintTitle("Configure Tideways")
-	fmt.Println("Get your API key from: https://app.tideways.io/settings/api")
-	fmt.Println()
-
-	reader := bufio.NewReader(os.Stdin)
-
 	// Load existing config
 	globalCfg, err := config.LoadGlobalConfig(p.HomeDir)
 	if err != nil {
@@ -341,16 +341,31 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 
 	existingCreds := globalCfg.GetTidewaysCredentials()
 
-	// Prompt for API key
-	fmt.Print("API Key")
-	if existingCreds.APIKey != "" {
-		fmt.Printf(" [%s]", maskCredential(existingCreds.APIKey))
-	}
-	fmt.Print(": ")
-	apiKey, _ := reader.ReadString('\n')
-	apiKey = strings.TrimSpace(apiKey)
-	if apiKey == "" && existingCreds.APIKey != "" {
-		apiKey = existingCreds.APIKey
+	// Check if we have the flag for non-interactive mode
+	var apiKey string
+
+	if tidewaysAPIKey != "" {
+		// Use flag value
+		apiKey = tidewaysAPIKey
+	} else {
+		// Interactive mode
+		cli.PrintTitle("Configure Tideways")
+		fmt.Println("Get your API key from: https://app.tideways.io/settings/api")
+		fmt.Println()
+
+		reader := bufio.NewReader(os.Stdin)
+
+		// Prompt for API key
+		fmt.Print("API Key")
+		if existingCreds.APIKey != "" {
+			fmt.Printf(" [%s]", maskCredential(existingCreds.APIKey))
+		}
+		fmt.Print(": ")
+		apiKey, _ = reader.ReadString('\n')
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey == "" && existingCreds.APIKey != "" {
+			apiKey = existingCreds.APIKey
+		}
 	}
 
 	// Validate

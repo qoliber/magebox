@@ -69,7 +69,21 @@ Credentials are stored in ~/.magebox/config.yaml.`,
 	RunE: runBlackfireConfig,
 }
 
+// Flags for blackfire config
+var (
+	blackfireServerID    string
+	blackfireServerToken string
+	blackfireClientID    string
+	blackfireClientToken string
+)
+
 func init() {
+	// Add flags for non-interactive config
+	blackfireConfigCmd.Flags().StringVar(&blackfireServerID, "server-id", "", "Blackfire Server ID")
+	blackfireConfigCmd.Flags().StringVar(&blackfireServerToken, "server-token", "", "Blackfire Server Token")
+	blackfireConfigCmd.Flags().StringVar(&blackfireClientID, "client-id", "", "Blackfire Client ID (optional, for CLI)")
+	blackfireConfigCmd.Flags().StringVar(&blackfireClientToken, "client-token", "", "Blackfire Client Token (optional, for CLI)")
+
 	blackfireCmd.AddCommand(blackfireOnCmd)
 	blackfireCmd.AddCommand(blackfireOffCmd)
 	blackfireCmd.AddCommand(blackfireStatusCmd)
@@ -345,12 +359,6 @@ func runBlackfireConfig(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cli.PrintTitle("Configure Blackfire")
-	fmt.Println("Get your credentials from: https://blackfire.io/my/settings/credentials")
-	fmt.Println()
-
-	reader := bufio.NewReader(os.Stdin)
-
 	// Load existing config
 	globalCfg, err := config.LoadGlobalConfig(p.HomeDir)
 	if err != nil {
@@ -359,52 +367,72 @@ func runBlackfireConfig(cmd *cobra.Command, args []string) error {
 
 	existingCreds := globalCfg.GetBlackfireCredentials()
 
-	// Prompt for Server ID
-	fmt.Print("Server ID")
-	if existingCreds.ServerID != "" {
-		fmt.Printf(" [%s]", maskCredential(existingCreds.ServerID))
-	}
-	fmt.Print(": ")
-	serverID, _ := reader.ReadString('\n')
-	serverID = strings.TrimSpace(serverID)
-	if serverID == "" && existingCreds.ServerID != "" {
-		serverID = existingCreds.ServerID
-	}
+	// Check if we have enough flags for non-interactive mode
+	nonInteractive := blackfireServerID != "" && blackfireServerToken != ""
 
-	// Prompt for Server Token
-	fmt.Print("Server Token")
-	if existingCreds.ServerToken != "" {
-		fmt.Printf(" [%s]", maskCredential(existingCreds.ServerToken))
-	}
-	fmt.Print(": ")
-	serverToken, _ := reader.ReadString('\n')
-	serverToken = strings.TrimSpace(serverToken)
-	if serverToken == "" && existingCreds.ServerToken != "" {
-		serverToken = existingCreds.ServerToken
-	}
+	var serverID, serverToken, clientID, clientToken string
 
-	// Prompt for Client ID (optional)
-	fmt.Print("Client ID (for CLI, optional)")
-	if existingCreds.ClientID != "" {
-		fmt.Printf(" [%s]", maskCredential(existingCreds.ClientID))
-	}
-	fmt.Print(": ")
-	clientID, _ := reader.ReadString('\n')
-	clientID = strings.TrimSpace(clientID)
-	if clientID == "" && existingCreds.ClientID != "" {
-		clientID = existingCreds.ClientID
-	}
+	if nonInteractive {
+		// Use flag values
+		serverID = blackfireServerID
+		serverToken = blackfireServerToken
+		clientID = blackfireClientID
+		clientToken = blackfireClientToken
+	} else {
+		// Interactive mode
+		cli.PrintTitle("Configure Blackfire")
+		fmt.Println("Get your credentials from: https://blackfire.io/my/settings/credentials")
+		fmt.Println()
 
-	// Prompt for Client Token (optional)
-	fmt.Print("Client Token (for CLI, optional)")
-	if existingCreds.ClientToken != "" {
-		fmt.Printf(" [%s]", maskCredential(existingCreds.ClientToken))
-	}
-	fmt.Print(": ")
-	clientToken, _ := reader.ReadString('\n')
-	clientToken = strings.TrimSpace(clientToken)
-	if clientToken == "" && existingCreds.ClientToken != "" {
-		clientToken = existingCreds.ClientToken
+		reader := bufio.NewReader(os.Stdin)
+
+		// Prompt for Server ID
+		fmt.Print("Server ID")
+		if existingCreds.ServerID != "" {
+			fmt.Printf(" [%s]", maskCredential(existingCreds.ServerID))
+		}
+		fmt.Print(": ")
+		serverID, _ = reader.ReadString('\n')
+		serverID = strings.TrimSpace(serverID)
+		if serverID == "" && existingCreds.ServerID != "" {
+			serverID = existingCreds.ServerID
+		}
+
+		// Prompt for Server Token
+		fmt.Print("Server Token")
+		if existingCreds.ServerToken != "" {
+			fmt.Printf(" [%s]", maskCredential(existingCreds.ServerToken))
+		}
+		fmt.Print(": ")
+		serverToken, _ = reader.ReadString('\n')
+		serverToken = strings.TrimSpace(serverToken)
+		if serverToken == "" && existingCreds.ServerToken != "" {
+			serverToken = existingCreds.ServerToken
+		}
+
+		// Prompt for Client ID (optional)
+		fmt.Print("Client ID (for CLI, optional)")
+		if existingCreds.ClientID != "" {
+			fmt.Printf(" [%s]", maskCredential(existingCreds.ClientID))
+		}
+		fmt.Print(": ")
+		clientID, _ = reader.ReadString('\n')
+		clientID = strings.TrimSpace(clientID)
+		if clientID == "" && existingCreds.ClientID != "" {
+			clientID = existingCreds.ClientID
+		}
+
+		// Prompt for Client Token (optional)
+		fmt.Print("Client Token (for CLI, optional)")
+		if existingCreds.ClientToken != "" {
+			fmt.Printf(" [%s]", maskCredential(existingCreds.ClientToken))
+		}
+		fmt.Print(": ")
+		clientToken, _ = reader.ReadString('\n')
+		clientToken = strings.TrimSpace(clientToken)
+		if clientToken == "" && existingCreds.ClientToken != "" {
+			clientToken = existingCreds.ClientToken
+		}
 	}
 
 	// Validate required fields
