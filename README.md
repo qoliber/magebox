@@ -654,6 +654,7 @@ magebox config set portainer true
 | `magebox install` | Install dependencies |
 | `magebox team add <name>` | Add team configuration |
 | `magebox team list` | List configured teams |
+| `magebox team remove <name>` | Remove team configuration |
 | `magebox team <name> show` | Show team details |
 | `magebox team <name> repos` | Browse team repositories |
 | `magebox fetch <project>` | Fetch project (clone + DB + media) |
