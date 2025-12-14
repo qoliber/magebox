@@ -3,7 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>A modern, fast development environment for Magento 2.</strong>
+  <strong>A modern, fast development environment for Magento 2.</strong><br>
+  <em>Built for solo developers and teams alike.</em>
 </p>
 
 <p align="center">
@@ -25,6 +26,7 @@ Unlike Docker-based solutions (Warden, DDEV) or Laravel Herd, MageBox runs PHP a
 - **Multi-project support** - Run multiple Magento projects simultaneously
 - **Automatic PHP switching** - Smart wrapper automatically uses the right PHP version per project
 - **No sudo required** - After one-time setup, all commands run as your user (macOS uses port forwarding)
+- **Team collaboration** - Share repository configs, fetch projects with one command, sync databases from backup servers
 
 ---
 
@@ -459,6 +461,60 @@ magebox run reindex
 
 ---
 
+## Team Collaboration
+
+MageBox makes it easy to onboard new developers and keep teams in sync.
+
+### Quick Team Setup
+
+```bash
+# 1. Configure your team (one-time)
+magebox team add mycompany
+
+# 2. Add projects to the team
+magebox team mycompany project add storefront \
+  --repo mycompany/magento-storefront \
+  --db backups/storefront/latest.sql.gz \
+  --media backups/storefront/media.tar.gz
+
+# 3. Share ~/.magebox/teams.yaml with your team
+```
+
+### Developer Onboarding
+
+New team members can get started with a single command:
+
+```bash
+# Fetch everything: clone repo + download DB + import + download media
+magebox fetch mycompany/storefront
+
+# Initialize and start
+cd storefront
+magebox init
+magebox start
+```
+
+### Keep Projects Synced
+
+```bash
+# In your project directory, sync latest DB and media
+magebox sync
+
+# Or sync just the database with backup
+magebox sync --db --backup
+```
+
+### Features
+
+- **Multiple Git providers** - GitHub, GitLab, Bitbucket
+- **Asset storage** - SFTP/FTP for database dumps and media files
+- **Progress tracking** - Download speed, ETA, percentage complete
+- **Secure credentials** - Environment variables, no passwords in config files
+
+See the full [Team Collaboration Guide](docs/teamwork.md) for detailed setup instructions.
+
+---
+
 ## Configuration Reference
 
 ### .magebox.yaml File
@@ -596,6 +652,12 @@ magebox config set portainer true
 | `magebox self-update` | Update MageBox |
 | `magebox self-update check` | Check for updates |
 | `magebox install` | Install dependencies |
+| `magebox team add <name>` | Add team configuration |
+| `magebox team list` | List configured teams |
+| `magebox team <name> show` | Show team details |
+| `magebox team <name> repos` | Browse team repositories |
+| `magebox fetch <project>` | Fetch project (clone + DB + media) |
+| `magebox sync` | Sync DB/media for current project |
 
 ---
 
