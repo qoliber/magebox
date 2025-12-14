@@ -69,8 +69,8 @@ func (b *BaseInstaller) WriteFile(path, content string) error {
 	}
 	tmpFile.Close()
 
-	// Copy to destination with sudo
-	return b.RunSudoSilent("cp", tmpPath, path)
+	// Copy to destination with sudo (use RunSudo to allow password prompt)
+	return b.RunSudo("cp", tmpPath, path)
 }
 
 // CommandExists checks if a command is available
