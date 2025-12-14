@@ -183,7 +183,7 @@ func (f *Fetcher) cloneRepository(destPath string) error {
 	return f.repoClient.Clone(project, destPath, f.progress)
 }
 
-// runComposerInstall runs composer install using the MageBox wrapper
+// runComposerInstall runs composer install using the MageBox composer wrapper
 func (f *Fetcher) runComposerInstall(destPath string) error {
 	f.report("")
 	f.report("Running composer install...")
@@ -195,16 +195,24 @@ func (f *Fetcher) runComposerInstall(destPath string) error {
 		return nil
 	}
 
-	// Get the current executable path to use the magebox wrapper
-	exePath, err := os.Executable()
+	// Use the MageBox composer wrapper from ~/.magebox/bin/composer
+	// which uses the PHP wrapper to auto-select the correct PHP version
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		exePath = "magebox" // Fallback to PATH
+		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	cmd := exec.Command(exePath, "composer", "install", "--no-interaction")
+	composerWrapper := filepath.Join(homeDir, ".magebox", "bin", "composer")
+	if _, err := os.Stat(composerWrapper); os.IsNotExist(err) {
+		// Fallback to system composer if wrapper not installed
+		composerWrapper = "composer"
+	}
+
+	cmd := exec.Command(composerWrapper, "install", "--no-interaction")
 	cmd.Dir = destPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), "COMPOSER_MEMORY_LIMIT=-1")
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("composer install failed: %w", err)

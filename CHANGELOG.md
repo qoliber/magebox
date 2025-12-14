@@ -5,6 +5,26 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.5] - 2024-12-14
+
+### Changed
+- **Simplified Composer wrapper** - Now uses the PHP wrapper instead of duplicating version detection logic
+  - Composer wrapper at `~/.magebox/bin/composer` calls the PHP wrapper
+  - Reduced code duplication, single source of truth for PHP version detection
+
+### Removed
+- **Removed `magebox composer` command** - No longer needed since `~/.magebox/bin/composer` wrapper handles this automatically
+  - Just use `composer` directly (with `~/.magebox/bin` in PATH)
+
+## [0.12.4] - 2024-12-14
+
+### Added
+- **Automatic PATH configuration during bootstrap** - No longer need to manually add `~/.magebox/bin` to PATH
+  - Bootstrap automatically adds PATH entry to shell config (`.zshrc`, `.bashrc`, `.bash_profile`)
+  - Supports zsh (macOS default), bash, and fish shells
+  - Creates `.zshrc` if it doesn't exist on macOS
+  - Shows reload instructions after bootstrap completes
+
 ## [0.12.3] - 2024-12-14
 
 ### Added

@@ -576,6 +576,15 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Configure shell PATH (Linux and macOS)
+	fmt.Print("  Adding ~/.magebox/bin to shell PATH... ")
+	if err := bootstrapper.GetInstaller().ConfigureShellPath(); err != nil {
+		fmt.Println(cli.Warning("skipped"))
+		cli.PrintInfo("Add manually: export PATH=\"$HOME/.magebox/bin:$PATH\"")
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+
 	// Multitail for log viewing
 	if platform.CommandExists("multitail") {
 		fmt.Println("  multitail already installed " + cli.Success("✓"))
@@ -632,9 +641,13 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Println(cli.Bullet("Add MageBox bin to your PATH (recommended):"))
+	fmt.Println(cli.Bullet("Reload your shell to activate the PHP wrapper:"))
 	fmt.Println()
-	fmt.Println(wrapperMgr.GetInstructions())
+	shellName := filepath.Base(os.Getenv("SHELL"))
+	if shellName == "" {
+		shellName = "bash"
+	}
+	fmt.Printf("    source ~/.%src\n", shellName)
 	fmt.Println()
 	fmt.Println(cli.Bullet("cd into your Magento project directory"))
 	fmt.Println(cli.Bullet("Run " + cli.Command("magebox init") + " to create .magebox.yaml config"))

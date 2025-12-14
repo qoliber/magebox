@@ -85,6 +85,9 @@ type Installer interface {
 	// ConfigureSELinux configures SELinux for nginx (Fedora only)
 	ConfigureSELinux() error
 
+	// ConfigureShellPath adds ~/.magebox/bin to the user's shell PATH
+	ConfigureShellPath() error
+
 	// SetupDNS configures DNS resolution for .test domains
 	SetupDNS() error
 
