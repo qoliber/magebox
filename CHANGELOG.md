@@ -5,6 +5,27 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2024-12-14
+
+### Added
+- **CLI flags for non-interactive command execution**:
+  - `magebox team add` now supports `--provider`, `--org`, `--auth` flags
+  - `magebox team add` supports asset storage flags: `--asset-provider`, `--asset-host`, `--asset-port`, `--asset-path`, `--asset-username`
+  - `magebox blackfire config` now supports `--server-id`, `--server-token`, `--client-id`, `--client-token` flags
+  - `magebox tideways config` now supports `--api-key` flag
+- **Homebrew tap** for easy installation: `brew install qoliber/magebox/magebox`
+- **Install script** for curl-based installation: `curl -fsSL https://get.magebox.dev | bash`
+- **GitHub Actions workflows**:
+  - Automatic Homebrew formula updates on new releases
+  - Install script deployment to documentation server
+
+### Fixed
+- Dynamic team subcommand routing (`magebox team <teamname> <subcommand>` now works correctly)
+
+### Changed
+- All interactive commands now fall back to prompts only when required flags are not provided
+- Improved CI workflow: removed deprecated macOS-13 runner
+
 ## [0.11.0] - 2024-12-14
 
 ### Added
