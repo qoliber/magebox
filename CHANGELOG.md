@@ -5,6 +5,40 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2024-12-14
+
+### Added
+- **Team collaboration feature** - Share project configurations across teams:
+  - `magebox team add <name>` - Add a new team with repository and asset storage config
+  - `magebox team list` - List all configured teams
+  - `magebox team remove <name>` - Remove a team configuration
+  - `magebox team <name> show` - Show team configuration details
+  - `magebox team <name> repos [--filter]` - Browse repositories in team namespace
+  - `magebox team <name> project add/list/remove` - Manage team projects
+- **Repository provider support**:
+  - GitHub, GitLab, and Bitbucket integration
+  - SSH and token-based authentication
+  - Repository listing with filtering (glob patterns)
+- **Asset storage support**:
+  - SFTP/FTP for database dumps and media files
+  - Progress tracking with download speed and ETA
+  - Secure credential storage via environment variables
+- **Fetch command** - `magebox fetch <project>`:
+  - Clone repository from configured provider
+  - Download and import database automatically
+  - Download and extract media files
+  - Support for `--branch`, `--no-db`, `--no-media`, `--dry-run` flags
+- **Sync command** - `magebox sync`:
+  - Sync latest database and media for existing projects
+  - Auto-detect project from git remote
+  - Support for `--db`, `--media`, `--backup`, `--dry-run` flags
+- New packages: `internal/team/` with comprehensive test coverage
+- Team configuration stored in `~/.magebox/teams.yaml`
+- Documentation: `docs/teamwork.md` - Complete guide for team features
+
+### Changed
+- Fixed printf format string issues across multiple commands for cleaner linter output
+
 ## [0.10.12] - 2024-12-14
 
 ### Added

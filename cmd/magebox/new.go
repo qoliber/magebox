@@ -537,7 +537,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create project directory and .magebox.yaml first so our wrapper uses correct PHP
-	cli.PrintTitle("Installing " + selectedVersion.Name)
+	cli.PrintTitle("Installing %s", selectedVersion.Name)
 	fmt.Println()
 
 	// Step 1: Create directory and .magebox.yaml
@@ -867,7 +867,7 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	fmt.Println()
 
 	// Create project directory and config first
-	cli.PrintTitle("Installing " + selectedVersion.Name)
+	cli.PrintTitle("Installing %s", selectedVersion.Name)
 	fmt.Println()
 
 	// Get the correct PHP binary for this version

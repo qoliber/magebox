@@ -163,6 +163,6 @@ func runConfigInit(cmd *cobra.Command, args []string) error {
 
 	cli.PrintSuccess("Created global configuration at %s", configPath)
 	fmt.Println()
-	cli.PrintInfo("Edit the file or use " + cli.Command("magebox config set <key> <value>"))
+	cli.PrintInfo("Edit the file or use %s", cli.Command("magebox config set <key> <value>"))
 	return nil
 }

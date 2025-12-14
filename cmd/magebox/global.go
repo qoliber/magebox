@@ -81,7 +81,7 @@ func runGlobalStart(cmd *cobra.Command, args []string) error {
 
 	// Check if compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
-		cli.PrintWarning("Docker services not configured. Run " + cli.Command("magebox bootstrap") + " first.")
+		cli.PrintWarning("Docker services not configured. Run %s first.", cli.Command("magebox bootstrap"))
 	} else {
 		fmt.Print("  Docker services... ")
 		dockerCtrl := docker.NewDockerController(composeFile)
@@ -102,7 +102,7 @@ func runGlobalStart(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintSuccess("Global services started!")
 	fmt.Println()
-	cli.PrintInfo("Run " + cli.Command("magebox start") + " in your project directory to start project services.")
+	cli.PrintInfo("Run %s in your project directory to start project services.", cli.Command("magebox start"))
 
 	return nil
 }

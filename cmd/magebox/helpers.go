@@ -31,7 +31,7 @@ func loadProjectConfig(cwd string) (*config.Config, bool) {
 		if _, ok := err.(*config.ConfigNotFoundError); ok {
 			cli.PrintError("Configuration file not found: %s/.magebox.yaml", cwd)
 			fmt.Println()
-			cli.PrintInfo("Run " + cli.Command("magebox init") + " to create one")
+			cli.PrintInfo("Run %s to create one", cli.Command("magebox init"))
 			return nil, false
 		}
 		// Other errors - print and return

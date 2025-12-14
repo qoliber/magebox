@@ -2,6 +2,38 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.11.0] - 2025-12-14
+
+### Team Collaboration
+
+MageBox now supports team collaboration features for sharing project configurations across your team:
+
+- **Team Management**
+  - `magebox team add <name>` - Add a new team with repository and asset storage configuration
+  - `magebox team list` - List all configured teams
+  - `magebox team remove <name>` - Remove a team configuration
+  - `magebox team <name> show` - Show team configuration details
+  - `magebox team <name> repos` - Browse repositories in team namespace (with glob filtering)
+
+- **Project Management**
+  - `magebox team <name> project add` - Add a project to a team
+  - `magebox team <name> project list` - List team projects
+  - `magebox team <name> project remove` - Remove a project
+
+- **Fetch Command** - One-command project setup:
+  - `magebox fetch <team/project>` - Clone repo, download & import database, download & extract media
+  - Supports `--branch`, `--no-db`, `--no-media`, `--db-only`, `--dry-run` flags
+
+- **Sync Command** - Keep existing projects up to date:
+  - `magebox sync` - Sync latest database and media from asset storage
+  - Auto-detects project from git remote
+  - Supports `--db`, `--media`, `--backup`, `--dry-run` flags
+
+- **Repository Providers**: GitHub, GitLab, Bitbucket with SSH or token authentication
+- **Asset Storage**: SFTP/FTP for database dumps and media files with progress tracking
+
+Team configurations are stored in `~/.magebox/teams.yaml`.
+
 ## [0.10.12] - 2025-12-14
 
 ### Bug Fixes

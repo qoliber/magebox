@@ -91,7 +91,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Println("  Status: " + cli.Warning("Not officially tested"))
 			if osInfo.Message != "" {
-				cli.PrintInfo(osInfo.Message)
+				cli.PrintInfo("%s", osInfo.Message)
 			}
 		}
 	}
@@ -172,7 +172,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 				if err := inst.InstallNginx(); err != nil {
 					cli.PrintError("Failed to install Nginx: %v", err)
 					fmt.Println()
-					cli.PrintInfo("Please install manually and run " + cli.Command("magebox bootstrap") + " again")
+					cli.PrintInfo("Please install manually and run %s again", cli.Command("magebox bootstrap"))
 					return nil
 				}
 				fmt.Printf("  Nginx installed %s\n", cli.Success("✓"))
@@ -184,7 +184,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 				if err := inst.InstallMkcert(); err != nil {
 					cli.PrintError("Failed to install mkcert: %v", err)
 					fmt.Println()
-					cli.PrintInfo("Please install manually and run " + cli.Command("magebox bootstrap") + " again")
+					cli.PrintInfo("Please install manually and run %s again", cli.Command("magebox bootstrap"))
 					return nil
 				}
 				fmt.Printf("  mkcert installed %s\n", cli.Success("✓"))
@@ -196,7 +196,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			mkcertInstalled = platform.CommandExists("mkcert")
 		} else {
 			fmt.Println()
-			cli.PrintInfo("Install missing dependencies and run " + cli.Command("magebox bootstrap") + " again")
+			cli.PrintInfo("Install missing dependencies and run %s again", cli.Command("magebox bootstrap"))
 			return nil
 		}
 
@@ -213,7 +213,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Printf("  Install Docker: %s\n", cli.Command(bootstrapper.DockerInstallInstructions()))
 		fmt.Println()
-		cli.PrintInfo("After installing Docker, run " + cli.Command("magebox bootstrap") + " again")
+		cli.PrintInfo("After installing Docker, run %s again", cli.Command("magebox bootstrap"))
 		return nil
 	}
 
@@ -502,7 +502,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 				}
 			} else {
 				fmt.Println("  dnsmasq not installed")
-				cli.PrintInfo("Install with: " + cli.Command(dnsManager.InstallCommand()))
+				cli.PrintInfo("Install with: %s", cli.Command(dnsManager.InstallCommand()))
 			}
 		}
 	} else if globalCfg.UseDnsmasq() {
@@ -511,11 +511,11 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println("  dnsmasq configured for *.test " + cli.Success("✓"))
 		} else {
 			fmt.Println("  dnsmasq not yet configured")
-			cli.PrintInfo("Run " + cli.Command("magebox dns setup") + " to configure wildcard DNS")
+			cli.PrintInfo("Run %s to configure wildcard DNS", cli.Command("magebox dns setup"))
 		}
 	} else {
 		fmt.Println("  Using /etc/hosts mode")
-		cli.PrintInfo("Domains will be added to /etc/hosts when you run " + cli.Command("magebox start"))
+		cli.PrintInfo("Domains will be added to /etc/hosts when you run %s", cli.Command("magebox start"))
 	}
 	fmt.Println()
 

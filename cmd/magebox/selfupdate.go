@@ -61,7 +61,7 @@ func runSelfUpdate(cmd *cobra.Command, args []string) error {
 	if result.DownloadURL == "" {
 		cli.PrintError("No binary available for your platform (%s)", updater.GetPlatformInfo())
 		fmt.Println()
-		cli.PrintInfo("You can build from source: " + cli.Command("go install github.com/qoliber/magebox@latest"))
+		cli.PrintInfo("You can build from source: %s", cli.Command("go install github.com/qoliber/magebox@latest"))
 		return nil
 	}
 
@@ -88,7 +88,7 @@ func runSelfUpdate(cmd *cobra.Command, args []string) error {
 
 	cli.PrintSuccess("Updated to version %s!", result.LatestVersion)
 	fmt.Println()
-	cli.PrintInfo("Run " + cli.Command("magebox --version") + " to verify")
+	cli.PrintInfo("Run %s to verify", cli.Command("magebox --version"))
 
 	return nil
 }
@@ -117,7 +117,7 @@ func runSelfUpdateCheck(cmd *cobra.Command, args []string) error {
 		cli.PrintSuccess("Update available!")
 		fmt.Printf("  Latest version: %s\n", cli.Highlight(result.LatestVersion))
 		fmt.Println()
-		cli.PrintInfo("Run " + cli.Command("magebox self-update") + " to install")
+		cli.PrintInfo("Run %s to install", cli.Command("magebox self-update"))
 	} else {
 		cli.PrintSuccess("You're running the latest version!")
 	}
