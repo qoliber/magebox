@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "MageBox"
   text: "Native Magento Development"
-  tagline: Full native speed. Zero container overhead. Modern developer experience.
+  tagline: For individuals and teams. Full native speed. Zero container overhead.
   image:
     src: /logo.svg
     alt: MageBox
@@ -40,6 +40,10 @@ features:
   - icon: ⚡
     title: One Command Setup
     details: Run `magebox bootstrap` once, then `magebox start` in any project. That's it. No complex configuration needed.
+
+  - icon: 👥
+    title: Team Collaboration
+    details: Share project configs, Git repos (GitHub/GitLab/Bitbucket), and asset storage. New team member? Run `magebox fetch` and start coding.
 ---
 
 ## Quick Start

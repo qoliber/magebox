@@ -26,10 +26,11 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/what-is-magebox' },
       { text: 'Services', link: '/services/nginx' },
+      { text: 'Teams', link: '/guide/teams' },
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.10.12',
+        text: 'v0.11.0',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -87,6 +88,12 @@ export default defineConfig({
             { text: 'Varnish', link: '/services/varnish' },
             { text: 'Blackfire', link: '/services/blackfire' },
             { text: 'Tideways', link: '/services/tideways' }
+          ]
+        },
+        {
+          text: 'Team Collaboration',
+          items: [
+            { text: 'Overview', link: '/guide/teams' }
           ]
         },
         {
@@ -178,6 +185,12 @@ export default defineConfig({
             { text: 'Varnish', link: '/services/varnish' },
             { text: 'Blackfire', link: '/services/blackfire' },
             { text: 'Tideways', link: '/services/tideways' }
+          ]
+        },
+        {
+          text: 'Team Collaboration',
+          items: [
+            { text: 'Overview', link: '/guide/teams' }
           ]
         },
         {

@@ -771,6 +771,147 @@ magebox tideways config
 
 Prompts for API key from your [Tideways account](https://tideways.com).
 
+## Team Commands
+
+### `magebox team list`
+
+List all configured teams.
+
+```bash
+magebox team list
+```
+
+---
+
+### `magebox team add <name>`
+
+Add a new team configuration.
+
+```bash
+magebox team add myteam
+```
+
+Interactive wizard that configures:
+- Repository provider (github/gitlab/bitbucket)
+- Organization name
+- Authentication method (ssh/token)
+- Asset storage (optional)
+
+---
+
+### `magebox team remove <name>`
+
+Remove a team configuration.
+
+```bash
+magebox team remove myteam
+```
+
+---
+
+### `magebox team <name> show`
+
+Show team configuration details.
+
+```bash
+magebox team myteam show
+```
+
+---
+
+### `magebox team <name> repos`
+
+Browse repositories in the team's namespace.
+
+```bash
+magebox team myteam repos
+magebox team myteam repos --filter "magento*"
+```
+
+**Options:**
+- `--filter` - Glob pattern to filter repositories
+
+---
+
+### `magebox team <name> project list`
+
+List all projects in a team.
+
+```bash
+magebox team myteam project list
+```
+
+---
+
+### `magebox team <name> project add <project>`
+
+Add a project to a team.
+
+```bash
+magebox team myteam project add shop \
+  --repo myorg/shop \
+  --branch main \
+  --db shop/latest.sql.gz \
+  --media shop/media.tar.gz
+```
+
+**Options:**
+- `--repo` - Repository path (org/repo)
+- `--branch` - Default branch (default: main)
+- `--db` - Path to database dump on asset storage
+- `--media` - Path to media archive on asset storage
+
+---
+
+### `magebox team <name> project remove <project>`
+
+Remove a project from a team.
+
+```bash
+magebox team myteam project remove shop
+```
+
+---
+
+### `magebox fetch <project>`
+
+Fetch a project (clone + database + media).
+
+```bash
+magebox fetch myteam/myproject
+magebox fetch myproject              # If only one team
+```
+
+**Options:**
+- `--branch` - Specific branch to checkout
+- `--no-db` - Skip database download/import
+- `--no-media` - Skip media download/extraction
+- `--db-only` - Only download and import database
+- `--dry-run` - Show what would happen
+- `--to` - Custom destination directory
+
+---
+
+### `magebox sync`
+
+Sync database and media for existing project.
+
+```bash
+magebox sync
+magebox sync --db
+magebox sync --media
+```
+
+**Options:**
+- `--db` - Only sync database
+- `--media` - Only sync media
+- `--backup` - Backup current database before import
+- `--dry-run` - Show what would happen
+
+::: tip
+Run from within a project directory. Auto-detects team from git remote.
+:::
+
 ## Utility Commands
 
 ### `magebox check`
