@@ -8,9 +8,14 @@ echo "=========================================="
 echo "MageBox E2E Test Suite"
 echo "=========================================="
 
-MAGEBOX=${MAGEBOX:-./magebox}
+# Convert to absolute path
+MAGEBOX_INPUT=${MAGEBOX:-./magebox}
+MAGEBOX="$(cd "$(dirname "$MAGEBOX_INPUT")" && pwd)/$(basename "$MAGEBOX_INPUT")"
 TEST_PROJECT="e2e-test-$$"
 TEST_DIR="/tmp/magebox-e2e-$$"
+
+echo "Using: $MAGEBOX"
+echo ""
 
 cleanup() {
     echo ""
