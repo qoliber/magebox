@@ -5,6 +5,43 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.12] - 2024-12-14
+
+### Added
+- Xdebug state restoration when disabling Blackfire
+  - When enabling Blackfire, Xdebug state is saved if it was enabled
+  - When disabling Blackfire, Xdebug is automatically restored to previous state
+  - State stored in `~/.magebox/run/xdebug-state-{version}`
+
+### Fixed
+- Blackfire installation on macOS now installs PHP-specific formula (`blackfire-php82`, etc.)
+- Blackfire extension detection updated for Homebrew's path format
+- Blackfire agent detection now handles `blackfire agent:start` process name
+- Service detection fallback for Elasticsearch/OpenSearch when compose file is stale
+
+### Changed
+- Blackfire enable/disable properly handles Homebrew's ini file format
+
+## [0.10.11] - 2024-12-14
+
+### Fixed
+- Docker service detection now falls back to container name when compose file is stale
+- Service names like `elasticsearch8170` properly map to container `magebox-elasticsearch-8.17.0`
+
+### Changed
+- Updated version display to 0.10.11
+
+## [0.10.10] - 2024-12-13
+
+### Added
+- MageBox logo to README
+- Complete CLI commands reference documentation
+- Logs & Reports guide page
+
+### Fixed
+- Xdebug installation detection now uses `php -m` instead of file checks
+- Skip xdebug pecl install if already installed (avoids confusing error messages)
+
 ## [0.10.2] - 2024-12-13
 
 ### Added
