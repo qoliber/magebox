@@ -1,0 +1,109 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-formula:
+    name: Update Homebrew Tap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release info
+        id: release
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download release assets and calculate checksums
+        id: checksums
+        run: |
+          VERSION=${{ steps.release.outputs.VERSION }}
+          BASE_URL="https://github.com/qoliber/magebox/releases/download/v${VERSION}"
+
+          # Download and calculate checksums
+          for platform in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
+            curl -fsSL "${BASE_URL}/magebox-${platform}" -o "magebox-${platform}"
+            CHECKSUM=$(sha256sum "magebox-${platform}" | awk '{print $1}')
+            UPPER=$(echo "$platform" | tr '[:lower:]-' '[:upper:]_')
+            echo "${UPPER}=${CHECKSUM}" >> $GITHUB_OUTPUT
+          done
+
+      - name: Checkout homebrew-magebox
+        uses: actions/checkout@v4
+        with:
+          repository: qoliber/homebrew-magebox
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION=${{ steps.release.outputs.VERSION }}
+
+          cat > homebrew-tap/Formula/magebox.rb << 'EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class Magebox < Formula
+            desc "Fast, native Magento development environment"
+            homepage "https://magebox.dev"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/qoliber/magebox/releases/download/v#{version}/magebox-darwin-arm64"
+                sha256 "SHA_DARWIN_ARM64"
+
+                def install
+                  bin.install "magebox-darwin-arm64" => "magebox"
+                end
+              else
+                url "https://github.com/qoliber/magebox/releases/download/v#{version}/magebox-darwin-amd64"
+                sha256 "SHA_DARWIN_AMD64"
+
+                def install
+                  bin.install "magebox-darwin-amd64" => "magebox"
+                end
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/qoliber/magebox/releases/download/v#{version}/magebox-linux-arm64"
+                sha256 "SHA_LINUX_ARM64"
+
+                def install
+                  bin.install "magebox-linux-arm64" => "magebox"
+                end
+              else
+                url "https://github.com/qoliber/magebox/releases/download/v#{version}/magebox-linux-amd64"
+                sha256 "SHA_LINUX_AMD64"
+
+                def install
+                  bin.install "magebox-linux-amd64" => "magebox"
+                end
+              end
+            end
+
+            test do
+              assert_match "MageBox", shell_output("#{bin}/magebox --version")
+            end
+          end
+          EOF
+
+          # Replace placeholders
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Formula/magebox.rb
+          sed -i "s/SHA_DARWIN_ARM64/${{ steps.checksums.outputs.DARWIN_ARM64 }}/g" homebrew-tap/Formula/magebox.rb
+          sed -i "s/SHA_DARWIN_AMD64/${{ steps.checksums.outputs.DARWIN_AMD64 }}/g" homebrew-tap/Formula/magebox.rb
+          sed -i "s/SHA_LINUX_ARM64/${{ steps.checksums.outputs.LINUX_ARM64 }}/g" homebrew-tap/Formula/magebox.rb
+          sed -i "s/SHA_LINUX_AMD64/${{ steps.checksums.outputs.LINUX_AMD64 }}/g" homebrew-tap/Formula/magebox.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/magebox.rb
+          git commit -m "Update magebox to v${{ steps.release.outputs.VERSION }}"
+          git push

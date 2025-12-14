@@ -8,6 +8,7 @@ on:
       - 'CHANGELOG.md'
       - 'README.md'
       - 'docs/**'
+      - 'dist/install.sh'
   workflow_dispatch:
 
 jobs:
@@ -34,6 +35,10 @@ jobs:
             --exclude '.vitepress/cache' \
             vitepress/ \
             magebox@46.62.158.225:/home/magebox/public_html/
+
+      - name: Upload install script
+        run: |
+          scp dist/install.sh magebox@46.62.158.225:/home/magebox/public_html/public/install.sh
 
       - name: Build and restart on server
         run: |
