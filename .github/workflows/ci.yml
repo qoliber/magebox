@@ -19,9 +19,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         go: ['1.21']
-        include:
-          - os: macos-13
-            go: '1.21'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
