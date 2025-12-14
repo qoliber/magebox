@@ -235,12 +235,13 @@ This performs:
    - After setup, no sudo needed for daily operations
 5. **Nginx Config** - Configures Nginx to include MageBox vhosts
    - **Linux:** Configures nginx to run as your user (required for SSL cert access)
+   - **Fedora:** Configures SELinux contexts for nginx config/certs access
 6. **Docker Services** - Starts MySQL 8.0, Redis, Mailpit containers
 7. **DNS Setup** - Configures DNS resolution for `.test` domains
    - **Linux:** Configures dnsmasq + systemd-resolved for `.test` wildcard DNS
    - **macOS:** Creates `/etc/resolver/test`
 8. **PHP Wrapper** - Installs smart PHP wrapper that automatically uses the correct version
-9. **PHP-FPM Setup** (Linux/Fedora) - Configures PHP-FPM logging to `/var/log/magebox/`
+9. **PHP-FPM Setup** (Linux) - Enables and starts PHP-FPM services
 10. **Sudoers Config** (Linux) - Sets up passwordless sudo for nginx/php-fpm control
 
 After bootstrap, these services are running:
@@ -1280,18 +1281,33 @@ If `.test` domains don't resolve:
    magebox bootstrap
    ```
 
-### Linux: SELinux blocking PHP-FPM
+### Linux: SELinux on Fedora/RHEL
 
-If PHP-FPM fails to start on Fedora/RHEL:
+Fedora has SELinux enabled by default. MageBox bootstrap automatically configures SELinux, but if you encounter issues:
 
+**Nginx can't read configs or certs (HTTPS not working):**
 ```bash
-# Check SELinux status
-getenforce
+# Allow nginx to read MageBox configs and certs
+sudo chcon -R -t httpd_config_t ~/.magebox/nginx/
+sudo chcon -R -t httpd_config_t ~/.magebox/certs/
+```
 
-# Temporarily disable (for testing)
-sudo setenforce 0
+**Nginx can't proxy to Docker containers (502 Bad Gateway):**
+```bash
+# Allow nginx to make network connections
+sudo setsebool -P httpd_can_network_connect on
+```
 
-# If that fixes it, create proper SELinux policy or use /var/log/magebox for logs
+**PHP-FPM can't write logs:**
+```bash
+# Set correct context on PHP-FPM log directories
+sudo chcon -R -t httpd_log_t /var/opt/remi/php*/log/
+```
+
+**Check SELinux denials:**
+```bash
+# View recent SELinux denials
+sudo ausearch -m avc -ts recent | grep -E "nginx|php-fpm"
 ```
 
 ---

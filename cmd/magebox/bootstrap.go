@@ -46,7 +46,7 @@ This command performs the following steps:
 
 Supported platforms:
   - macOS 12-15 (Monterey, Ventura, Sonoma, Sequoia)
-  - Fedora 38-42
+  - Fedora 38-43
   - Ubuntu 20.04, 22.04, 24.04
   - Arch Linux (rolling release)
 
@@ -215,6 +215,22 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		cli.PrintInfo("After installing Docker, run %s again", cli.Command("magebox bootstrap"))
 		return nil
+	}
+
+	// Setup sudoers early (Linux only) - needed before PHP-FPM can restart
+	if p.Type == platform.Linux {
+		sudoersFile := "/etc/sudoers.d/magebox"
+		if _, err := os.Stat(sudoersFile); os.IsNotExist(err) {
+			fmt.Print("  Setting up passwordless nginx/php-fpm control... ")
+			if err := bootstrapper.ConfigureSudoers(); err != nil {
+				fmt.Println(cli.Error("failed"))
+				cli.PrintWarning("Failed to setup sudoers: %v", err)
+				errors = append(errors, fmt.Sprintf("Sudoers setup: %v", err))
+			} else {
+				fmt.Println(cli.Success("done"))
+			}
+			fmt.Println()
+		}
 	}
 
 	// Step 2: Install PHP versions
@@ -402,6 +418,16 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Printf("    include %s/*.conf;\n", vhostsDir)
 	} else {
 		fmt.Println(cli.Success("done"))
+	}
+
+	// Configure SELinux for nginx (Fedora only)
+	if p.Type == platform.Linux && p.LinuxDistro == platform.DistroFedora {
+		fmt.Print("  Configuring SELinux for nginx... ")
+		if err := bootstrapper.ConfigureSELinux(); err != nil {
+			fmt.Println(cli.Warning("skipped"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
 	}
 
 	// Test and reload nginx

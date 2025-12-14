@@ -142,6 +142,15 @@ Service name: `php82-php-fpm`
 
 Config path: `/etc/opt/remi/php82/php-fpm.conf`
 
+::: tip SELinux Configuration
+Fedora has SELinux enabled by default. MageBox bootstrap automatically configures:
+- `setsebool -P httpd_can_network_connect on` - allows nginx to proxy to Docker
+- `chcon -R -t httpd_config_t ~/.magebox/nginx/` - allows nginx to read vhost configs
+- `chcon -R -t httpd_config_t ~/.magebox/certs/` - allows nginx to read SSL certs
+
+See [Troubleshooting: SELinux](/guide/troubleshooting#selinux-issues-fedora-rhel) for manual fixes.
+:::
+
 ### Arch Linux (Official Repos)
 
 Uses a **single PHP version** in official repos:

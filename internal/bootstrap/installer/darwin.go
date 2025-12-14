@@ -173,6 +173,11 @@ func (d *DarwinInstaller) ConfigureSudoers() error {
 	return nil
 }
 
+// ConfigureSELinux is a no-op on macOS (SELinux is Linux-only)
+func (d *DarwinInstaller) ConfigureSELinux() error {
+	return nil
+}
+
 // SetupDNS configures DNS resolution for .test domains on macOS
 func (d *DarwinInstaller) SetupDNS() error {
 	// Create /etc/resolver directory

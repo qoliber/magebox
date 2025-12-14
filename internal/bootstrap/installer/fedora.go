@@ -160,28 +160,12 @@ func (f *FedoraInstaller) InstallXdebug(version string) error {
 
 // ConfigurePHPFPM configures PHP-FPM on Fedora
 func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
-	// Create log directory
-	if err := f.RunSudo("mkdir", "-p", "/var/log/magebox"); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
-	}
-	if err := f.RunSudo("chmod", "755", "/var/log/magebox"); err != nil {
-		return fmt.Errorf("failed to set log directory permissions: %w", err)
-	}
-
 	for _, v := range versions {
 		remiVersion := strings.ReplaceAll(v, ".", "")
 		serviceName := fmt.Sprintf("php%s-php-fpm", remiVersion)
-		fpmConf := fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.conf", remiVersion)
-		logFile := fmt.Sprintf("/var/log/magebox/php%s-fpm.log", remiVersion)
-
-		// Update error_log path
-		if f.FileExists(fpmConf) {
-			if err := f.RunSudo("sed", "-i", fmt.Sprintf("s|^error_log = .*|error_log = %s|", logFile), fpmConf); err != nil {
-				return fmt.Errorf("failed to configure PHP %s FPM logs: %w", v, err)
-			}
-		}
 
 		// Enable and start service
+		// Note: We use default Remi log paths to avoid SELinux/permission issues
 		if err := f.RunSudo("systemctl", "enable", serviceName); err != nil {
 			return fmt.Errorf("failed to enable %s: %w", serviceName, err)
 		}
@@ -212,6 +196,34 @@ func (f *FedoraInstaller) ConfigureNginx() error {
 	// Enable nginx on boot
 	if err := f.RunSudo("systemctl", "enable", "nginx"); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// ConfigureSELinux configures SELinux for nginx proxy and config access
+func (f *FedoraInstaller) ConfigureSELinux() error {
+	// Check if SELinux is enabled
+	if !f.CommandExists("getenforce") {
+		return nil // SELinux not installed
+	}
+
+	// Allow nginx to make network connections (for proxying to Docker containers)
+	if f.CommandExists("setsebool") {
+		_ = f.RunSudo("setsebool", "-P", "httpd_can_network_connect", "on")
+	}
+
+	// Get home directory for SELinux context on MageBox configs
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil // Skip if can't get home dir
+	}
+
+	// Set SELinux context on MageBox nginx configs and certs
+	if f.CommandExists("chcon") {
+		mageboxDir := homeDir + "/.magebox"
+		_ = f.RunSudo("chcon", "-R", "-t", "httpd_config_t", mageboxDir+"/nginx")
+		_ = f.RunSudo("chcon", "-R", "-t", "httpd_config_t", mageboxDir+"/certs")
 	}
 
 	return nil

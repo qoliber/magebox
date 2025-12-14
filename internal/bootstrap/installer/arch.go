@@ -134,24 +134,8 @@ func (a *ArchInstaller) InstallXdebug(version string) error {
 
 // ConfigurePHPFPM configures PHP-FPM on Arch Linux
 func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
-	// Create log directory
-	if err := a.RunSudo("mkdir", "-p", "/var/log/magebox"); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
-	}
-	if err := a.RunSudo("chmod", "755", "/var/log/magebox"); err != nil {
-		return fmt.Errorf("failed to set log directory permissions: %w", err)
-	}
-
 	// On Arch, PHP-FPM service is just "php-fpm"
-	fpmConf := "/etc/php/php-fpm.conf"
-	logFile := "/var/log/magebox/php-fpm.log"
-
-	// Update error_log path if config exists
-	if a.FileExists(fpmConf) {
-		if err := a.RunSudo("sed", "-i", fmt.Sprintf("s|^error_log = .*|error_log = %s|", logFile), fpmConf); err != nil {
-			return fmt.Errorf("failed to configure PHP-FPM logs: %w", err)
-		}
-	}
+	// Note: We use default log paths to avoid permission issues
 
 	// Enable and start service
 	if err := a.RunSudo("systemctl", "enable", "php-fpm"); err != nil {
@@ -231,6 +215,11 @@ func (a *ArchInstaller) ConfigureSudoers() error {
 		return fmt.Errorf("failed to set sudoers permissions: %w", err)
 	}
 
+	return nil
+}
+
+// ConfigureSELinux is a no-op on Arch (SELinux typically not used)
+func (a *ArchInstaller) ConfigureSELinux() error {
 	return nil
 }
 

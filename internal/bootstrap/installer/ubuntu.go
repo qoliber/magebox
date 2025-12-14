@@ -159,27 +159,11 @@ func (u *UbuntuInstaller) InstallXdebug(version string) error {
 
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
 func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
-	// Create log directory
-	if err := u.RunSudo("mkdir", "-p", "/var/log/magebox"); err != nil {
-		return fmt.Errorf("failed to create log directory: %w", err)
-	}
-	if err := u.RunSudo("chmod", "755", "/var/log/magebox"); err != nil {
-		return fmt.Errorf("failed to set log directory permissions: %w", err)
-	}
-
 	for _, v := range versions {
 		serviceName := fmt.Sprintf("php%s-fpm", v)
-		fpmConf := fmt.Sprintf("/etc/php/%s/fpm/php-fpm.conf", v)
-		logFile := fmt.Sprintf("/var/log/magebox/php%s-fpm.log", strings.ReplaceAll(v, ".", ""))
-
-		// Update error_log path if config exists
-		if u.FileExists(fpmConf) {
-			if err := u.RunSudo("sed", "-i", fmt.Sprintf("s|^error_log = .*|error_log = %s|", logFile), fpmConf); err != nil {
-				return fmt.Errorf("failed to configure PHP %s FPM logs: %w", v, err)
-			}
-		}
 
 		// Enable and start service
+		// Note: We use default log paths to avoid permission issues
 		if err := u.RunSudo("systemctl", "enable", serviceName); err != nil {
 			return fmt.Errorf("failed to enable %s: %w", serviceName, err)
 		}
@@ -258,6 +242,11 @@ func (u *UbuntuInstaller) ConfigureSudoers() error {
 		return fmt.Errorf("failed to set sudoers permissions: %w", err)
 	}
 
+	return nil
+}
+
+// ConfigureSELinux is a no-op on Ubuntu (SELinux typically not used)
+func (u *UbuntuInstaller) ConfigureSELinux() error {
 	return nil
 }
 

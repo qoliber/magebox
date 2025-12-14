@@ -5,6 +5,24 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - 2024-12-14
+
+### Added
+- **SELinux support for Fedora** - Bootstrap automatically configures SELinux:
+  - Sets `httpd_can_network_connect` boolean for nginx to proxy to Docker containers
+  - Configures `httpd_config_t` context on `~/.magebox/nginx/` and `~/.magebox/certs/`
+- Added `ConfigureSELinux()` method to installer interface
+
+### Changed
+- **Simplified PHP-FPM configuration** - No longer modifies PHP-FPM config files on Linux
+  - Uses default repository log paths to avoid permission and SELinux issues
+  - Reduces potential for configuration conflicts
+
+### Documentation
+- Added comprehensive SELinux troubleshooting guide
+- Updated bootstrap documentation with SELinux configuration details
+- Updated Linux installers documentation with SELinux tips
+
 ## [0.12.0] - 2024-12-14
 
 ### Added

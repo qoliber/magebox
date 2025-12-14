@@ -63,6 +63,7 @@ Running `magebox bootstrap` will:
    - Include MageBox configs in Nginx
    - Configure Nginx to listen on 8080/8443 (macOS) or 80/443 (Linux)
    - **Linux**: Configure nginx to run as your user (required for SSL cert access)
+   - **Fedora**: Configure SELinux contexts and booleans for nginx
    - Test and reload Nginx configuration
 
 6. **Start Docker Services**
@@ -80,9 +81,9 @@ Running `magebox bootstrap` will:
    - Create smart PHP wrapper at `~/.magebox/bin/php`
    - Automatic PHP version detection per project
 
-9. **PHP-FPM Setup (Linux/Fedora)**
-   - Configure PHP-FPM logging to `/var/log/magebox/`
-   - Set up proper log rotation
+9. **PHP-FPM Setup (Linux)**
+   - Enable and start PHP-FPM services for installed versions
+   - Uses default repository logging paths (no config modifications)
 
 10. **Sudoers Config (Linux)**
     - Set up passwordless sudo for nginx/php-fpm control
@@ -210,15 +211,34 @@ MageBox configures nginx to run as your user so it can access SSL certificates i
 user YOUR_USERNAME;
 ```
 
+### SELinux Configuration (Fedora/RHEL)
+
+Fedora has SELinux enabled by default. Bootstrap automatically configures:
+
+1. **Network connections** - Allow nginx to proxy to Docker containers:
+   ```bash
+   setsebool -P httpd_can_network_connect on
+   ```
+
+2. **Config file access** - Set correct SELinux context on MageBox directories:
+   ```bash
+   chcon -R -t httpd_config_t ~/.magebox/nginx/
+   chcon -R -t httpd_config_t ~/.magebox/certs/
+   ```
+
+::: tip SELinux Troubleshooting
+If you encounter HTTPS issues after bootstrap, see [Troubleshooting: SELinux Issues](/guide/troubleshooting#selinux-issues-fedora-rhel) for manual fixes.
+:::
+
 ### PHP-FPM Logging
 
-On Fedora/RHEL, bootstrap sets up centralized logging:
+MageBox uses the default PHP-FPM logging paths provided by each distribution's repository:
 
-```
-/var/log/magebox/
-├── php-fpm-error.log
-└── php-fpm-slow.log
-```
+| Distribution | Log Path |
+|-------------|----------|
+| Ubuntu/Debian | `/var/log/php8.X-fpm.log` |
+| Fedora/RHEL | `/var/opt/remi/phpXX/log/php-fpm/` |
+| Arch Linux | `/var/log/php-fpm.log` |
 
 ### Sudoers Configuration
 
@@ -374,6 +394,20 @@ sudo lsof -i :443
 ```
 
 Stop conflicting services (Apache, other web servers).
+
+### SELinux blocking nginx (Fedora)
+
+If HTTPS doesn't work on Fedora after bootstrap:
+
+```bash
+# Re-run SELinux configuration
+sudo setsebool -P httpd_can_network_connect on
+sudo chcon -R -t httpd_config_t ~/.magebox/nginx/
+sudo chcon -R -t httpd_config_t ~/.magebox/certs/
+sudo systemctl restart nginx
+```
+
+See [Troubleshooting: SELinux Issues](/guide/troubleshooting#selinux-issues-fedora-rhel) for more details.
 
 ## Next Steps
 

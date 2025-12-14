@@ -116,6 +116,11 @@ func (b *Bootstrapper) ConfigureSudoers() error {
 	return b.installer.ConfigureSudoers()
 }
 
+// ConfigureSELinux configures SELinux for nginx (Fedora only)
+func (b *Bootstrapper) ConfigureSELinux() error {
+	return b.installer.ConfigureSELinux()
+}
+
 // SetupDNS configures DNS for .test domains
 func (b *Bootstrapper) SetupDNS() error {
 	return b.installer.SetupDNS()

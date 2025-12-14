@@ -442,19 +442,55 @@ If `.test` domains don't resolve:
    magebox bootstrap
    ```
 
-### SELinux Blocking PHP-FPM (Fedora/RHEL)
+### SELinux Issues (Fedora/RHEL)
 
-If PHP-FPM fails to start:
+Fedora has SELinux enabled by default. MageBox bootstrap automatically configures SELinux, but if you encounter issues:
+
+#### HTTPS not working (port 443 not listening)
+
+Nginx can't read MageBox configs or SSL certs:
+
+```bash
+# Allow nginx to read MageBox configs and certs
+sudo chcon -R -t httpd_config_t ~/.magebox/nginx/
+sudo chcon -R -t httpd_config_t ~/.magebox/certs/
+
+# Restart nginx
+sudo systemctl restart nginx
+```
+
+#### 502 Bad Gateway errors
+
+Nginx can't proxy to Docker containers:
+
+```bash
+# Allow nginx to make network connections
+sudo setsebool -P httpd_can_network_connect on
+```
+
+#### PHP-FPM fails to start
+
+PHP-FPM can't write to log directories:
+
+```bash
+# Set correct context on PHP-FPM log directories
+sudo chcon -R -t httpd_log_t /var/opt/remi/php*/log/
+
+# Restart PHP-FPM services
+sudo systemctl restart php81-php-fpm php82-php-fpm php83-php-fpm php84-php-fpm
+```
+
+#### Debugging SELinux issues
 
 ```bash
 # Check SELinux status
 getenforce
 
-# Temporarily disable (for testing)
-sudo setenforce 0
+# View recent SELinux denials
+sudo ausearch -m avc -ts recent | grep -E "nginx|php-fpm"
 
-# If that fixes it, create proper SELinux policy
-# or ensure logs are in /var/log/magebox/
+# Temporarily disable SELinux (for testing only)
+sudo setenforce 0
 ```
 
 ## Getting Help

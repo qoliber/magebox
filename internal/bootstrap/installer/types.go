@@ -82,6 +82,9 @@ type Installer interface {
 	// ConfigureSudoers sets up passwordless sudo for services (Linux only)
 	ConfigureSudoers() error
 
+	// ConfigureSELinux configures SELinux for nginx (Fedora only)
+	ConfigureSELinux() error
+
 	// SetupDNS configures DNS resolution for .test domains
 	SetupDNS() error
 
