@@ -30,9 +30,8 @@ Examples:
   magebox team myteam show          # Show team configuration
   magebox team myteam repos         # List repositories in namespace
   magebox team remove myteam        # Remove a team`,
-	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
-	},
+	DisableFlagParsing: true,
+	RunE:               runTeamCmd,
 }
 
 var teamAddCmd = &cobra.Command{
@@ -56,11 +55,66 @@ var teamRemoveCmd = &cobra.Command{
 	RunE:  runTeamRemove,
 }
 
+// Flags for team add command
+var (
+	teamAddProvider      string
+	teamAddOrg           string
+	teamAddAuth          string
+	teamAddAssetProvider string
+	teamAddAssetHost     string
+	teamAddAssetPort     int
+	teamAddAssetPath     string
+	teamAddAssetUsername string
+)
+
 func init() {
+	// Add flags for non-interactive team creation
+	teamAddCmd.Flags().StringVar(&teamAddProvider, "provider", "", "Repository provider (github, gitlab, bitbucket)")
+	teamAddCmd.Flags().StringVar(&teamAddOrg, "org", "", "Organization/namespace")
+	teamAddCmd.Flags().StringVar(&teamAddAuth, "auth", "ssh", "Auth method (ssh, token)")
+	teamAddCmd.Flags().StringVar(&teamAddAssetProvider, "asset-provider", "", "Asset storage provider (sftp, ftp)")
+	teamAddCmd.Flags().StringVar(&teamAddAssetHost, "asset-host", "", "Asset storage host")
+	teamAddCmd.Flags().IntVar(&teamAddAssetPort, "asset-port", 0, "Asset storage port")
+	teamAddCmd.Flags().StringVar(&teamAddAssetPath, "asset-path", "", "Asset storage base path")
+	teamAddCmd.Flags().StringVar(&teamAddAssetUsername, "asset-username", "", "Asset storage username")
+
 	teamCmd.AddCommand(teamAddCmd)
 	teamCmd.AddCommand(teamListCmd)
 	teamCmd.AddCommand(teamRemoveCmd)
 	rootCmd.AddCommand(teamCmd)
+}
+
+// runTeamCmd handles the team command and routes to subcommands or team-specific actions
+func runTeamCmd(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+
+	// Check for known subcommands first
+	switch args[0] {
+	case "add":
+		// Parse flags and run add command
+		if err := teamAddCmd.ParseFlags(args[1:]); err != nil {
+			return err
+		}
+		remainingArgs := teamAddCmd.Flags().Args()
+		if len(remainingArgs) != 1 {
+			return fmt.Errorf("team add requires exactly one argument: team name")
+		}
+		return runTeamAdd(teamAddCmd, remainingArgs)
+	case "list":
+		return runTeamList(teamListCmd, args[1:])
+	case "remove":
+		if len(args) < 2 {
+			return fmt.Errorf("team remove requires a team name")
+		}
+		return runTeamRemove(teamRemoveCmd, args[1:])
+	case "-h", "--help", "help":
+		return cmd.Help()
+	}
+
+	// If not a known subcommand, treat first arg as team name
+	return runTeamDynamic(cmd, args)
 }
 
 func runTeamAdd(cmd *cobra.Command, args []string) error {
@@ -82,92 +136,124 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("team '%s' already exists", teamName)
 	}
 
-	cli.PrintTitle("Add Team: %s", teamName)
-	fmt.Println()
+	// Check if we have enough flags for non-interactive mode
+	nonInteractive := teamAddProvider != "" && teamAddOrg != ""
 
-	reader := bufio.NewReader(os.Stdin)
+	var providerStr, org, authStr string
+	var assetProviderStr, assetHost, assetPath, assetUsername string
+	var assetPort int
 
-	// Repository configuration
-	fmt.Println("Repository Configuration")
-	fmt.Println("------------------------")
+	if nonInteractive {
+		// Use flag values
+		providerStr = strings.ToLower(teamAddProvider)
+		org = teamAddOrg
+		authStr = strings.ToLower(teamAddAuth)
+		if authStr == "" {
+			authStr = "ssh"
+		}
+		assetProviderStr = strings.ToLower(teamAddAssetProvider)
+		assetHost = teamAddAssetHost
+		assetPort = teamAddAssetPort
+		assetPath = teamAddAssetPath
+		assetUsername = teamAddAssetUsername
+	} else {
+		// Interactive mode
+		cli.PrintTitle("Add Team: %s", teamName)
+		fmt.Println()
 
-	// Provider selection
-	fmt.Print("Provider [github/gitlab/bitbucket]: ")
-	providerStr, _ := reader.ReadString('\n')
-	providerStr = strings.TrimSpace(strings.ToLower(providerStr))
-	if providerStr == "" {
-		providerStr = "github"
+		reader := bufio.NewReader(os.Stdin)
+
+		// Repository configuration
+		fmt.Println("Repository Configuration")
+		fmt.Println("------------------------")
+
+		// Provider selection
+		fmt.Print("Provider [github/gitlab/bitbucket]: ")
+		providerStr, _ = reader.ReadString('\n')
+		providerStr = strings.TrimSpace(strings.ToLower(providerStr))
+		if providerStr == "" {
+			providerStr = "github"
+		}
+
+		// Organization
+		fmt.Print("Organization/Namespace: ")
+		org, _ = reader.ReadString('\n')
+		org = strings.TrimSpace(org)
+		if org == "" {
+			return fmt.Errorf("organization is required")
+		}
+
+		// Auth method
+		fmt.Print("Auth method [ssh/token]: ")
+		authStr, _ = reader.ReadString('\n')
+		authStr = strings.TrimSpace(strings.ToLower(authStr))
+		if authStr == "" {
+			authStr = "ssh"
+		}
+
+		fmt.Println()
+
+		// Asset configuration
+		fmt.Println("Asset Storage Configuration")
+		fmt.Println("---------------------------")
+
+		fmt.Print("Provider [sftp/ftp] (leave empty to skip): ")
+		assetProviderStr, _ = reader.ReadString('\n')
+		assetProviderStr = strings.TrimSpace(strings.ToLower(assetProviderStr))
+
+		if assetProviderStr != "" {
+			fmt.Print("Host: ")
+			assetHost, _ = reader.ReadString('\n')
+			assetHost = strings.TrimSpace(assetHost)
+
+			fmt.Print("Port (default 22 for SFTP, 21 for FTP): ")
+			portStr, _ := reader.ReadString('\n')
+			portStr = strings.TrimSpace(portStr)
+			if portStr != "" {
+				assetPort, _ = strconv.Atoi(portStr)
+			}
+
+			fmt.Print("Path (remote base path): ")
+			assetPath, _ = reader.ReadString('\n')
+			assetPath = strings.TrimSpace(assetPath)
+
+			fmt.Print("Username: ")
+			assetUsername, _ = reader.ReadString('\n')
+			assetUsername = strings.TrimSpace(assetUsername)
+		}
 	}
+
+	// Validate provider
 	provider := team.RepositoryProvider(providerStr)
 	if provider != team.ProviderGitHub && provider != team.ProviderGitLab && provider != team.ProviderBitbucket {
-		return fmt.Errorf("invalid provider: %s", providerStr)
+		return fmt.Errorf("invalid provider: %s (use github, gitlab, or bitbucket)", providerStr)
 	}
 
-	// Organization
-	fmt.Print("Organization/Namespace: ")
-	org, _ := reader.ReadString('\n')
-	org = strings.TrimSpace(org)
-	if org == "" {
-		return fmt.Errorf("organization is required")
-	}
-
-	// Auth method
-	fmt.Print("Auth method [ssh/token]: ")
-	authStr, _ := reader.ReadString('\n')
-	authStr = strings.TrimSpace(strings.ToLower(authStr))
-	if authStr == "" {
-		authStr = "ssh"
-	}
+	// Validate auth
 	auth := team.AuthMethod(authStr)
 	if auth != team.AuthSSH && auth != team.AuthToken {
-		return fmt.Errorf("invalid auth method: %s", authStr)
+		return fmt.Errorf("invalid auth method: %s (use ssh or token)", authStr)
 	}
 
-	fmt.Println()
-
-	// Asset configuration
-	fmt.Println("Asset Storage Configuration")
-	fmt.Println("---------------------------")
-
-	fmt.Print("Provider [sftp/ftp] (leave empty to skip): ")
-	assetProviderStr, _ := reader.ReadString('\n')
-	assetProviderStr = strings.TrimSpace(strings.ToLower(assetProviderStr))
-
+	// Build asset config
 	var assetConfig team.AssetConfig
 	if assetProviderStr != "" {
 		assetProvider := team.AssetProvider(assetProviderStr)
 		if assetProvider != team.AssetSFTP && assetProvider != team.AssetFTP {
-			return fmt.Errorf("invalid asset provider: %s", assetProviderStr)
+			return fmt.Errorf("invalid asset provider: %s (use sftp or ftp)", assetProviderStr)
 		}
-		assetConfig.Provider = assetProvider
-
-		fmt.Print("Host: ")
-		host, _ := reader.ReadString('\n')
-		assetConfig.Host = strings.TrimSpace(host)
-		if assetConfig.Host == "" {
-			return fmt.Errorf("asset host is required")
+		if assetHost == "" {
+			return fmt.Errorf("asset host is required when asset provider is set")
 		}
-
-		fmt.Print("Port (default 22 for SFTP, 21 for FTP): ")
-		portStr, _ := reader.ReadString('\n')
-		portStr = strings.TrimSpace(portStr)
-		if portStr != "" {
-			port, err := strconv.Atoi(portStr)
-			if err != nil {
-				return fmt.Errorf("invalid port: %s", portStr)
-			}
-			assetConfig.Port = port
+		if assetUsername == "" {
+			return fmt.Errorf("asset username is required when asset provider is set")
 		}
-
-		fmt.Print("Path (remote base path): ")
-		path, _ := reader.ReadString('\n')
-		assetConfig.Path = strings.TrimSpace(path)
-
-		fmt.Print("Username: ")
-		username, _ := reader.ReadString('\n')
-		assetConfig.Username = strings.TrimSpace(username)
-		if assetConfig.Username == "" {
-			return fmt.Errorf("asset username is required")
+		assetConfig = team.AssetConfig{
+			Provider: assetProvider,
+			Host:     assetHost,
+			Port:     assetPort,
+			Path:     assetPath,
+			Username: assetUsername,
 		}
 	}
 
