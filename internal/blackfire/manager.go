@@ -40,7 +40,8 @@ func (m *Manager) IsAgentInstalled() bool {
 func (m *Manager) IsAgentRunning() bool {
 	switch m.platform.Type {
 	case platform.Darwin:
-		cmd := exec.Command("pgrep", "-f", "blackfire-agent")
+		// Check for both "blackfire-agent" and "blackfire agent:start"
+		cmd := exec.Command("pgrep", "-f", "blackfire.*(agent|agent:start)")
 		return cmd.Run() == nil
 	case platform.Linux:
 		cmd := exec.Command("systemctl", "is-active", "blackfire-agent")
@@ -76,10 +77,16 @@ func (m *Manager) IsExtensionEnabled(phpVersion string) bool {
 	}
 
 	// Check if extension line is not commented out
+	// Handles both extension=blackfire.so and extension="/path/to/blackfire.so"
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "extension=blackfire") {
+		// Skip comments
+		if strings.HasPrefix(trimmed, ";") {
+			continue
+		}
+		// Check for extension= lines containing blackfire
+		if strings.HasPrefix(trimmed, "extension=") && strings.Contains(trimmed, "blackfire") {
 			return true
 		}
 	}
@@ -124,11 +131,12 @@ func (m *Manager) Enable(phpVersion string) error {
 	}
 
 	// Uncomment extension line if commented
+	// Handles both ;extension=blackfire.so and ;extension="/path/to/blackfire.so"
 	lines := strings.Split(string(content), "\n")
 	modified := false
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, ";extension=blackfire") {
+		if strings.HasPrefix(trimmed, ";extension=") && strings.Contains(trimmed, "blackfire") {
 			lines[i] = strings.TrimPrefix(trimmed, ";")
 			modified = true
 		}
@@ -156,11 +164,16 @@ func (m *Manager) Disable(phpVersion string) error {
 	}
 
 	// Comment out extension line
+	// Handles both extension=blackfire.so and extension="/path/to/blackfire.so"
 	lines := strings.Split(string(content), "\n")
 	modified := false
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "extension=blackfire") {
+		// Skip if already commented
+		if strings.HasPrefix(trimmed, ";") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "extension=") && strings.Contains(trimmed, "blackfire") {
 			lines[i] = ";" + trimmed
 			modified = true
 		}

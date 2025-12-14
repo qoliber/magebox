@@ -188,35 +188,20 @@ func (i *Installer) installAgentArch() error {
 
 // installExtensionDarwin installs Blackfire PHP extension on macOS
 func (i *Installer) installExtensionDarwin(phpVersion string) error {
-	// Blackfire PHP extension is installed as part of the main blackfire package on macOS
-	// We just need to create the ini file
+	// Install the PHP-specific Blackfire extension formula
+	// e.g., blackfire-php82 for PHP 8.2
+	// Homebrew automatically creates the ini file in conf.d
+	formulaVersion := strings.ReplaceAll(phpVersion, ".", "")
+	formula := fmt.Sprintf("blackfire-php%s", formulaVersion)
 
-	base := "/usr/local"
-	if i.platform.IsAppleSilicon {
-		base = "/opt/homebrew"
+	cmd := exec.Command("brew", "install", formula)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install %s: %w", formula, err)
 	}
 
-	confDir := filepath.Join(base, "etc", "php", phpVersion, "conf.d")
-
-	// Ensure conf.d exists
-	if err := os.MkdirAll(confDir, 0755); err != nil {
-		return fmt.Errorf("failed to create conf.d directory: %w", err)
-	}
-
-	// Find the extension file
-	extPath := i.findExtensionPath(phpVersion)
-	if extPath == "" {
-		return fmt.Errorf("blackfire extension not found for PHP %s", phpVersion)
-	}
-
-	// Create ini file
-	iniContent := fmt.Sprintf("; Blackfire PHP extension\nextension=%s\n", extPath)
-	iniPath := filepath.Join(confDir, "ext-blackfire.ini")
-
-	if err := os.WriteFile(iniPath, []byte(iniContent), 0644); err != nil {
-		return fmt.Errorf("failed to create blackfire ini: %w", err)
-	}
-
+	// Homebrew automatically configures the extension via conf.d/ext-blackfire.ini
 	return nil
 }
 
@@ -285,14 +270,19 @@ func (i *Installer) installExtensionArch(phpVersion string) error {
 
 // findExtensionPath finds the path to the Blackfire extension for a PHP version
 func (i *Installer) findExtensionPath(phpVersion string) string {
+	formulaVersion := strings.ReplaceAll(phpVersion, ".", "")
+
 	switch i.platform.Type {
 	case platform.Darwin:
 		base := "/usr/local"
 		if i.platform.IsAppleSilicon {
 			base = "/opt/homebrew"
 		}
-		// Check common locations
+		// Check common locations including Homebrew's formula location
 		patterns := []string{
+			// Homebrew formula location (most common now)
+			filepath.Join(base, "opt", fmt.Sprintf("blackfire-php%s", formulaVersion), "blackfire.so"),
+			// Legacy locations
 			filepath.Join(base, "lib", "blackfire-php", "amd64", fmt.Sprintf("blackfire-php-%s.so", phpVersion)),
 			filepath.Join(base, "lib", "blackfire-php", "arm64", fmt.Sprintf("blackfire-php-%s.so", phpVersion)),
 			filepath.Join(base, "opt", "blackfire-php", "lib", fmt.Sprintf("blackfire-php-%s.so", phpVersion)),
