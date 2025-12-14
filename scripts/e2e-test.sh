@@ -8,20 +8,35 @@ echo "=========================================="
 echo "MageBox E2E Test Suite"
 echo "=========================================="
 
-# Convert to absolute path
-MAGEBOX_INPUT=${MAGEBOX:-./magebox}
-MAGEBOX="$(cd "$(dirname "$MAGEBOX_INPUT")" && pwd)/$(basename "$MAGEBOX_INPUT")"
+# Get absolute path to magebox binary
+if [ -n "$MAGEBOX" ]; then
+    # Use provided path, make absolute if relative
+    if [[ "$MAGEBOX" = /* ]]; then
+        MAGEBOX_BIN="$MAGEBOX"
+    else
+        MAGEBOX_BIN="$(pwd)/$MAGEBOX"
+    fi
+else
+    MAGEBOX_BIN="$(pwd)/magebox"
+fi
+
+# Verify binary exists
+if [ ! -f "$MAGEBOX_BIN" ]; then
+    echo "ERROR: magebox binary not found at: $MAGEBOX_BIN"
+    exit 1
+fi
+
 TEST_PROJECT="e2e-test-$$"
 TEST_DIR="/tmp/magebox-e2e-$$"
 
-echo "Using: $MAGEBOX"
+echo "Using: $MAGEBOX_BIN"
 echo ""
 
 cleanup() {
     echo ""
     echo "Cleaning up..."
     cd /
-    $MAGEBOX stop 2>/dev/null || true
+    "$MAGEBOX_BIN" stop 2>/dev/null || true
     rm -rf "$TEST_DIR"
     echo "Cleanup complete"
 }
@@ -37,22 +52,22 @@ fail() { echo -e "${RED}✗ FAIL${NC}: $1"; exit 1; }
 
 echo ""
 echo "Test 1: Version check"
-$MAGEBOX --version || fail "Version command failed"
+"$MAGEBOX_BIN" --version || fail "Version command failed"
 pass "Version command works"
 
 echo ""
 echo "Test 2: Help command"
-$MAGEBOX --help | grep -q "MageBox" || fail "Help output missing"
+"$MAGEBOX_BIN" --help | grep -q "MageBox" || fail "Help output missing"
 pass "Help command works"
 
 echo ""
 echo "Test 3: Config show (global)"
-$MAGEBOX config show 2>/dev/null || echo "(No global config yet - OK)"
+"$MAGEBOX_BIN" config show 2>/dev/null || echo "(No global config yet - OK)"
 pass "Config show works"
 
 echo ""
 echo "Test 4: Team commands"
-$MAGEBOX team list 2>/dev/null || echo "(No teams configured - OK)"
+"$MAGEBOX_BIN" team list 2>/dev/null || echo "(No teams configured - OK)"
 pass "Team list works"
 
 echo ""
@@ -76,18 +91,18 @@ pass "Created .magebox.yaml"
 
 echo ""
 echo "Test 7: Validate config"
-$MAGEBOX status 2>&1 | head -5 || true
+"$MAGEBOX_BIN" status 2>&1 | head -5 || true
 pass "Status command runs"
 
 echo ""
 echo "Test 8: PHP detection"
-$MAGEBOX php 2>&1 || echo "(PHP check - may need bootstrap)"
+"$MAGEBOX_BIN" php 2>&1 || echo "(PHP check - may need bootstrap)"
 pass "PHP command works"
 
 echo ""
 echo "Test 9: SSL certificate generation"
 if command -v mkcert &> /dev/null; then
-    $MAGEBOX ssl generate 2>&1 || echo "(SSL generation - may need init)"
+    "$MAGEBOX_BIN" ssl generate 2>&1 || echo "(SSL generation - may need init)"
     pass "SSL command works"
 else
     echo "(mkcert not installed - skipping)"
@@ -95,17 +110,17 @@ fi
 
 echo ""
 echo "Test 10: Database commands (syntax check)"
-$MAGEBOX db --help | grep -q "shell" || fail "DB help missing"
+"$MAGEBOX_BIN" db --help | grep -q "shell" || fail "DB help missing"
 pass "DB commands available"
 
 echo ""
 echo "Test 11: Redis commands (syntax check)"
-$MAGEBOX redis --help | grep -q "flush" || fail "Redis help missing"
+"$MAGEBOX_BIN" redis --help | grep -q "flush" || fail "Redis help missing"
 pass "Redis commands available"
 
 echo ""
 echo "Test 12: Logs command (syntax check)"
-$MAGEBOX logs --help | grep -q "tail" || fail "Logs help missing"
+"$MAGEBOX_BIN" logs --help | grep -q "tail" || fail "Logs help missing"
 pass "Logs commands available"
 
 echo ""
