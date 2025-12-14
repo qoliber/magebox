@@ -8,8 +8,16 @@ on:
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go: ['1.21']
+        include:
+          - os: macos-13
+            go: '1.21'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,7 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: ${{ matrix.go }}
 
       - name: Download dependencies
         run: go mod download
@@ -27,6 +35,7 @@ jobs:
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
+        if: matrix.os == 'ubuntu-latest'
         with:
           file: ./coverage.out
           fail_ci_if_error: false
@@ -78,3 +87,28 @@ jobs:
         run: |
           ./magebox-linux-amd64 --version
           ./magebox-linux-amd64 --help
+
+  e2e:
+    name: E2E Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [test, lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binary
+        run: go build -o magebox ./cmd/magebox
+
+      - name: Run E2E tests
+        run: |
+          chmod +x scripts/e2e-test.sh
+          MAGEBOX=./magebox ./scripts/e2e-test.sh
