@@ -299,6 +299,29 @@ Domains=~test
 	return nil
 }
 
+// ConfigurePHPINI sets Magento-friendly PHP INI defaults for Ubuntu/Debian
+func (u *UbuntuInstaller) ConfigurePHPINI(versions []string) error {
+	for _, version := range versions {
+		// Ubuntu/Debian with Ondrej PPA uses /etc/php/8.2/cli/php.ini
+		iniPath := fmt.Sprintf("/etc/php/%s/cli/php.ini", version)
+
+		if !u.FileExists(iniPath) {
+			continue
+		}
+
+		// Set memory_limit=-1 for CLI (unlimited for Magento compile/deploy)
+		if err := u.RunSudo("sed", "-i", "s/^memory_limit = .*/memory_limit = -1/", iniPath); err != nil {
+			return fmt.Errorf("failed to set memory_limit in %s: %w", iniPath, err)
+		}
+
+		// Set max_execution_time for long-running CLI scripts
+		if err := u.RunSudo("sed", "-i", "s/^max_execution_time = .*/max_execution_time = 18000/", iniPath); err != nil {
+			return fmt.Errorf("failed to set max_execution_time in %s: %w", iniPath, err)
+		}
+	}
+	return nil
+}
+
 // PackageManager returns "apt" for Ubuntu/Debian
 func (u *UbuntuInstaller) PackageManager() string {
 	return "apt"

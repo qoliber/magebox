@@ -280,6 +280,28 @@ Domains=~test
 	return nil
 }
 
+// ConfigurePHPINI sets Magento-friendly PHP INI defaults for Arch Linux
+func (a *ArchInstaller) ConfigurePHPINI(versions []string) error {
+	// Arch Linux uses a single PHP version at /etc/php/php.ini
+	iniPath := "/etc/php/php.ini"
+
+	if !a.FileExists(iniPath) {
+		return nil
+	}
+
+	// Set memory_limit=-1 for CLI (unlimited for Magento compile/deploy)
+	if err := a.RunSudo("sed", "-i", "s/^memory_limit = .*/memory_limit = -1/", iniPath); err != nil {
+		return fmt.Errorf("failed to set memory_limit in %s: %w", iniPath, err)
+	}
+
+	// Set max_execution_time for long-running CLI scripts
+	if err := a.RunSudo("sed", "-i", "s/^max_execution_time = .*/max_execution_time = 18000/", iniPath); err != nil {
+		return fmt.Errorf("failed to set max_execution_time in %s: %w", iniPath, err)
+	}
+
+	return nil
+}
+
 // PackageManager returns "pacman" for Arch
 func (a *ArchInstaller) PackageManager() string {
 	return "pacman"

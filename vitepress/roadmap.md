@@ -34,6 +34,21 @@ magebox logs mysql    # MySQL query logs
 magebox logs redis    # Redis logs
 ```
 
+### PHP INI Customization
+
+Allow users to customize PHP INI settings via `.magebox.yaml`:
+
+```yaml
+# .magebox.yaml
+php: "8.2"
+php_ini:
+  memory_limit: "2G"
+  max_execution_time: 3600
+  upload_max_filesize: "128M"
+```
+
+Settings would apply to both CLI wrapper and FPM pool.
+
 ### Database Snapshots
 
 Quick database backup and restore:

@@ -355,6 +355,29 @@ Domains=~test
 	return nil
 }
 
+// ConfigurePHPINI sets Magento-friendly PHP INI defaults for Fedora Remi
+func (f *FedoraInstaller) ConfigurePHPINI(versions []string) error {
+	for _, version := range versions {
+		remiVersion := strings.ReplaceAll(version, ".", "")
+		iniPath := fmt.Sprintf("/etc/opt/remi/php%s/php.ini", remiVersion)
+
+		if !f.FileExists(iniPath) {
+			continue
+		}
+
+		// Set memory_limit=-1 for CLI (unlimited for Magento compile/deploy)
+		if err := f.RunSudo("sed", "-i", "s/^memory_limit = .*/memory_limit = -1/", iniPath); err != nil {
+			return fmt.Errorf("failed to set memory_limit in %s: %w", iniPath, err)
+		}
+
+		// Set max_execution_time for long-running CLI scripts
+		if err := f.RunSudo("sed", "-i", "s/^max_execution_time = .*/max_execution_time = 18000/", iniPath); err != nil {
+			return fmt.Errorf("failed to set max_execution_time in %s: %w", iniPath, err)
+		}
+	}
+	return nil
+}
+
 // PackageManager returns "dnf" for Fedora
 func (f *FedoraInstaller) PackageManager() string {
 	return "dnf"

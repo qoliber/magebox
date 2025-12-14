@@ -13,7 +13,7 @@ var SupportedVersions = map[platform.Type]map[string][]string{
 		"macos": {"12", "13", "14", "15"}, // Monterey, Ventura, Sonoma, Sequoia
 	},
 	platform.Linux: {
-		"fedora": {"38", "39", "40", "41", "42"}, // Fedora 38-42
+		"fedora": {"38", "39", "40", "41", "42", "43"}, // Fedora 38-43
 		"ubuntu": {"20.04", "22.04", "24.04"},    // LTS versions
 		"debian": {"11", "12"},                   // Bullseye, Bookworm
 		"arch":   {"rolling"},                    // Arch is rolling release
@@ -87,6 +87,9 @@ type Installer interface {
 
 	// ConfigureShellPath adds ~/.magebox/bin to the user's shell PATH
 	ConfigureShellPath() error
+
+	// ConfigurePHPINI sets Magento-friendly PHP INI defaults (memory_limit, etc.)
+	ConfigurePHPINI(versions []string) error
 
 	// SetupDNS configures DNS resolution for .test domains
 	SetupDNS() error

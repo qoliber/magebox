@@ -194,6 +194,35 @@ func (d *DarwinInstaller) SetupDNS() error {
 	return nil
 }
 
+// ConfigurePHPINI sets Magento-friendly PHP INI defaults for macOS Homebrew
+func (d *DarwinInstaller) ConfigurePHPINI(versions []string) error {
+	// Determine Homebrew prefix (Apple Silicon vs Intel)
+	brewPrefix := "/opt/homebrew"
+	if !d.FileExists(brewPrefix) {
+		brewPrefix = "/usr/local"
+	}
+
+	for _, version := range versions {
+		iniPath := fmt.Sprintf("%s/etc/php/%s/php.ini", brewPrefix, version)
+
+		if !d.FileExists(iniPath) {
+			continue
+		}
+
+		// On macOS, Homebrew files are user-writable, no sudo needed
+		// Set memory_limit=-1 for CLI (unlimited for Magento compile/deploy)
+		if err := d.RunCommandSilent(fmt.Sprintf("sed -i '' 's/^memory_limit = .*/memory_limit = -1/' %s", iniPath)); err != nil {
+			return fmt.Errorf("failed to set memory_limit in %s: %w", iniPath, err)
+		}
+
+		// Set max_execution_time for long-running CLI scripts
+		if err := d.RunCommandSilent(fmt.Sprintf("sed -i '' 's/^max_execution_time = .*/max_execution_time = 18000/' %s", iniPath)); err != nil {
+			return fmt.Errorf("failed to set max_execution_time in %s: %w", iniPath, err)
+		}
+	}
+	return nil
+}
+
 // PackageManager returns "brew" for macOS
 func (d *DarwinInstaller) PackageManager() string {
 	return "brew"

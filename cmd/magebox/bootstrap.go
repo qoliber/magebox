@@ -325,6 +325,22 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println(cli.Success("done"))
 		}
 	}
+
+	// Configure PHP INI settings for Magento (memory_limit, max_execution_time)
+	if len(installedPHPVersions) > 0 {
+		fmt.Println()
+		fmt.Print("  Configuring PHP INI for Magento... ")
+		versions := make([]string, len(installedPHPVersions))
+		for i, ver := range installedPHPVersions {
+			versions[i] = ver.Version
+		}
+		if err := bootstrapper.GetInstaller().ConfigurePHPINI(versions); err != nil {
+			fmt.Println(cli.Warning("done with warnings"))
+			cli.PrintWarning("PHP INI config: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
 	fmt.Println()
 
 	// Step 3: Initialize global config

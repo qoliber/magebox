@@ -2,6 +2,46 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.8] - 2025-12-14
+
+### PHP INI Configuration in Bootstrap
+
+Bootstrap now **automatically configures PHP INI settings** for optimal Magento development:
+
+- Sets `memory_limit = -1` (unlimited) for CLI
+- Sets `max_execution_time = 18000` for long-running CLI scripts
+- Works on all platforms: Fedora (Remi), Ubuntu (Ondrej PPA), macOS (Homebrew), Arch
+
+### Fedora 43 Support
+
+Added Fedora 43 to officially supported Linux distributions.
+
+### PHP Memory Limit Improvements
+
+- PHP-FPM pool now uses `memory_limit = 768M` (increased from 756M)
+- PHP wrapper adds `-d memory_limit=-1` for unlimited CLI memory
+
+---
+
+## [0.12.7] - 2025-12-14
+
+### PHP Memory Limit Fix
+
+Fixed "Allowed memory size exhausted" errors during Magento compilation:
+
+- PHP-FPM pool: increased to 768M
+- PHP CLI wrapper: now passes `-d memory_limit=-1`
+
+---
+
+## [0.12.6] - 2025-12-14
+
+### Fixed Bootstrap Sudoers Creation
+
+Fixed a bug where the sudoers file (`/etc/sudoers.d/magebox`) was not created during bootstrap because `WriteFile()` used `RunSudoSilent()` which doesn't connect stdin for password prompts. Now uses `RunSudo()` to allow interactive password entry.
+
+---
+
 ## [0.12.5] - 2025-12-14
 
 ### Simplified Composer Wrapper
