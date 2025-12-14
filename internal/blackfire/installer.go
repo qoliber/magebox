@@ -268,46 +268,6 @@ func (i *Installer) installExtensionArch(phpVersion string) error {
 	return fmt.Errorf("no AUR helper found (yay or paru). Please install blackfire-php manually from AUR")
 }
 
-// findExtensionPath finds the path to the Blackfire extension for a PHP version
-func (i *Installer) findExtensionPath(phpVersion string) string {
-	formulaVersion := strings.ReplaceAll(phpVersion, ".", "")
-
-	switch i.platform.Type {
-	case platform.Darwin:
-		base := "/usr/local"
-		if i.platform.IsAppleSilicon {
-			base = "/opt/homebrew"
-		}
-		// Check common locations including Homebrew's formula location
-		patterns := []string{
-			// Homebrew formula location (most common now)
-			filepath.Join(base, "opt", fmt.Sprintf("blackfire-php%s", formulaVersion), "blackfire.so"),
-			// Legacy locations
-			filepath.Join(base, "lib", "blackfire-php", "amd64", fmt.Sprintf("blackfire-php-%s.so", phpVersion)),
-			filepath.Join(base, "lib", "blackfire-php", "arm64", fmt.Sprintf("blackfire-php-%s.so", phpVersion)),
-			filepath.Join(base, "opt", "blackfire-php", "lib", fmt.Sprintf("blackfire-php-%s.so", phpVersion)),
-		}
-		for _, p := range patterns {
-			if _, err := os.Stat(p); err == nil {
-				return p
-			}
-		}
-	case platform.Linux:
-		// Check common Linux locations
-		patterns := []string{
-			fmt.Sprintf("/usr/lib/blackfire-php/amd64/blackfire-php-%s.so", phpVersion),
-			fmt.Sprintf("/usr/lib64/blackfire-php/amd64/blackfire-php-%s.so", phpVersion),
-			fmt.Sprintf("/usr/lib/blackfire-php/arm64/blackfire-php-%s.so", phpVersion),
-		}
-		for _, p := range patterns {
-			if _, err := os.Stat(p); err == nil {
-				return p
-			}
-		}
-	}
-	return ""
-}
-
 // UninstallExtension removes the Blackfire PHP extension for a specific version
 func (i *Installer) UninstallExtension(phpVersion string) error {
 	iniPath := i.getExtensionIniPath(phpVersion)
