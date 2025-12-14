@@ -5,6 +5,14 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3] - 2024-12-14
+
+### Added
+- **`magebox composer` command** - Run Composer with the project's configured PHP version
+  - Automatically uses PHP version from `.magebox.yaml`
+  - Passes all arguments to Composer
+  - Sets `COMPOSER_MEMORY_LIMIT=-1` for large projects
+
 ## [0.12.2] - 2024-12-14
 
 ### Added

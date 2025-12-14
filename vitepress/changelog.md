@@ -2,6 +2,25 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.3] - 2025-12-14
+
+### New `magebox composer` Command
+
+Run Composer using the PHP version configured in your project's `.magebox.yaml`:
+
+```bash
+magebox composer install
+magebox composer require vendor/package
+magebox composer update
+```
+
+The command automatically:
+- Uses the correct PHP version for your project
+- Sets `COMPOSER_MEMORY_LIMIT=-1` for large Magento projects
+- Passes all arguments directly to Composer
+
+---
+
 ## [0.12.2] - 2025-12-14
 
 ### Composer Install in Fetch Workflow
