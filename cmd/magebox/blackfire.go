@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -113,15 +114,18 @@ func runBlackfireOn(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Disable Xdebug first
+	// Check and save Xdebug state before disabling
 	xdebugMgr := xdebug.NewManager(p)
-	if xdebugMgr.IsEnabled(phpVersion) {
+	xdebugWasEnabled := xdebugMgr.IsEnabled(phpVersion)
+	if xdebugWasEnabled {
 		fmt.Print("Disabling Xdebug (conflicts with Blackfire)... ")
 		if err := xdebugMgr.Disable(phpVersion); err != nil {
 			fmt.Println(cli.Warning("failed"))
 		} else {
 			fmt.Println(cli.Success("done"))
 		}
+		// Save state so we can restore it when Blackfire is disabled
+		saveXdebugState(p.HomeDir, phpVersion, true)
 	}
 
 	// Enable Blackfire
@@ -188,6 +192,19 @@ func runBlackfireOff(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to disable Blackfire: %w", err)
 	}
 	fmt.Println(cli.Success("done"))
+
+	// Restore Xdebug if it was enabled before
+	if loadXdebugState(p.HomeDir, phpVersion) {
+		xdebugMgr := xdebug.NewManager(p)
+		fmt.Print("Restoring Xdebug (was enabled before)... ")
+		if err := xdebugMgr.Enable(phpVersion); err != nil {
+			fmt.Println(cli.Warning("failed"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+		// Clear the saved state
+		clearXdebugState(p.HomeDir, phpVersion)
+	}
 
 	// Restart PHP-FPM
 	fmt.Print("Restarting PHP-FPM... ")
@@ -460,4 +477,33 @@ func maskCredential(s string) string {
 		return "****"
 	}
 	return s[:4] + "****" + s[len(s)-4:]
+}
+
+// xdebugStateFile returns the path to the Xdebug state file for a PHP version
+func xdebugStateFile(homeDir, phpVersion string) string {
+	return filepath.Join(homeDir, ".magebox", "run", fmt.Sprintf("xdebug-state-%s", phpVersion))
+}
+
+// saveXdebugState saves the Xdebug state (was enabled) for a PHP version
+func saveXdebugState(homeDir, phpVersion string, wasEnabled bool) {
+	if !wasEnabled {
+		return
+	}
+	stateFile := xdebugStateFile(homeDir, phpVersion)
+	// Ensure directory exists
+	_ = os.MkdirAll(filepath.Dir(stateFile), 0755)
+	_ = os.WriteFile(stateFile, []byte("enabled"), 0644)
+}
+
+// loadXdebugState loads the Xdebug state for a PHP version
+func loadXdebugState(homeDir, phpVersion string) bool {
+	stateFile := xdebugStateFile(homeDir, phpVersion)
+	_, err := os.Stat(stateFile)
+	return err == nil
+}
+
+// clearXdebugState clears the saved Xdebug state for a PHP version
+func clearXdebugState(homeDir, phpVersion string) {
+	stateFile := xdebugStateFile(homeDir, phpVersion)
+	_ = os.Remove(stateFile)
 }
