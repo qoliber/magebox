@@ -12,27 +12,12 @@ on:
 
 jobs:
   deploy:
-    name: Build and Deploy
+    name: Deploy to Server
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: vitepress/package-lock.json
-
-      - name: Install dependencies
-        working-directory: vitepress
-        run: npm ci
-
-      - name: Build VitePress
-        working-directory: vitepress
-        run: npm run docs:build
 
       - name: Setup SSH
         run: |
@@ -41,12 +26,20 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H 46.62.158.225 >> ~/.ssh/known_hosts
 
-      - name: Deploy to server
+      - name: Upload source to server
         run: |
           rsync -avz --delete \
-            vitepress/.vitepress/dist/ \
+            --exclude 'node_modules' \
+            --exclude '.vitepress/dist' \
+            --exclude '.vitepress/cache' \
+            vitepress/ \
             magebox@46.62.158.225:/home/magebox/public_html/
 
-      - name: Restart service (if needed)
+      - name: Build and restart on server
         run: |
-          ssh magebox@46.62.158.225 'sudo /bin/systemctl restart magebox.service'
+          ssh magebox@46.62.158.225 << 'EOF'
+            cd /home/magebox/public_html
+            npm install
+            npm run docs:build
+            sudo /bin/systemctl restart magebox.service
+          EOF
