@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // AssetClient handles downloading assets from remote storage
@@ -67,7 +68,13 @@ func (a *AssetClient) connectSFTP() error {
 		Timeout:         30 * time.Second,
 	}
 
-	// Try SSH key authentication first
+	// Try SSH agent first (most convenient)
+	if agentConn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
+		agentClient := agent.NewClient(agentConn)
+		sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeysCallback(agentClient.Signers))
+	}
+
+	// Try SSH key authentication
 	keyPath := a.team.GetAssetKeyPath()
 	if key, err := os.ReadFile(keyPath); err == nil {
 		signer, err := ssh.ParsePrivateKey(key)

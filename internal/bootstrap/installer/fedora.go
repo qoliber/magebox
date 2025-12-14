@@ -219,9 +219,27 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 		return nil // Skip if can't get home dir
 	}
 
-	// Set SELinux context on MageBox nginx configs and certs
-	if f.CommandExists("chcon") {
-		mageboxDir := homeDir + "/.magebox"
+	mageboxDir := homeDir + "/.magebox"
+
+	// Create run directory if it doesn't exist
+	_ = os.MkdirAll(mageboxDir+"/run", 0755)
+
+	// Set persistent SELinux fcontext rules using semanage (survives restorecon)
+	if f.CommandExists("semanage") {
+		// Allow httpd to access PHP-FPM sockets in ~/.magebox/run
+		_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_var_run_t", mageboxDir+"/run(/.*)?")
+		_ = f.RunSudo("restorecon", "-Rv", mageboxDir+"/run")
+
+		// Allow httpd to access nginx configs in ~/.magebox/nginx
+		_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_config_t", mageboxDir+"/nginx(/.*)?")
+		_ = f.RunSudo("restorecon", "-Rv", mageboxDir+"/nginx")
+
+		// Allow httpd to access certs in ~/.magebox/certs
+		_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_config_t", mageboxDir+"/certs(/.*)?")
+		_ = f.RunSudo("restorecon", "-Rv", mageboxDir+"/certs")
+	} else if f.CommandExists("chcon") {
+		// Fallback to chcon if semanage not available (temporary, won't survive restorecon)
+		_ = f.RunSudo("chcon", "-R", "-t", "httpd_var_run_t", mageboxDir+"/run")
 		_ = f.RunSudo("chcon", "-R", "-t", "httpd_config_t", mageboxDir+"/nginx")
 		_ = f.RunSudo("chcon", "-R", "-t", "httpd_config_t", mageboxDir+"/certs")
 	}
@@ -263,6 +281,10 @@ func (f *FedoraInstaller) ConfigureSudoers() error {
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
+# Allow editing /etc/hosts for DNS entries
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/tee -a /etc/hosts
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i * /etc/hosts
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-hosts-* /etc/hosts
 `, currentUser)
 
 	// Write sudoers file

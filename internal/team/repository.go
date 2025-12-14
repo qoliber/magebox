@@ -43,7 +43,11 @@ func (r *RepositoryClient) Clone(project *Project, destPath string, progress fun
 	cloneURL := r.team.GetCloneURL(project)
 	branch := project.Branch
 	if branch == "" {
-		branch = "main"
+		// Detect default branch from remote
+		branch = r.detectDefaultBranch(cloneURL)
+		if branch == "" {
+			branch = "main" // Final fallback
+		}
 	}
 
 	if progress != nil {
@@ -67,6 +71,40 @@ func (r *RepositoryClient) Clone(project *Project, destPath string, progress fun
 	}
 
 	return nil
+}
+
+// DetectDefaultBranch detects the default branch from a remote repository (exported)
+func DetectDefaultBranch(cloneURL string) string {
+	return detectDefaultBranchFromURL(cloneURL)
+}
+
+// detectDefaultBranch detects the default branch from a remote repository
+func (r *RepositoryClient) detectDefaultBranch(cloneURL string) string {
+	return detectDefaultBranchFromURL(cloneURL)
+}
+
+// detectDefaultBranchFromURL is the implementation
+func detectDefaultBranchFromURL(cloneURL string) string {
+	// Use git ls-remote --symref to detect the default branch
+	cmd := exec.Command("git", "ls-remote", "--symref", cloneURL, "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	// Parse output: "ref: refs/heads/master\tHEAD"
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "ref:") {
+			// Line format: "ref: refs/heads/master\tHEAD"
+			parts := strings.Fields(line)
+			if len(parts) >= 2 && strings.HasPrefix(parts[1], "refs/heads/") {
+				return strings.TrimPrefix(parts[1], "refs/heads/")
+			}
+		}
+	}
+
+	return ""
 }
 
 // Pull pulls latest changes in a repository

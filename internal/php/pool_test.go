@@ -32,7 +32,7 @@ func TestNewPoolGenerator(t *testing.T) {
 		t.Errorf("poolsDir = %v, want %v", g.poolsDir, expectedPoolsDir)
 	}
 
-	expectedRunDir := "/tmp/magebox"
+	expectedRunDir := filepath.Join(tmpDir, ".magebox", "run")
 	if g.runDir != expectedRunDir {
 		t.Errorf("runDir = %v, want %v", g.runDir, expectedRunDir)
 	}
@@ -48,18 +48,18 @@ func TestPoolGenerator_PoolsDir(t *testing.T) {
 }
 
 func TestPoolGenerator_RunDir(t *testing.T) {
-	g, _ := setupTestPoolGenerator(t)
+	g, tmpDir := setupTestPoolGenerator(t)
 
-	expected := "/tmp/magebox"
+	expected := filepath.Join(tmpDir, ".magebox", "run")
 	if got := g.RunDir(); got != expected {
 		t.Errorf("RunDir() = %v, want %v", got, expected)
 	}
 }
 
 func TestPoolGenerator_GetSocketPath(t *testing.T) {
-	g, _ := setupTestPoolGenerator(t)
+	g, tmpDir := setupTestPoolGenerator(t)
 
-	expected := "/tmp/magebox/mystore-php8.2.sock"
+	expected := filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock")
 	if got := g.GetSocketPath("mystore", "8.2"); got != expected {
 		t.Errorf("GetSocketPath() = %v, want %v", got, expected)
 	}

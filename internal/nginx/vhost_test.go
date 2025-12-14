@@ -207,9 +207,9 @@ func TestVhostGenerator_GetIncludeDirective(t *testing.T) {
 }
 
 func TestVhostGenerator_getPHPSocketPath(t *testing.T) {
-	g, _ := setupTestGenerator(t)
+	g, tmpDir := setupTestGenerator(t)
 
-	expected := "/tmp/magebox/mystore-php8.2.sock"
+	expected := filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock")
 	if got := g.getPHPSocketPath("mystore", "8.2"); got != expected {
 		t.Errorf("getPHPSocketPath() = %v, want %v", got, expected)
 	}

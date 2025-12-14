@@ -77,7 +77,7 @@ func NewPoolGenerator(p *platform.Platform) *PoolGenerator {
 	return &PoolGenerator{
 		platform: p,
 		poolsDir: filepath.Join(p.MageBoxDir(), "php", "pools"),
-		runDir:   "/tmp/magebox",
+		runDir:   filepath.Join(p.MageBoxDir(), "run"),
 	}
 }
 
@@ -281,19 +281,8 @@ func (c *FPMController) getPoolsDir() string {
 
 // getBinaryPath returns the path to php-fpm binary for this version
 func (c *FPMController) getBinaryPath() string {
-	switch c.platform.Type {
-	case platform.Darwin:
-		// Check ARM Homebrew first
-		armPath := fmt.Sprintf("/opt/homebrew/opt/php@%s/sbin/php-fpm", c.version)
-		if _, err := os.Stat(armPath); err == nil {
-			return armPath
-		}
-		// Fall back to Intel Homebrew
-		return fmt.Sprintf("/usr/local/opt/php@%s/sbin/php-fpm", c.version)
-	case platform.Linux:
-		return fmt.Sprintf("/usr/sbin/php-fpm%s", c.version)
-	}
-	return "php-fpm"
+	// Use platform's distribution-aware path detection
+	return c.platform.PHPFPMBinary(c.version)
 }
 
 // GenerateConfig generates the master php-fpm.conf for MageBox

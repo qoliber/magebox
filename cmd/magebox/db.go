@@ -154,6 +154,15 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 	sqlFile := args[0]
 	fmt.Printf("Importing %s into database '%s' (%s)...\n", sqlFile, cfg.Name, db.ContainerName)
 
+	// Create database if it doesn't exist
+	createCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, "-e",
+		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.Name))
+	createCmd.Stderr = os.Stderr
+	if err := createCmd.Run(); err != nil {
+		return fmt.Errorf("failed to create database: %w", err)
+	}
+
 	// Use docker exec directly with container name
 	importCmd := exec.Command("docker", "exec", "-i", db.ContainerName,
 		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, cfg.Name)
@@ -164,12 +173,31 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 	}
 	defer file.Close()
 
-	importCmd.Stdin = file
-	importCmd.Stdout = os.Stdout
-	importCmd.Stderr = os.Stderr
+	// Handle gzip compressed files
+	if strings.HasSuffix(sqlFile, ".gz") {
+		// Use zcat to decompress on the fly
+		zcatCmd := exec.Command("zcat", sqlFile)
+		importCmd.Stdin, _ = zcatCmd.StdoutPipe()
+		importCmd.Stdout = os.Stdout
+		importCmd.Stderr = os.Stderr
 
-	if err := importCmd.Run(); err != nil {
-		return fmt.Errorf("import failed: %w", err)
+		if err := zcatCmd.Start(); err != nil {
+			return fmt.Errorf("failed to start decompression: %w", err)
+		}
+		if err := importCmd.Run(); err != nil {
+			return fmt.Errorf("import failed: %w", err)
+		}
+		if err := zcatCmd.Wait(); err != nil {
+			return fmt.Errorf("decompression failed: %w", err)
+		}
+	} else {
+		importCmd.Stdin = file
+		importCmd.Stdout = os.Stdout
+		importCmd.Stderr = os.Stderr
+
+		if err := importCmd.Run(); err != nil {
+			return fmt.Errorf("import failed: %w", err)
+		}
 	}
 
 	cli.PrintSuccess("Import completed successfully!")

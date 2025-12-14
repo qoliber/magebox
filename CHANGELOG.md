@@ -5,6 +5,23 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2] - 2024-12-14
+
+### Added
+- **Composer install in fetch workflow** - Automatically runs `composer install` after cloning a team project
+- **Enhanced Fedora SELinux support** - Bootstrap now configures persistent SELinux fcontext rules using `semanage`:
+  - `httpd_var_run_t` context for `~/.magebox/run/` (PHP-FPM sockets)
+  - `httpd_config_t` context for `~/.magebox/nginx/` and `~/.magebox/certs/`
+- **Sudoers rule for /etc/hosts** - Bootstrap adds passwordless sudo for hosts file modifications
+
+### Fixed
+- **PHP-FPM socket location** - Moved from `/tmp/magebox/` to `~/.magebox/run/` to avoid nginx PrivateTmp isolation
+- **Fedora PHP-FPM binary path** - Fixed detection to use Remi paths (`/opt/remi/php*/root/usr/sbin/php-fpm`)
+
+### Changed
+- PHP-FPM pool generator now uses platform-aware binary path detection
+- Nginx vhost generator uses `~/.magebox/run/` for socket paths
+
 ## [0.12.1] - 2024-12-14
 
 ### Added

@@ -96,23 +96,21 @@ func runFetch(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Team:        %s\n", cli.Highlight(t.Name))
 	fmt.Printf("  Project:     %s\n", cli.Highlight(projectName))
 	fmt.Printf("  Repository:  %s\n", project.Repo)
-	fmt.Printf("  Branch:      %s\n", getBranchForFetch(project))
+	fmt.Printf("  Branch:      %s\n", getBranchForFetch(t, project))
 	fmt.Printf("  Destination: %s\n", destPath)
 	fmt.Println()
 
-	// Check what will be fetched
+	// Check what will be fetched (assets use defaults if not explicitly configured)
 	fetchItems := []string{}
-	if !fetchNoDB && !fetchMediaOnly && project.DB != "" {
+	if !fetchNoDB && !fetchMediaOnly && t.Assets.Host != "" {
 		fetchItems = append(fetchItems, "database")
 	}
-	if !fetchNoMedia && !fetchDBOnly && project.Media != "" {
+	if !fetchNoMedia && !fetchDBOnly && t.Assets.Host != "" {
 		fetchItems = append(fetchItems, "media")
 	}
 	if len(fetchItems) > 0 {
 		fmt.Printf("  Assets:      %s\n", strings.Join(fetchItems, ", "))
-		if t.Assets.Host != "" {
-			fmt.Printf("  From:        %s@%s\n", t.Assets.Username, t.Assets.Host)
-		}
+		fmt.Printf("  From:        %s@%s\n", t.Assets.Username, t.Assets.Host)
 		fmt.Println()
 	}
 
@@ -160,12 +158,16 @@ func runFetch(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getBranchForFetch(project *team.Project) string {
+func getBranchForFetch(t *team.Team, project *team.Project) string {
 	if fetchBranch != "" {
 		return fetchBranch
 	}
 	if project.Branch != "" {
 		return project.Branch
+	}
+	// Detect default branch from remote
+	if branch := team.DetectDefaultBranch(t.GetCloneURL(project)); branch != "" {
+		return branch
 	}
 	return "main"
 }

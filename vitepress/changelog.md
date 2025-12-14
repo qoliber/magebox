@@ -2,6 +2,31 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.2] - 2025-12-14
+
+### Composer Install in Fetch Workflow
+
+The `magebox fetch` command now automatically runs `composer install` after cloning a team project, ensuring dependencies are ready immediately.
+
+### Enhanced Fedora SELinux Support
+
+Bootstrap now configures **persistent** SELinux fcontext rules using `semanage`:
+
+- `httpd_var_run_t` context for `~/.magebox/run/` (PHP-FPM sockets)
+- `httpd_config_t` context for `~/.magebox/nginx/` and `~/.magebox/certs/`
+
+These rules survive system updates and `restorecon` operations.
+
+### Fixed PHP-FPM Socket Location
+
+Moved PHP-FPM sockets from `/tmp/magebox/` to `~/.magebox/run/` to avoid nginx PrivateTmp isolation issues on systems with `PrivateTmp=yes` in nginx.service.
+
+### Sudoers for /etc/hosts
+
+Bootstrap now adds passwordless sudo rules for `/etc/hosts` modifications, eliminating prompts during `magebox start/stop`.
+
+---
+
 ## [0.12.1] - 2025-12-14
 
 ### SELinux Support (Fedora)

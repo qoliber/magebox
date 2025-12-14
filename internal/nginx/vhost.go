@@ -168,7 +168,7 @@ func (g *VhostGenerator) Remove(projectName string) error {
 
 // getPHPSocketPath returns the PHP-FPM socket path for a project
 func (g *VhostGenerator) getPHPSocketPath(projectName, phpVersion string) string {
-	return filepath.Join("/tmp/magebox", fmt.Sprintf("%s-php%s.sock", projectName, phpVersion))
+	return filepath.Join(g.platform.MageBoxDir(), "run", fmt.Sprintf("%s-php%s.sock", projectName, phpVersion))
 }
 
 // renderVhost renders the vhost template
