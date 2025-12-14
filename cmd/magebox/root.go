@@ -9,7 +9,7 @@ import (
 	"github.com/qoliber/magebox/internal/cli"
 )
 
-var version = "0.12.8"
+var version = "0.12.9"
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {

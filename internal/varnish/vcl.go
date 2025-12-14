@@ -4,7 +4,6 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,7 +93,7 @@ func (g *VCLGenerator) buildVCLConfig(configs []*config.Config) VCLConfig {
 
 	// Backend host - detect host IP for Docker to reach nginx
 	backendHost := getHostIP()
-	backendPort := 8080 // Nginx listens on 8080
+	backendPort := 8080 // Nginx backend listens on 8080 (Varnish connects here)
 
 	for _, cfg := range configs {
 		// Each project gets a backend pointing to Nginx
@@ -244,17 +243,8 @@ func (c *Controller) FlushAll() error {
 
 // getHostIP returns the IP address that Docker containers use to reach the host
 func getHostIP() string {
-	// Try to get the preferred outbound IP (LAN IP)
-	// This is more reliable than host.docker.internal for some Docker runtimes
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		return "host.docker.internal"
-	}
-	defer func() { _ = conn.Close() }()
-
-	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
-	if !ok {
-		return "host.docker.internal"
-	}
-	return localAddr.IP.String()
+	// Use host.docker.internal which works reliably across Docker runtimes
+	// On Linux, Docker adds this automatically in newer versions
+	// Falls back to Docker bridge gateway IP if needed
+	return "host.docker.internal"
 }

@@ -2,6 +2,20 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.9] - 2025-12-14
+
+### Varnish Integration Fix
+
+Fixed Varnish backend connectivity on Linux:
+
+- Use `host.docker.internal` instead of host LAN IP for Varnish backend
+- Add dedicated backend port (8080) for Varnish on Linux
+- Nginx now listens on port 8080 as backend when Varnish is enabled
+
+The full Varnish flow now works: `Client → Nginx (443) → Varnish (6081) → Nginx (8080) → PHP-FPM`
+
+---
+
 ## [0.12.8] - 2025-12-14
 
 ### PHP INI Configuration in Bootstrap

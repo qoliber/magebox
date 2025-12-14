@@ -57,6 +57,7 @@ type VhostConfig struct {
 	VarnishPort   int
 	HTTPPort      int    // 80 on Linux, 8080 on macOS (port forwarding)
 	HTTPSPort     int    // 443 on Linux, 8443 on macOS (port forwarding)
+	BackendPort   int    // Backend port for Varnish (always 8080 when Varnish enabled)
 	StoreCode     string // Magento store code for multi-store setup (default: "default")
 }
 
@@ -114,6 +115,12 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 	}
 
 	for _, domain := range cfg.Domains {
+		// Backend port for Varnish is always 8080
+		backendPort := httpPort
+		if cfg.Services.HasVarnish() {
+			backendPort = 8080
+		}
+
 		vhostCfg := VhostConfig{
 			ProjectName:   cfg.Name,
 			Domain:        domain.Host,
@@ -125,6 +132,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			VarnishPort:   6081,
 			HTTPPort:      httpPort,
 			HTTPSPort:     httpsPort,
+			BackendPort:   backendPort,
 			StoreCode:     domain.GetStoreCode(),
 		}
 

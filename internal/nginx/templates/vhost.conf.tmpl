@@ -30,9 +30,9 @@ server {
     }
 }
 
-# HTTP backend for Varnish
+# HTTP backend for Varnish (port 8080)
 server {
-    listen {{.HTTPPort}};
+    listen {{.BackendPort}};
     server_name {{.Domain}};
 {{else}}
 # Standard setup: HTTP redirects to HTTPS, HTTPS handles requests directly
