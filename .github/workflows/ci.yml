@@ -91,7 +91,6 @@ jobs:
   e2e:
     name: E2E Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [test, lint]
     strategy:
       fail-fast: false
       matrix:
