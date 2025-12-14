@@ -2,6 +2,18 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.10.12] - 2025-12-14
+
+### Bug Fixes
+
+- **Fixed Blackfire installation on macOS**: Improved detection and installation via Homebrew
+- **Fixed Blackfire PHP extension detection**: Now correctly detects extension in PHP modules
+- **Xdebug state restoration**: When disabling Blackfire, Xdebug is automatically re-enabled if it was previously active
+
+### Improvements
+
+- Better profiler state management between Xdebug and Blackfire
+
 ## [0.10.11] - 2025-12-13
 
 ### New Features
