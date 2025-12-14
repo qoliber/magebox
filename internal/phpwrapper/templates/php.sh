@@ -75,7 +75,8 @@ if [[ -n "$config_file" ]]; then
     if [[ -n "$php_version" ]]; then
         php_bin=$(find_php_binary "$php_version")
         if [[ -n "$php_bin" ]]; then
-            exec "$php_bin" "$@"
+            # Set Magento-friendly defaults for CLI (unlimited memory for compile/deploy)
+            exec "$php_bin" -d memory_limit=-1 "$@"
         else
             echo "Error: PHP $php_version not found. Install with: brew install php@$php_version" >&2
             exit 1
@@ -85,11 +86,11 @@ fi
 
 # Fallback to system PHP (no config file found)
 if command -v /opt/homebrew/bin/php &> /dev/null; then
-    exec /opt/homebrew/bin/php "$@"
+    exec /opt/homebrew/bin/php -d memory_limit=-1 "$@"
 elif command -v /usr/local/bin/php &> /dev/null; then
-    exec /usr/local/bin/php "$@"
+    exec /usr/local/bin/php -d memory_limit=-1 "$@"
 elif command -v /usr/bin/php &> /dev/null; then
-    exec /usr/bin/php "$@"
+    exec /usr/bin/php -d memory_limit=-1 "$@"
 else
     echo "Error: No PHP installation found" >&2
     exit 1

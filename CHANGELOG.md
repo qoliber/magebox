@@ -5,6 +5,13 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.7] - 2024-12-14
+
+### Changed
+- **PHP memory limits** - Increased for Magento compatibility
+  - PHP-FPM pool: 768M (was 756M)
+  - PHP CLI wrapper: unlimited (`-1`) for commands like `setup:di:compile`
+
 ## [0.12.6] - 2024-12-14
 
 ### Fixed

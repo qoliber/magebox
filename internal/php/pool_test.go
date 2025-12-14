@@ -207,7 +207,7 @@ func TestPoolConfig_Defaults(t *testing.T) {
 		"pm.min_spare_servers = 1",
 		"pm.max_spare_servers = 3",
 		"pm.max_requests = 500",
-		"memory_limit] = 756M",
+		"memory_limit] = 768M",
 	}
 
 	for _, check := range checks {
