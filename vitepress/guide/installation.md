@@ -2,7 +2,17 @@
 
 ## Quick Install
 
-The fastest way to install MageBox:
+### Homebrew (macOS/Linux)
+
+The easiest way to install MageBox on macOS or Linux with Homebrew:
+
+```bash
+brew install qoliber/magebox/magebox
+```
+
+### Install Script
+
+One-liner installation for any platform:
 
 ```bash
 curl -fsSL https://get.magebox.dev | bash
@@ -130,7 +140,15 @@ sudo usermod -aG docker $USER
 
 ## Updating MageBox
 
-MageBox includes self-update functionality:
+### Homebrew
+
+```bash
+brew upgrade qoliber/magebox/magebox
+```
+
+### Self-Update
+
+MageBox includes built-in self-update functionality:
 
 ```bash
 # Check for updates

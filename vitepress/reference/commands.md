@@ -714,10 +714,24 @@ magebox blackfire install
 Configure Blackfire credentials.
 
 ```bash
+# Interactive mode
 magebox blackfire config
+
+# Non-interactive with flags
+magebox blackfire config \
+  --server-id=your-server-id \
+  --server-token=your-server-token \
+  --client-id=your-client-id \
+  --client-token=your-client-token
 ```
 
-Prompts for Server ID, Server Token, Client ID, and Client Token from your [Blackfire account](https://blackfire.io).
+**Options:**
+- `--server-id` - Blackfire Server ID
+- `--server-token` - Blackfire Server Token
+- `--client-id` - Blackfire Client ID
+- `--client-token` - Blackfire Client Token
+
+Get credentials from your [Blackfire account](https://blackfire.io). When flags are omitted, prompts interactively.
 
 ## Tideways Commands
 
@@ -766,10 +780,17 @@ magebox tideways install
 Configure Tideways API key.
 
 ```bash
+# Interactive mode
 magebox tideways config
+
+# Non-interactive with flag
+magebox tideways config --api-key=your-api-key
 ```
 
-Prompts for API key from your [Tideways account](https://tideways.com).
+**Options:**
+- `--api-key` - Tideways API key
+
+Get your API key from your [Tideways account](https://tideways.com). When flag is omitted, prompts interactively.
 
 ## Team Commands
 
@@ -788,14 +809,38 @@ magebox team list
 Add a new team configuration.
 
 ```bash
+# Interactive mode
 magebox team add myteam
+
+# Non-interactive with flags
+magebox team add myteam \
+  --provider github \
+  --org myorganization \
+  --auth ssh
+
+# With asset storage
+magebox team add myteam \
+  --provider github \
+  --org myorg \
+  --auth ssh \
+  --asset-provider sftp \
+  --asset-host backup.example.com \
+  --asset-port 22 \
+  --asset-path /backups \
+  --asset-username deploy
 ```
 
-Interactive wizard that configures:
-- Repository provider (github/gitlab/bitbucket)
-- Organization name
-- Authentication method (ssh/token)
-- Asset storage (optional)
+**Options:**
+- `--provider` - Repository provider (github/gitlab/bitbucket)
+- `--org` - Organization/namespace name
+- `--auth` - Authentication method (ssh/token)
+- `--asset-provider` - Asset storage provider (sftp/ftp)
+- `--asset-host` - Asset storage hostname
+- `--asset-port` - Asset storage port
+- `--asset-path` - Base path on asset storage
+- `--asset-username` - Asset storage username
+
+When flags are omitted, an interactive wizard prompts for the values.
 
 ---
 

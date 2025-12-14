@@ -49,8 +49,9 @@ features:
 ## Quick Start
 
 ```bash
-# Install MageBox
-curl -fsSL https://get.magebox.dev | bash
+# Install MageBox (choose one)
+brew install qoliber/magebox/magebox    # Homebrew
+curl -fsSL https://get.magebox.dev | bash # or install script
 
 # First-time setup
 magebox bootstrap
