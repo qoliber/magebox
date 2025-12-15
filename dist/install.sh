@@ -154,6 +154,60 @@ install_binary() {
     success "Installed to ${install_path}"
 }
 
+setup_aliases() {
+    local install_path="${INSTALL_DIR}/${BINARY_NAME}"
+
+    echo ""
+    echo -e "${BLUE}Short Command Aliases${NC}"
+    echo ""
+    echo "Create shorter command aliases for faster typing:"
+    echo ""
+    echo "  1) mbox        - recommended, descriptive"
+    echo "  2) mb          - shortest (2 chars)"
+    echo "  3) Both        - create both aliases"
+    echo "  4) Skip        - use only 'magebox'"
+    echo ""
+
+    # Read user choice
+    read -p "Choose [1-4, default: 1]: " choice
+    choice="${choice:-1}"
+
+    case "$choice" in
+        1)
+            create_alias "mbox" "$install_path"
+            ;;
+        2)
+            create_alias "mb" "$install_path"
+            ;;
+        3)
+            create_alias "mbox" "$install_path"
+            create_alias "mb" "$install_path"
+            ;;
+        4)
+            info "Skipping alias creation"
+            ;;
+        *)
+            info "Invalid choice, skipping alias creation"
+            ;;
+    esac
+}
+
+create_alias() {
+    local alias_name="$1"
+    local target="$2"
+    local alias_path="${INSTALL_DIR}/${alias_name}"
+
+    info "Creating alias '${alias_name}'..."
+
+    if [ -w "$INSTALL_DIR" ]; then
+        ln -sf "$target" "$alias_path"
+    else
+        sudo ln -sf "$target" "$alias_path"
+    fi
+
+    success "Created alias: ${alias_name} -> magebox"
+}
+
 main() {
     print_banner
 
@@ -183,14 +237,17 @@ main() {
     # Install
     install_binary "$TMP_FILE"
 
+    # Setup aliases
+    setup_aliases
+
     echo ""
     success "MageBox v${VERSION} installed successfully!"
     echo ""
     echo "Next steps:"
-    echo "  1. Run 'magebox bootstrap' to set up dependencies"
+    echo "  1. Run 'mbox bootstrap' to set up dependencies"
     echo "  2. Navigate to your Magento project"
-    echo "  3. Run 'magebox init' to configure your project"
-    echo "  4. Run 'magebox start' to start services"
+    echo "  3. Run 'mbox init' to configure your project"
+    echo "  4. Run 'mbox start' to start services"
     echo ""
     echo "Documentation: https://magebox.dev"
     echo ""
