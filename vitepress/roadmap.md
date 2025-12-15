@@ -12,6 +12,9 @@ The following features have been implemented:
 
 | Feature | Version | Description |
 |---------|---------|-------------|
+| Dev/Prod Modes | v0.13.2 | `magebox dev` and `magebox prod` for quick mode switching |
+| Queue Management | v0.13.2 | `magebox queue status/flush/consumer` for RabbitMQ |
+| Database Snapshots | v0.13.1 | `magebox db snapshot create/restore/list/delete` |
 | Integration Test Suite | v0.13.0 | Docker-based tests for Fedora, Ubuntu, Arch without Docker-in-Docker |
 | Multi-Project Management | v0.13.0 | `start --all`, `stop --all`, `restart`, `uninstall` commands |
 | CLI Wrappers | v0.12.12 | Shell script wrappers for php, composer, blackfire |
@@ -51,16 +54,6 @@ php_ini:
 ```
 
 Settings would apply to both CLI wrapper and FPM pool.
-
-### Database Snapshots
-
-Quick database backup and restore:
-
-```bash
-magebox db snapshot create mybackup
-magebox db snapshot restore mybackup
-magebox db snapshot list
-```
 
 ### Performance Profiling Dashboard
 
