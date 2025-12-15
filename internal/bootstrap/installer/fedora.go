@@ -414,11 +414,12 @@ func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
 // InstallTideways installs Tideways PHP extension for all versions
 func (f *FedoraInstaller) InstallTideways(versions []string) error {
 	// Add Tideways repository (uses $basearch, not fedora/$releasever)
+	// Note: Tideways may not have packages for all Fedora versions
 	repoContent := `[tideways]
 name=Tideways
 baseurl=https://packages.tideways.com/rpm-packages/$basearch
 repo_gpgcheck=1
-enabled=1
+enabled=0
 skip_if_unavailable=1
 gpgkey=https://packages.tideways.com/key.gpg
 gpgcheck=1
@@ -433,11 +434,9 @@ type=rpm-md
 		return fmt.Errorf("failed to add Tideways repository: %w", err)
 	}
 
-	// Install Tideways daemon and PHP extension
-	if err := f.RunSudo("dnf", "install", "-y", "tideways-php", "tideways-daemon"); err != nil {
-		// Don't fail if not available
-		return nil
-	}
+	// Install Tideways daemon and PHP extension (enable repo only for this command)
+	// Use quiet mode to suppress 404 errors if repo doesn't support this Fedora version
+	_ = f.RunCommandSilent("sudo dnf install -y -q --enablerepo=tideways tideways-php tideways-daemon 2>/dev/null")
 
 	return nil
 }
