@@ -14,6 +14,7 @@ import (
 	"github.com/qoliber/magebox/internal/php"
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/ssl"
+	"github.com/qoliber/magebox/internal/testmode"
 	"github.com/qoliber/magebox/internal/xdebug"
 )
 
@@ -119,10 +120,13 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 	}
 
 	// Add domains to /etc/hosts only if using hosts mode (not dnsmasq)
-	globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)
-	if err == nil && globalCfg.UseHosts() {
-		if err := m.hostsManager.AddDomains(result.Domains); err != nil {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("DNS: %v", err))
+	// Skip in test mode
+	if !testmode.SkipDNS() {
+		globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)
+		if err == nil && globalCfg.UseHosts() {
+			if err := m.hostsManager.AddDomains(result.Domains); err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("DNS: %v", err))
+			}
 		}
 	}
 
@@ -180,14 +184,17 @@ func (m *Manager) Stop(projectPath string) error {
 	_ = fpmController.Reload()
 
 	// Remove domains from /etc/hosts only if using hosts mode (not dnsmasq)
-	globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)
-	if err == nil && globalCfg.UseHosts() {
-		domains := make([]string, 0, len(cfg.Domains))
-		for _, d := range cfg.Domains {
-			domains = append(domains, d.Host)
-		}
-		if err := m.hostsManager.RemoveDomains(domains); err != nil {
-			return fmt.Errorf("failed to remove dns entries: %w", err)
+	// Skip in test mode
+	if !testmode.SkipDNS() {
+		globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir)
+		if err == nil && globalCfg.UseHosts() {
+			domains := make([]string, 0, len(cfg.Domains))
+			for _, d := range cfg.Domains {
+				domains = append(domains, d.Host)
+			}
+			if err := m.hostsManager.RemoveDomains(domains); err != nil {
+				return fmt.Errorf("failed to remove dns entries: %w", err)
+			}
 		}
 	}
 
@@ -227,36 +234,64 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 		IsRunning: nginxController.IsRunning(),
 	}
 
-	// Check Docker services
-	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
-	if cfg.Services.HasMySQL() {
-		// Service name in docker-compose removes dots from version (e.g., mysql80)
-		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-		status.Services["mysql"] = ServiceStatus{
-			Name:      fmt.Sprintf("MySQL %s", cfg.Services.MySQL.Version),
-			IsRunning: dockerController.IsServiceRunning(serviceName),
+	// Check Docker services (skip actual check in test mode)
+	if !testmode.SkipDocker() {
+		dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
+		if cfg.Services.HasMySQL() {
+			// Service name in docker-compose removes dots from version (e.g., mysql80)
+			serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
+			status.Services["mysql"] = ServiceStatus{
+				Name:      fmt.Sprintf("MySQL %s", cfg.Services.MySQL.Version),
+				IsRunning: dockerController.IsServiceRunning(serviceName),
+			}
 		}
-	}
-	if cfg.Services.HasRedis() {
-		status.Services["redis"] = ServiceStatus{
-			Name:      "Redis",
-			IsRunning: dockerController.IsServiceRunning("redis"),
+		if cfg.Services.HasRedis() {
+			status.Services["redis"] = ServiceStatus{
+				Name:      "Redis",
+				IsRunning: dockerController.IsServiceRunning("redis"),
+			}
 		}
-	}
-	if cfg.Services.HasOpenSearch() {
-		// Service name in docker-compose removes dots from version (e.g., opensearch2194)
-		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", ""))
-		status.Services["opensearch"] = ServiceStatus{
-			Name:      fmt.Sprintf("OpenSearch %s", cfg.Services.OpenSearch.Version),
-			IsRunning: dockerController.IsServiceRunning(serviceName),
+		if cfg.Services.HasOpenSearch() {
+			// Service name in docker-compose removes dots from version (e.g., opensearch2194)
+			serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", ""))
+			status.Services["opensearch"] = ServiceStatus{
+				Name:      fmt.Sprintf("OpenSearch %s", cfg.Services.OpenSearch.Version),
+				IsRunning: dockerController.IsServiceRunning(serviceName),
+			}
 		}
-	}
-	if cfg.Services.HasElasticsearch() {
-		// Service name in docker-compose removes dots from version (e.g., elasticsearch8170)
-		serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", ""))
-		status.Services["elasticsearch"] = ServiceStatus{
-			Name:      fmt.Sprintf("Elasticsearch %s", cfg.Services.Elasticsearch.Version),
-			IsRunning: dockerController.IsServiceRunning(serviceName),
+		if cfg.Services.HasElasticsearch() {
+			// Service name in docker-compose removes dots from version (e.g., elasticsearch8170)
+			serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", ""))
+			status.Services["elasticsearch"] = ServiceStatus{
+				Name:      fmt.Sprintf("Elasticsearch %s", cfg.Services.Elasticsearch.Version),
+				IsRunning: dockerController.IsServiceRunning(serviceName),
+			}
+		}
+	} else {
+		// In test mode, report Docker services as "test mode"
+		if cfg.Services.HasMySQL() {
+			status.Services["mysql"] = ServiceStatus{
+				Name:      fmt.Sprintf("MySQL %s (test mode)", cfg.Services.MySQL.Version),
+				IsRunning: false,
+			}
+		}
+		if cfg.Services.HasRedis() {
+			status.Services["redis"] = ServiceStatus{
+				Name:      "Redis (test mode)",
+				IsRunning: false,
+			}
+		}
+		if cfg.Services.HasOpenSearch() {
+			status.Services["opensearch"] = ServiceStatus{
+				Name:      fmt.Sprintf("OpenSearch %s (test mode)", cfg.Services.OpenSearch.Version),
+				IsRunning: false,
+			}
+		}
+		if cfg.Services.HasElasticsearch() {
+			status.Services["elasticsearch"] = ServiceStatus{
+				Name:      fmt.Sprintf("Elasticsearch %s (test mode)", cfg.Services.Elasticsearch.Version),
+				IsRunning: false,
+			}
 		}
 	}
 
@@ -296,6 +331,11 @@ func (m *Manager) generateSSLCerts(cfg *config.Config) error {
 
 // startDockerServices starts Docker services needed by the project
 func (m *Manager) startDockerServices(cfg *config.Config) error {
+	// Skip in test mode
+	if testmode.SkipDocker() {
+		return nil
+	}
+
 	// Generate compose file with this project's requirements
 	if err := m.composeGen.GenerateGlobalServices([]*config.Config{cfg}); err != nil {
 		return err
@@ -308,6 +348,11 @@ func (m *Manager) startDockerServices(cfg *config.Config) error {
 
 // ensureDatabase creates the database if it doesn't exist
 func (m *Manager) ensureDatabase(cfg *config.Config) error {
+	// Skip in test mode
+	if testmode.SkipDocker() {
+		return nil
+	}
+
 	dbService := cfg.Services.GetDatabaseService()
 	if dbService == nil {
 		return nil
@@ -444,6 +489,11 @@ func (m *Manager) ValidateConfig(projectPath string) (*config.Config, []string, 
 
 // flushRedis flushes all Redis databases
 func (m *Manager) flushRedis() error {
+	// Skip in test mode
+	if testmode.SkipDocker() {
+		return nil
+	}
+
 	composeFile := m.composeGen.ComposeFilePath()
 	dockerController := docker.NewDockerController(composeFile)
 

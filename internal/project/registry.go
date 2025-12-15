@@ -34,6 +34,10 @@ func NewProjectDiscovery(p *platform.Platform) *ProjectDiscovery {
 
 // DiscoverProjects finds all MageBox projects by scanning nginx vhosts
 func (d *ProjectDiscovery) DiscoverProjects() ([]ProjectInfo, error) {
+	if d.platform == nil {
+		return nil, errors.New("platform not initialized")
+	}
+
 	vhostsDir := filepath.Join(d.platform.MageBoxDir(), "nginx", "vhosts")
 
 	// Check if vhosts directory exists

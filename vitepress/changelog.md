@@ -2,6 +2,39 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.13.0] - 2025-12-15
+
+### Multi-Project Management, Restart & Test Infrastructure
+
+- **`magebox start --all`** - Start all discovered MageBox projects at once
+- **`magebox stop --all`** - Stop all running MageBox projects at once
+- **`magebox restart`** - Restart all services for a project (stop + start)
+- **`magebox restart --all`** - Restart all MageBox projects
+- **`magebox uninstall`** - Clean uninstall of MageBox components
+- **`--dry-run` flag** - Preview what would happen without making changes
+- **Test Mode** (`MAGEBOX_TEST_MODE=1`) - Run MageBox in containers without Docker
+- **Docker Integration Tests** - Comprehensive test suite for multiple distributions
+
+```bash
+# Manage all projects
+magebox start --all    # Start all projects
+magebox stop --all     # Stop all projects
+magebox restart        # Restart current project
+magebox restart --all  # Restart all projects
+
+# Uninstall MageBox
+magebox uninstall              # Interactive uninstall
+magebox uninstall --force      # Skip confirmation
+magebox uninstall --dry-run    # Preview uninstall
+
+# Run integration tests
+./test/containers/run-tests.sh              # All distributions
+./test/containers/run-tests.sh ubuntu       # Single distro
+./test/containers/run-tests.sh --full       # Include Magento install
+```
+
+---
+
 ## [0.12.14] - 2025-12-15
 
 ### Multi-Domain Store Code Fix

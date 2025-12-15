@@ -25,6 +25,12 @@ vendor/
 # Local config files (for testing)
 .magebox.local
 
+# Test credentials (Composer auth for Magento)
+test/containers/test.auth.json
+
+# Test credentials (Blackfire)
+test/containers/test.blackfire.env
+
 # Temporary files
 *.tmp
 *.bak

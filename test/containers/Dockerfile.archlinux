@@ -1,0 +1,76 @@
+# MageBox Test Container - Arch Linux
+# Used for integration testing without Docker-in-Docker
+# Set MAGEBOX_TEST_MODE=1 to skip Docker operations
+
+FROM archlinux:latest
+
+LABEL maintainer="qoliber"
+LABEL description="MageBox integration test environment for Arch Linux"
+
+# Update system and install dependencies
+# Note: Arch only has latest PHP in official repos (8.5 as of 2025)
+# For multi-PHP testing, use Ubuntu or Fedora containers
+RUN pacman -Syu --noconfirm \
+    && pacman -S --noconfirm \
+        base-devel \
+        curl \
+        git \
+        nginx \
+        openssl \
+        go \
+        unzip \
+        php \
+        php-fpm \
+        xdebug \
+    && pacman -Scc --noconfirm
+
+# Install mkcert for SSL testing
+RUN curl -L -o /usr/local/bin/mkcert https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64 \
+    && chmod +x /usr/local/bin/mkcert
+
+# Set up MageBox directories
+RUN mkdir -p /tmp/magebox \
+    && chmod 777 /tmp/magebox \
+    && mkdir -p /root/.magebox/nginx
+
+# Copy MageBox source
+WORKDIR /app
+COPY . .
+
+# Build MageBox
+RUN go build -o /usr/local/bin/magebox ./cmd/magebox
+
+# Install Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Copy Composer auth.json if it exists (for Magento repo access)
+# This file should contain repo.magento.com credentials
+RUN mkdir -p /root/.config/composer
+COPY test/containers/test.auth.json* /root/.config/composer/
+RUN if [ -f /root/.config/composer/test.auth.json ]; then \
+        mv /root/.config/composer/test.auth.json /root/.config/composer/auth.json; \
+    fi
+
+# Copy Blackfire credentials if it exists (for Blackfire testing)
+COPY test/containers/test.blackfire.env* /tmp/
+RUN if [ -f /tmp/test.blackfire.env ]; then \
+        mkdir -p /root/.magebox; \
+        mv /tmp/test.blackfire.env /root/.magebox/blackfire.env; \
+    fi
+
+# Set environment variables for test mode
+ENV MAGEBOX_TEST_MODE=1
+ENV HOME=/root
+
+# Run as root for full testing capability
+WORKDIR /root
+
+# Create a sample project for testing
+RUN mkdir -p /root/test-project/app/etc \
+    && mkdir -p /root/test-project/pub
+
+# Note: Arch Linux only has one PHP version in main repos
+# For multi-version testing, use Fedora or Ubuntu containers
+
+# Default command runs tests
+CMD ["magebox", "--version"]

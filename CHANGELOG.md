@@ -5,7 +5,93 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.7] - 2024-12-14
+## [0.13.0] - 2025-12-15
+
+### Added
+- **`magebox start --all`** - Start all discovered MageBox projects at once
+- **`magebox stop --all`** - Stop all running MageBox projects at once
+- **`magebox restart`** - Restart project services (stop + start)
+- **`magebox uninstall`** - Clean uninstall of MageBox components:
+  - Stops all running projects
+  - Removes CLI wrappers (php, composer, blackfire)
+  - Removes nginx vhost configurations
+  - Use `--keep-vhosts` to preserve nginx configs
+  - Use `--force` to skip confirmation
+- **Test Mode** (`MAGEBOX_TEST_MODE=1`) - Run MageBox in containers without Docker:
+  - Skips Docker operations for container-based testing
+  - Useful for CI/CD and integration testing
+- **Docker Integration Tests** - Comprehensive test suite for multiple distributions:
+  - Fedora 42 (Remi PHP)
+  - Ubuntu 24.04 (ondrej/php PPA)
+  - Ubuntu 22.04 (ondrej/php PPA)
+  - Ubuntu 24.04 ARM64 (ondrej/php PPA)
+  - Arch Linux (latest PHP)
+  - Tests: init, start/stop/restart, domains, SSL, Xdebug, Blackfire, team, uninstall
+  - Run with: `./test/containers/run-tests.sh`
+
+## [0.12.14] - 2025-12-15
+
+### Fixed
+- **Multi-domain store code** - Fixed `mage_run_code` and `mage_run_type` not being passed to nginx
+- **Dynamic `MAGE_RUN_TYPE`** - No longer hardcoded to `store`, now reads from domain config (supports `store` or `website`)
+
+## [0.12.13] - 2025-12-15
+
+### Fixed
+- **Xdebug enable/disable on Fedora** - Now supports Remi PHP paths (`/etc/opt/remi/php{ver}/php.d/`)
+- **Uses sudo sed** for Xdebug ini modifications (required on Fedora)
+- **`magebox blackfire on` now properly disables Xdebug** on Fedora before enabling Blackfire
+
+## [0.12.12] - 2025-12-15
+
+### Added
+- **Blackfire CLI wrapper** - `~/.magebox/bin/blackfire` uses project's PHP for `blackfire run` commands
+- Bootstrap now installs three shell script wrappers in `~/.magebox/bin/`:
+  - `php` - Automatically uses PHP version from `.magebox.yaml`
+  - `composer` - Runs Composer with project's PHP version
+  - `blackfire` - Uses project's PHP for `blackfire run` commands
+
+### Fixed
+- **Blackfire agent configuration** - Uses `sudo sed` to update `/etc/blackfire/agent` credentials
+- **Blackfire PHP extension on Fedora** - Uses single `blackfire-php` package (not versioned)
+- **Tideways on Fedora 41+** - Downloads RPMs directly (dnf5/cloudsmith compatibility)
+- **GPG key import** - Imports Blackfire and Tideways GPG keys before installing packages
+- **Non-fatal xdebug disable** - Enabling Blackfire/Tideways no longer fails if xdebug ini is missing
+
+## [0.12.11] - 2025-12-15
+
+### Fixed
+- **Tideways repository URL for Fedora** - Changed from `fedora/$releasever/$basearch` to just `$basearch`
+
+### Added
+- **Passwordless sudo for Blackfire/Tideways** installation and systemctl commands
+
+## [0.12.10] - 2025-12-14
+
+### Added
+- **Blackfire & Tideways in Bootstrap** - Bootstrap now automatically installs profilers for all PHP versions:
+  - Fedora: Adds Blackfire/Tideways repos, installs agent and PHP extensions
+  - Ubuntu/Debian: Adds repos with GPG keys, installs packages
+  - macOS: Uses Homebrew tap and pecl
+  - Arch: Uses pecl (agent must be installed from AUR)
+
+## [0.12.9] - 2025-12-14
+
+### Fixed
+- **Varnish backend connectivity on Linux** - Use `host.docker.internal` instead of host LAN IP
+- **Varnish backend port** - Added dedicated backend port (8080) for Varnish on Linux
+- Nginx now listens on port 8080 as backend when Varnish is enabled
+
+## [0.12.8] - 2025-12-14
+
+### Added
+- **PHP INI configuration in Bootstrap** - Automatically configures PHP INI settings:
+  - Sets `memory_limit = -1` (unlimited) for CLI
+  - Sets `max_execution_time = 18000` for long-running CLI scripts
+  - Works on all platforms: Fedora (Remi), Ubuntu (Ondrej PPA), macOS (Homebrew), Arch
+- **Fedora 43 Support** - Added to officially supported Linux distributions
+
+## [0.12.7] - 2025-12-14
 
 ### Changed
 - **PHP memory limits** - Increased for Magento compatibility
