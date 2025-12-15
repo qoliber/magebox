@@ -203,6 +203,13 @@ func (a *ArchInstaller) ConfigureSudoers() error {
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
+# Blackfire profiler
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *blackfire*
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *tideways*
 `, currentUser)
 
 	// Write sudoers file

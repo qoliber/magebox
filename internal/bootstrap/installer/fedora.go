@@ -285,6 +285,13 @@ func (f *FedoraInstaller) ConfigureSudoers() error {
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/tee -a /etc/hosts
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i * /etc/hosts
 %[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-hosts-* /etc/hosts
+# Blackfire profiler
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/dnf install -y blackfire*
+%[1]s ALL=(ALL) NOPASSWD: /usr/bin/dnf install -y tideways*
 `, currentUser)
 
 	// Write sudoers file
@@ -406,26 +413,30 @@ func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
 
 // InstallTideways installs Tideways PHP extension for all versions
 func (f *FedoraInstaller) InstallTideways(versions []string) error {
-	// Add Tideways repository
+	// Add Tideways repository (uses $basearch, not fedora/$releasever)
 	repoContent := `[tideways]
 name=Tideways
-baseurl=https://packages.tideways.com/rpm-packages/fedora/$releasever/$basearch
-gpgcheck=1
-gpgkey=https://packages.tideways.com/key.gpg
+baseurl=https://packages.tideways.com/rpm-packages/$basearch
+repo_gpgcheck=1
 enabled=1
+skip_if_unavailable=1
+gpgkey=https://packages.tideways.com/key.gpg
+gpgcheck=1
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+metadata_expire=300
+pkg_gpgcheck=1
+autorefresh=1
+type=rpm-md
 `
 	if err := f.WriteFile("/etc/yum.repos.d/tideways.repo", repoContent); err != nil {
 		return fmt.Errorf("failed to add Tideways repository: %w", err)
 	}
 
-	// Install Tideways PHP extension for each version
-	for _, version := range versions {
-		remiVersion := strings.ReplaceAll(version, ".", "")
-		pkgName := fmt.Sprintf("tideways-php%s", remiVersion)
-		if err := f.RunSudo("dnf", "install", "-y", pkgName); err != nil {
-			// Don't fail if extension not available for this PHP version
-			continue
-		}
+	// Install Tideways daemon and PHP extension
+	if err := f.RunSudo("dnf", "install", "-y", "tideways-php", "tideways-daemon"); err != nil {
+		// Don't fail if not available
+		return nil
 	}
 
 	return nil
