@@ -25,13 +25,18 @@ RUN apt-get update && apt-get install -y \
 RUN add-apt-repository -y ppa:ondrej/php \
     && apt-get update
 
-# Install PHP versions (8.1, 8.2, 8.3, 8.4) with common extensions + Xdebug
+# Install PHP versions (8.1, 8.2, 8.3, 8.4) with Magento-required extensions + Xdebug
+# Note: sodium is included in php-common
 RUN apt-get install -y \
     unzip \
     php8.1-fpm php8.1-cli php8.1-common php8.1-opcache php8.1-zip php8.1-curl php8.1-mbstring php8.1-xml php8.1-xdebug \
+    php8.1-bcmath php8.1-gd php8.1-intl php8.1-mysql php8.1-soap \
     php8.2-fpm php8.2-cli php8.2-common php8.2-opcache php8.2-zip php8.2-curl php8.2-mbstring php8.2-xml php8.2-xdebug \
+    php8.2-bcmath php8.2-gd php8.2-intl php8.2-mysql php8.2-soap \
     php8.3-fpm php8.3-cli php8.3-common php8.3-opcache php8.3-zip php8.3-curl php8.3-mbstring php8.3-xml php8.3-xdebug \
+    php8.3-bcmath php8.3-gd php8.3-intl php8.3-mysql php8.3-soap \
     php8.4-fpm php8.4-cli php8.4-common php8.4-opcache php8.4-zip php8.4-curl php8.4-mbstring php8.4-xml php8.4-xdebug \
+    php8.4-bcmath php8.4-gd php8.4-intl php8.4-mysql php8.4-soap \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go for building MageBox (need Go 1.24+ for go.mod)

@@ -30,7 +30,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.13.2',
+        text: 'v0.13.3',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },

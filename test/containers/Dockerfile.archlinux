@@ -21,6 +21,9 @@ RUN pacman -Syu --noconfirm \
         unzip \
         php \
         php-fpm \
+        php-gd \
+        php-intl \
+        php-sodium \
         xdebug \
     && pacman -Scc --noconfirm
 

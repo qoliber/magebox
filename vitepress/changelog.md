@@ -2,6 +2,17 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.13.3] - 2025-12-15
+
+### Bug Fixes
+
+- **Test containers**: Added missing Magento-required PHP extensions to all Dockerfiles
+  - Ubuntu (24.04, 22.04, ARM64): `bcmath`, `gd`, `intl`, `mysql`, `soap`
+  - Fedora 42: `bcmath`, `gd`, `intl`, `mysqlnd`, `soap`
+  - Arch Linux: `php-gd`, `php-intl`, `php-sodium`
+
+---
+
 ## [0.13.2] - 2025-12-15
 
 ### Development & Production Modes, Queue Management

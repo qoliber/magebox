@@ -23,13 +23,17 @@ RUN dnf install -y https://rpms.remirepo.net/fedora/remi-release-42.rpm \
     && dnf config-manager setopt remi.enabled=1 \
     && dnf clean all
 
-# Install PHP versions (8.1, 8.2, 8.3, 8.4) with common extensions + Xdebug
+# Install PHP versions (8.1, 8.2, 8.3, 8.4) with Magento-required extensions + Xdebug
 RUN dnf install -y \
     unzip \
     php81-php-fpm php81-php-cli php81-php-common php81-php-opcache php81-php-sodium php81-php-zip php81-php-curl php81-php-mbstring php81-php-xml php81-php-pecl-xdebug3 \
+    php81-php-bcmath php81-php-gd php81-php-intl php81-php-mysqlnd php81-php-soap \
     php82-php-fpm php82-php-cli php82-php-common php82-php-opcache php82-php-sodium php82-php-zip php82-php-curl php82-php-mbstring php82-php-xml php82-php-pecl-xdebug3 \
+    php82-php-bcmath php82-php-gd php82-php-intl php82-php-mysqlnd php82-php-soap \
     php83-php-fpm php83-php-cli php83-php-common php83-php-opcache php83-php-sodium php83-php-zip php83-php-curl php83-php-mbstring php83-php-xml php83-php-pecl-xdebug3 \
+    php83-php-bcmath php83-php-gd php83-php-intl php83-php-mysqlnd php83-php-soap \
     php84-php-fpm php84-php-cli php84-php-common php84-php-opcache php84-php-sodium php84-php-zip php84-php-curl php84-php-mbstring php84-php-xml php84-php-pecl-xdebug3 \
+    php84-php-bcmath php84-php-gd php84-php-intl php84-php-mysqlnd php84-php-soap \
     && dnf clean all
 
 # Install Go for building MageBox

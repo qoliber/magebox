@@ -35,8 +35,8 @@ Unlike Docker-based solutions (Warden, DDEV) or Laravel Herd, MageBox runs PHP a
 **Want to get started quickly? Just 4 commands:**
 
 ```bash
-# 1. Install MageBox (Linux)
-sudo curl -L https://github.com/qoliber/magebox/releases/latest/download/magebox-linux-amd64 -o /usr/local/bin/magebox && sudo chmod +x /usr/local/bin/magebox
+# 1. Install MageBox (auto-detects your platform)
+curl -fsSL https://get.magebox.dev | bash
 
 # 2. Set up your environment (one-time)
 magebox bootstrap
@@ -1367,6 +1367,7 @@ magebox/
 See the full [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent highlights:**
+- **v0.13.3** - Fixed test containers with missing Magento-required PHP extensions
 - **v0.13.0** - Multi-project management (`start --all`, `stop --all`, `restart`), uninstall command, integration test suite
 - **v0.12.x** - Blackfire/Tideways profilers, CLI wrappers, multi-domain store codes, Xdebug improvements
 - **v0.10.x** - Varnish integration, log viewer, error reports, database management
