@@ -20,6 +20,22 @@ curl -fsSL https://get.magebox.dev | bash
 
 This downloads the latest release and installs it to `/usr/local/bin/magebox`.
 
+### Short Command Alias
+
+Create a shorter `mb` alias for faster typing:
+
+```bash
+sudo ln -sf /usr/local/bin/magebox /usr/local/bin/mb
+```
+
+Now you can use either `magebox` or `mb`:
+
+```bash
+mb start      # Same as: magebox start
+mb stop       # Same as: magebox stop
+mb test all   # Same as: magebox test all
+```
+
 ## Manual Installation
 
 ### Download Binary

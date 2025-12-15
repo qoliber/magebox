@@ -38,8 +38,11 @@ Unlike Docker-based solutions (Warden, DDEV) or Laravel Herd, MageBox runs PHP a
 # 1. Install MageBox (auto-detects your platform)
 curl -fsSL https://get.magebox.dev | bash
 
+# Optional: Create short alias 'mb' for faster typing
+sudo ln -sf /usr/local/bin/magebox /usr/local/bin/mb
+
 # 2. Set up your environment (one-time)
-magebox bootstrap
+magebox bootstrap  # or: mb bootstrap
 
 # 3. Create a new store with sample data (no questions asked!)
 magebox new mystore --quick
