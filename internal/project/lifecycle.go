@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/qoliber/magebox/internal/blackfire"
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/dns"
 	"github.com/qoliber/magebox/internal/docker"
@@ -13,6 +14,7 @@ import (
 	"github.com/qoliber/magebox/internal/php"
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/ssl"
+	"github.com/qoliber/magebox/internal/xdebug"
 )
 
 // Manager manages project lifecycle
@@ -256,6 +258,22 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 			Name:      fmt.Sprintf("Elasticsearch %s", cfg.Services.Elasticsearch.Version),
 			IsRunning: dockerController.IsServiceRunning(serviceName),
 		}
+	}
+
+	// Check Xdebug status
+	xdebugMgr := xdebug.NewManager(m.platform)
+	xdebugEnabled := xdebugMgr.IsEnabled(cfg.PHP)
+	status.Services["xdebug"] = ServiceStatus{
+		Name:      "Xdebug",
+		IsRunning: xdebugEnabled,
+	}
+
+	// Check Blackfire status
+	blackfireMgr := blackfire.NewManager(m.platform, nil)
+	blackfireEnabled := blackfireMgr.IsExtensionEnabled(cfg.PHP)
+	status.Services["blackfire"] = ServiceStatus{
+		Name:      "Blackfire",
+		IsRunning: blackfireEnabled,
 	}
 
 	return status, nil
