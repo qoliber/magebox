@@ -86,31 +86,15 @@ func (m *Manager) Enable(phpVersion string) error {
 		return fmt.Errorf("xdebug ini file not found for PHP %s", phpVersion)
 	}
 
-	content, err := os.ReadFile(iniFile)
-	if err != nil {
-		return fmt.Errorf("failed to read xdebug ini: %w", err)
-	}
+	// Use sudo sed to uncomment zend_extension line (works on both Ubuntu and Fedora)
+	// Pattern: uncomment lines starting with ";zend_extension" containing "xdebug"
+	cmd := exec.Command("sudo", "sed", "-i", `s/^;\(zend_extension.*xdebug.*\)$/\1/`, iniFile)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	// Uncomment the zend_extension line if commented
-	lines := strings.Split(string(content), "\n")
-	modified := false
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, ";zend_extension") && strings.Contains(trimmed, "xdebug") {
-			lines[i] = strings.TrimPrefix(trimmed, ";")
-			modified = true
-		}
-	}
-
-	if modified {
-		if err := os.WriteFile(iniFile, []byte(strings.Join(lines, "\n")), 0644); err != nil {
-			return fmt.Errorf("failed to write xdebug ini: %w", err)
-		}
-	}
-
-	// Also ensure xdebug.mode is set for development
-	if err := m.ensureXdebugConfig(phpVersion); err != nil {
-		return fmt.Errorf("failed to configure xdebug: %w", err)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to enable xdebug: %w", err)
 	}
 
 	return nil
@@ -123,26 +107,15 @@ func (m *Manager) Disable(phpVersion string) error {
 		return fmt.Errorf("xdebug ini file not found for PHP %s", phpVersion)
 	}
 
-	content, err := os.ReadFile(iniFile)
-	if err != nil {
-		return fmt.Errorf("failed to read xdebug ini: %w", err)
-	}
+	// Use sudo sed to comment out zend_extension line (works on both Ubuntu and Fedora)
+	// Pattern: comment out lines starting with "zend_extension" containing "xdebug"
+	cmd := exec.Command("sudo", "sed", "-i", `s/^\(zend_extension.*xdebug.*\)$/;\1/`, iniFile)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	// Comment out the zend_extension line
-	lines := strings.Split(string(content), "\n")
-	modified := false
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "zend_extension") && strings.Contains(trimmed, "xdebug") {
-			lines[i] = ";" + trimmed
-			modified = true
-		}
-	}
-
-	if modified {
-		if err := os.WriteFile(iniFile, []byte(strings.Join(lines, "\n")), 0644); err != nil {
-			return fmt.Errorf("failed to write xdebug ini: %w", err)
-		}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to disable xdebug: %w", err)
 	}
 
 	return nil
@@ -186,10 +159,19 @@ func (m *Manager) getXdebugIniPath(phpVersion string) string {
 		}
 
 	case platform.Linux:
+		// Ubuntu/Debian path
 		confDir := filepath.Join("/etc", "php", phpVersion, "mods-available")
 		iniPath := filepath.Join(confDir, "xdebug.ini")
 		if _, err := os.Stat(iniPath); err == nil {
 			return iniPath
+		}
+
+		// Fedora/RHEL Remi path: /etc/opt/remi/php82/php.d/15-xdebug.ini
+		versionNoDot := strings.ReplaceAll(phpVersion, ".", "")
+		remiConfDir := fmt.Sprintf("/etc/opt/remi/php%s/php.d", versionNoDot)
+		matches, err := filepath.Glob(filepath.Join(remiConfDir, "*xdebug*.ini"))
+		if err == nil && len(matches) > 0 {
+			return matches[0]
 		}
 	}
 
