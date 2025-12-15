@@ -27,12 +27,14 @@ BINARY_NAME="magebox"
 
 print_banner() {
     echo -e "${BLUE}"
-    echo "  __  __                 ____            "
-    echo " |  \/  | __ _  __ _  _| __ )  _____  __ "
-    echo " | |\/| |/ _\` |/ _\` |/ /  _ \ / _ \ \/ / "
-    echo " | |  | | (_| | (_| |   | |_) | (_) >  <  "
-    echo " |_|  |_|\__,_|\__, |_||____/ \___/_/\_\ "
-    echo "               |___/                     "
+    echo '                            _'
+    echo '                           | |'
+    echo ' _ __ ___   __ _  __ _  ___| |__   _____  __'
+    echo '| '"'"'_ ` _ \ / _` |/ _` |/ _ \ '"'"'_ \ / _ \ \/ /'
+    echo '| | | | | | (_| | (_| |  __/ |_) | (_) >  <'
+    echo '|_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\'
+    echo '                  __/ |'
+    echo '                 |___/'
     echo -e "${NC}"
     echo "Fast, native Magento development environment"
     echo ""
