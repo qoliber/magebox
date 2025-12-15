@@ -2,21 +2,41 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.13] - 2025-12-15
+
+### Xdebug Fedora/Remi Fix
+
+- **Fixed Xdebug enable/disable on Fedora** - Now supports Remi PHP paths (`/etc/opt/remi/php{ver}/php.d/`)
+- **Uses sudo sed** for Xdebug ini modifications (required on Fedora)
+- **`magebox blackfire on` now properly disables Xdebug** on Fedora before enabling Blackfire
+
+This fixes the 10x performance degradation when both Xdebug and Blackfire were accidentally enabled together.
+
+---
+
 ## [0.12.12] - 2025-12-15
 
-### Blackfire Wrapper & Profiler Improvements
+### CLI Wrappers & Profiler Improvements
 
-- **Added Blackfire CLI wrapper** - `blackfire run php` now automatically uses project's PHP version
+Bootstrap now installs **three shell script wrappers** in `~/.magebox/bin/`:
+
+| Wrapper | Path | Purpose |
+|---------|------|---------|
+| **php** | `~/.magebox/bin/php` | Automatically uses PHP version from `.magebox.yaml` |
+| **composer** | `~/.magebox/bin/composer` | Runs Composer with project's PHP version |
+| **blackfire** | `~/.magebox/bin/blackfire` | Uses project's PHP for `blackfire run` commands |
+
+These wrappers walk up the directory tree to find `.magebox.yaml`, extract the PHP version, and execute the correct PHP binary for your platform (Homebrew Cellar on macOS, Ondrej PPA on Ubuntu, Remi on Fedora).
+
+See the [CLI Wrappers guide](/guide/php-wrapper) for full documentation.
+
+### Profiler Fixes
+
 - **Fixed Blackfire agent configuration** - Uses `sudo sed` to update `/etc/blackfire/agent` credentials
 - **Fixed Blackfire PHP extension on Fedora** - Uses single `blackfire-php` package (not versioned)
 - **Fixed Tideways on Fedora 41+** - Downloads RPMs directly (dnf5/cloudsmith compatibility)
 - **GPG key import** - Imports Blackfire and Tideways GPG keys before installing packages
 - **Non-fatal xdebug disable** - Enabling Blackfire/Tideways no longer fails if xdebug ini is missing
-
-Bootstrap now installs three CLI wrappers:
-- `php` - uses project's PHP version
-- `composer` - uses project's PHP version
-- `blackfire` - uses project's PHP for `blackfire run` commands
 
 ---
 
@@ -108,15 +128,18 @@ Fixed a bug where the sudoers file (`/etc/sudoers.d/magebox`) was not created du
 
 ## [0.12.5] - 2025-12-14
 
-### Simplified Composer Wrapper
+### Simplified Composer Wrapper Script
 
-The Composer wrapper at `~/.magebox/bin/composer` now uses the PHP wrapper instead of duplicating version detection logic:
+The **Composer wrapper shell script** at `~/.magebox/bin/composer` now uses the PHP wrapper instead of duplicating version detection logic:
 - Single source of truth for PHP version detection
 - Reduced code complexity
+- The wrapper finds the real Composer binary and executes it via `~/.magebox/bin/php`
 
 ### Removed `magebox composer` Command
 
-The `magebox composer` command has been removed - it's no longer needed since the `~/.magebox/bin/composer` wrapper handles automatic PHP version detection. Just use `composer` directly with `~/.magebox/bin` in your PATH.
+The `magebox composer` command has been removed - it's no longer needed since the `~/.magebox/bin/composer` wrapper script handles automatic PHP version detection. Just use `composer` directly with `~/.magebox/bin` in your PATH.
+
+See the [CLI Wrappers guide](/guide/php-wrapper) for details on how the wrapper system works.
 
 ---
 
@@ -695,10 +718,12 @@ Continued refactoring to template-based configuration for better maintainability
 
 ### PHP Version Management
 
-- **Smart PHP wrapper**: Added `~/.magebox/bin/php` that automatically detects and uses correct PHP version per project
-- PHP wrapper walks directory tree to find `.magebox.yaml` and uses configured PHP version
+- **Smart PHP wrapper shell script**: Added `~/.magebox/bin/php` shell script that automatically detects and uses correct PHP version per project
+- The wrapper walks directory tree to find `.magebox.yaml` and uses configured PHP version
 - Fixed `magebox php` command to properly restart services when switching versions
 - Added PHP wrapper installation to bootstrap process
+
+See the [CLI Wrappers guide](/guide/php-wrapper) for details.
 
 ### Bug Fixes
 

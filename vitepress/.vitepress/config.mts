@@ -30,7 +30,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.12.12',
+        text: 'v0.12.13',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -104,7 +104,7 @@ export default defineConfig({
             { text: 'DNS Configuration', link: '/guide/dns' },
             { text: 'Custom Commands', link: '/guide/custom-commands' },
             { text: 'Multiple Projects', link: '/guide/multiple-projects' },
-            { text: 'PHP Version Wrapper', link: '/guide/php-wrapper' },
+            { text: 'CLI Wrappers', link: '/guide/php-wrapper' },
             { text: 'Xdebug', link: '/guide/xdebug' },
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
@@ -201,7 +201,7 @@ export default defineConfig({
             { text: 'DNS Configuration', link: '/guide/dns' },
             { text: 'Custom Commands', link: '/guide/custom-commands' },
             { text: 'Multiple Projects', link: '/guide/multiple-projects' },
-            { text: 'PHP Version Wrapper', link: '/guide/php-wrapper' },
+            { text: 'CLI Wrappers', link: '/guide/php-wrapper' },
             { text: 'Xdebug', link: '/guide/xdebug' },
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
