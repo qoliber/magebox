@@ -131,6 +131,17 @@ func (l *Loader) merge(main, local *Config) *Config {
 		result.Commands[k] = v
 	}
 
+	// Merge PHP INI overrides
+	if result.PHPINI == nil {
+		result.PHPINI = make(map[string]string)
+	}
+	for k, v := range main.PHPINI {
+		result.PHPINI[k] = v
+	}
+	for k, v := range local.PHPINI {
+		result.PHPINI[k] = v
+	}
+
 	return &result
 }
 
@@ -211,6 +222,48 @@ func SaveToPath(cfg *Config, path string) error {
 
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// LocalConfig represents local config overrides that can be saved independently
+type LocalConfig struct {
+	PHPINI map[string]string `yaml:"php_ini,omitempty"`
+	Env    map[string]string `yaml:"env,omitempty"`
+}
+
+// LoadLocalConfig loads only the local config file
+func LoadLocalConfig(basePath string) (*LocalConfig, error) {
+	localConfigPath := filepath.Join(basePath, LocalConfigFileName)
+
+	data, err := os.ReadFile(localConfigPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &LocalConfig{}, nil
+		}
+		return nil, err
+	}
+
+	var local LocalConfig
+	if err := yaml.Unmarshal(data, &local); err != nil {
+		return nil, err
+	}
+
+	return &local, nil
+}
+
+// SaveLocalConfig saves only the local config file
+func SaveLocalConfig(basePath string, local *LocalConfig) error {
+	localConfigPath := filepath.Join(basePath, LocalConfigFileName)
+
+	data, err := yaml.Marshal(local)
+	if err != nil {
+		return fmt.Errorf("failed to marshal local config: %w", err)
+	}
+
+	if err := os.WriteFile(localConfigPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write local config file: %w", err)
 	}
 
 	return nil

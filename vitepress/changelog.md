@@ -2,6 +2,52 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.13.2] - 2025-12-15
+
+### Development & Production Modes, Queue Management
+
+Quickly switch between optimized development and production configurations:
+
+```bash
+# Development mode - debugging enabled
+magebox dev
+# OPcache: disabled (code changes immediately)
+# Xdebug: enabled (step debugging)
+# Blackfire: disabled
+
+# Production mode - performance optimized
+magebox prod
+# OPcache: enabled (faster execution)
+# Xdebug: disabled (no overhead)
+# Blackfire: disabled (enable manually when needed)
+```
+
+**RabbitMQ Queue Management:**
+
+```bash
+# View queue status with message counts
+magebox queue status
+
+# Purge all queues (use with caution!)
+magebox queue flush
+
+# Run a specific queue consumer
+magebox queue consumer product_action_attribute.update
+
+# Run all consumers via cron
+magebox queue consumer --all
+```
+
+**Features:**
+- **`magebox dev`** - Switch to development mode (OPcache off, Xdebug on)
+- **`magebox prod`** - Switch to production mode (OPcache on, debuggers off)
+- **`magebox queue status`** - View RabbitMQ queue status
+- **`magebox queue flush`** - Purge all messages from queues
+- **`magebox queue consumer`** - Run Magento queue consumers
+- **Config Fix** - PHP INI overrides now properly merge from local config
+
+---
+
 ## [0.13.1] - 2025-12-15
 
 ### Database Snapshots & Security

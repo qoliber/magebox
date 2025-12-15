@@ -5,6 +5,28 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.2] - 2025-12-15
+
+### Added
+- **`magebox dev`** - Switch to development mode optimized for debugging:
+  - OPcache: Disabled (immediate code changes)
+  - Xdebug: Enabled (step debugging)
+  - Blackfire: Disabled (conflicts with Xdebug)
+  - Settings persisted in `.magebox.local.yaml`
+- **`magebox prod`** - Switch to production mode optimized for performance:
+  - OPcache: Enabled (faster execution)
+  - Xdebug: Disabled (no overhead)
+  - Blackfire: Disabled (enable manually when needed)
+- **`magebox queue`** - RabbitMQ queue management for Magento:
+  - `magebox queue status` - View queue status with message counts
+  - `magebox queue flush` - Purge all queues (use with caution)
+  - `magebox queue consumer [name]` - Run Magento queue consumers
+  - `magebox queue consumer --all` - Start all consumers via cron
+  - Uses RabbitMQ Management API for status/flush operations
+
+### Fixed
+- **Config Loader** - PHP INI overrides (`php_ini`) are now properly merged from local config
+
 ## [0.13.1] - 2025-12-15
 
 ### Added
