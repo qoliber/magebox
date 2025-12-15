@@ -26,11 +26,12 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/what-is-magebox' },
       { text: 'Services', link: '/services/nginx' },
+      { text: 'Testing', link: '/guide/testing-tools' },
       { text: 'Teams', link: '/guide/teams' },
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.13.3',
+        text: 'v0.14.0',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -106,6 +107,7 @@ export default defineConfig({
             { text: 'Multiple Projects', link: '/guide/multiple-projects' },
             { text: 'CLI Wrappers', link: '/guide/php-wrapper' },
             { text: 'Xdebug', link: '/guide/xdebug' },
+            { text: 'Testing & Code Quality', link: '/guide/testing-tools' },
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' },
@@ -204,6 +206,7 @@ export default defineConfig({
             { text: 'Multiple Projects', link: '/guide/multiple-projects' },
             { text: 'CLI Wrappers', link: '/guide/php-wrapper' },
             { text: 'Xdebug', link: '/guide/xdebug' },
+            { text: 'Testing & Code Quality', link: '/guide/testing-tools' },
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' },

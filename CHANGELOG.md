@@ -5,6 +5,24 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-12-15
+
+### Added
+- **`magebox test`** - Comprehensive testing and code quality commands:
+  - `magebox test setup` - Interactive wizard to install PHPUnit, PHPStan, PHPCS, PHPMD
+  - `magebox test unit` - Run PHPUnit unit tests with filter and testsuite options
+  - `magebox test integration` - Run Magento integration tests
+  - `magebox test phpstan` - Run PHPStan static analysis (levels 0-9)
+  - `magebox test phpcs` - Run PHP_CodeSniffer with Magento2 or PSR12 standards
+  - `magebox test phpmd` - Run PHP Mess Detector with configurable rulesets
+  - `magebox test all` - Run all tests except integration (for CI/CD)
+  - `magebox test status` - Show installed tools and their configuration status
+- **Testing configuration in `.magebox.yaml`** - Configure paths, levels, standards, and rulesets per project
+- **Comprehensive testing documentation** - Added "Testing" section in navigation with detailed command reference
+
+### Changed
+- Added "Testing" link to VitePress navigation header
+
 ## [0.13.3] - 2025-12-15
 
 ### Fixed

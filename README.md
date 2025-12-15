@@ -671,6 +671,14 @@ magebox config set portainer true
 | `magebox team <name> repos` | Browse team repositories |
 | `magebox fetch <project>` | Fetch project (clone + DB + media) |
 | `magebox sync` | Sync DB/media for current project |
+| `magebox test setup` | Install testing tools (PHPUnit, PHPStan, PHPCS, PHPMD) |
+| `magebox test unit` | Run PHPUnit unit tests |
+| `magebox test integration` | Run Magento integration tests |
+| `magebox test phpstan` | Run PHPStan static analysis |
+| `magebox test phpcs` | Run PHP_CodeSniffer code style checks |
+| `magebox test phpmd` | Run PHP Mess Detector |
+| `magebox test all` | Run all tests except integration |
+| `magebox test status` | Show testing tools status |
 
 ---
 
@@ -1367,6 +1375,7 @@ magebox/
 See the full [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent highlights:**
+- **v0.14.0** - Testing & code quality commands (PHPUnit, PHPStan, PHPCS, PHPMD)
 - **v0.13.3** - Fixed test containers with missing Magento-required PHP extensions
 - **v0.13.0** - Multi-project management (`start --all`, `stop --all`, `restart`), uninstall command, integration test suite
 - **v0.12.x** - Blackfire/Tideways profilers, CLI wrappers, multi-domain store codes, Xdebug improvements

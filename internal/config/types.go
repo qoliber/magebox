@@ -11,6 +11,58 @@ type Config struct {
 	Services Services           `yaml:"services"`
 	Env      map[string]string  `yaml:"env,omitempty"`
 	Commands map[string]Command `yaml:"commands,omitempty"`
+	Testing  *TestingConfig     `yaml:"testing,omitempty"`
+}
+
+// TestingConfig represents the testing configuration
+type TestingConfig struct {
+	PHPUnit     *PHPUnitTestConfig     `yaml:"phpunit,omitempty"`
+	Integration *IntegrationTestConfig `yaml:"integration,omitempty"`
+	PHPStan     *PHPStanTestConfig     `yaml:"phpstan,omitempty"`
+	PHPCS       *PHPCSTestConfig       `yaml:"phpcs,omitempty"`
+	PHPMD       *PHPMDTestConfig       `yaml:"phpmd,omitempty"`
+}
+
+// PHPUnitTestConfig represents PHPUnit configuration
+type PHPUnitTestConfig struct {
+	Enabled   bool   `yaml:"enabled,omitempty"`
+	Config    string `yaml:"config,omitempty"`
+	TestSuite string `yaml:"testsuite,omitempty"`
+}
+
+// IntegrationTestConfig represents Magento integration test configuration
+type IntegrationTestConfig struct {
+	Enabled bool   `yaml:"enabled,omitempty"`
+	Config  string `yaml:"config,omitempty"`
+	DBHost  string `yaml:"db_host,omitempty"`
+	DBPort  int    `yaml:"db_port,omitempty"`
+	DBName  string `yaml:"db_name,omitempty"`
+	DBUser  string `yaml:"db_user,omitempty"`
+	DBPass  string `yaml:"db_pass,omitempty"`
+}
+
+// PHPStanTestConfig represents PHPStan configuration
+type PHPStanTestConfig struct {
+	Enabled bool     `yaml:"enabled,omitempty"`
+	Level   int      `yaml:"level,omitempty"`
+	Config  string   `yaml:"config,omitempty"`
+	Paths   []string `yaml:"paths,omitempty"`
+}
+
+// PHPCSTestConfig represents PHP_CodeSniffer configuration
+type PHPCSTestConfig struct {
+	Enabled  bool     `yaml:"enabled,omitempty"`
+	Standard string   `yaml:"standard,omitempty"`
+	Config   string   `yaml:"config,omitempty"`
+	Paths    []string `yaml:"paths,omitempty"`
+}
+
+// PHPMDTestConfig represents PHP Mess Detector configuration
+type PHPMDTestConfig struct {
+	Enabled bool     `yaml:"enabled,omitempty"`
+	Ruleset string   `yaml:"ruleset,omitempty"`
+	Config  string   `yaml:"config,omitempty"`
+	Paths   []string `yaml:"paths,omitempty"`
 }
 
 // Command represents a custom command that can be run via "magebox run <name>"

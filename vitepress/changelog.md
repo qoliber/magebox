@@ -2,6 +2,59 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.14.0] - 2025-12-15
+
+### Testing & Code Quality Commands
+
+New comprehensive testing commands to run PHPUnit, PHPStan, PHPCS, and PHPMD directly from MageBox:
+
+```bash
+# Install all testing tools
+magebox test setup
+
+# Run unit tests
+magebox test unit
+magebox test unit --filter=ProductTest
+
+# Run static analysis
+magebox test phpstan --level=5
+magebox test phpcs --standard=Magento2
+magebox test phpmd --ruleset=cleancode,design
+
+# Run all checks (except integration)
+magebox test all
+
+# Check tool status
+magebox test status
+```
+
+**Features:**
+- **`magebox test setup`** - Interactive wizard to install PHPUnit, PHPStan, PHPCS, PHPMD
+- **`magebox test unit`** - Run PHPUnit unit tests with filter and testsuite options
+- **`magebox test integration`** - Run Magento integration tests
+- **`magebox test phpstan`** - Run PHPStan static analysis (levels 0-9)
+- **`magebox test phpcs`** - Run PHP_CodeSniffer with Magento2 or PSR12 standards
+- **`magebox test phpmd`** - Run PHP Mess Detector with configurable rulesets
+- **`magebox test all`** - Run all tests except integration (ideal for CI/CD)
+- **`magebox test status`** - Show installed tools and configuration status
+
+**Configuration in `.magebox.yaml`:**
+```yaml
+testing:
+  phpstan:
+    level: 1
+    paths: ["app/code"]
+  phpcs:
+    standard: "Magento2"
+    paths: ["app/code"]
+  phpmd:
+    ruleset: "cleancode,codesize,design"
+```
+
+See the new [Testing & Code Quality](/guide/testing-tools) documentation for full details.
+
+---
+
 ## [0.13.3] - 2025-12-15
 
 ### Bug Fixes
