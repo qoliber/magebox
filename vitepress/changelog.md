@@ -2,6 +2,24 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.12] - 2025-12-15
+
+### Blackfire Wrapper & Profiler Improvements
+
+- **Added Blackfire CLI wrapper** - `blackfire run php` now automatically uses project's PHP version
+- **Fixed Blackfire agent configuration** - Uses `sudo sed` to update `/etc/blackfire/agent` credentials
+- **Fixed Blackfire PHP extension on Fedora** - Uses single `blackfire-php` package (not versioned)
+- **Fixed Tideways on Fedora 41+** - Downloads RPMs directly (dnf5/cloudsmith compatibility)
+- **GPG key import** - Imports Blackfire and Tideways GPG keys before installing packages
+- **Non-fatal xdebug disable** - Enabling Blackfire/Tideways no longer fails if xdebug ini is missing
+
+Bootstrap now installs three CLI wrappers:
+- `php` - uses project's PHP version
+- `composer` - uses project's PHP version
+- `blackfire` - uses project's PHP for `blackfire run` commands
+
+---
+
 ## [0.12.11] - 2025-12-15
 
 ### Tideways Repository Fix & Profiler Sudoers
