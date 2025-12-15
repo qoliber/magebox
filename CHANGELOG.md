@@ -5,6 +5,18 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2025-12-15
+
+### Added
+- **Interactive alias selection** - Install script now prompts for short command alias:
+  - `mbox` - recommended, descriptive (default)
+  - `mb` - shortest (2 chars)
+  - Both or skip options available
+- **Version display in installer** - Banner now shows version number
+
+### Changed
+- Updated ASCII logo in installer to match CLI
+
 ## [0.14.0] - 2025-12-15
 
 ### Added

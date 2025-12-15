@@ -2,6 +2,44 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.14.1] - 2025-12-15
+
+### Short Command Aliases
+
+The install script now offers interactive alias selection:
+
+```bash
+curl -fsSL https://get.magebox.dev | bash
+```
+
+```
+Short Command Aliases
+
+Create shorter command aliases for faster typing:
+
+  1) mbox        - recommended, descriptive
+  2) mb          - shortest (2 chars)
+  3) Both        - create both aliases
+  4) Skip        - use only 'magebox'
+
+Choose [1-4, default: 1]:
+```
+
+Now you can use `mbox` (or `mb`) instead of `magebox`:
+
+```bash
+mbox start
+mbox stop
+mbox test all
+```
+
+### Installer Improvements
+
+- Version number now displayed in banner
+- ASCII logo matches CLI output
+
+---
+
 ## [0.14.0] - 2025-12-15
 
 ### Testing & Code Quality Commands
