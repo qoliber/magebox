@@ -393,19 +393,10 @@ func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
 		return fmt.Errorf("failed to add Blackfire repository: %w", err)
 	}
 
-	// Install Blackfire agent
-	if err := f.RunSudo("dnf", "install", "-y", "blackfire"); err != nil {
-		return fmt.Errorf("failed to install Blackfire agent: %w", err)
-	}
-
-	// Install Blackfire PHP extension for each version
-	for _, version := range versions {
-		remiVersion := strings.ReplaceAll(version, ".", "")
-		pkgName := fmt.Sprintf("blackfire-php%s", remiVersion)
-		if err := f.RunSudo("dnf", "install", "-y", pkgName); err != nil {
-			// Don't fail if extension not available for this PHP version
-			continue
-		}
+	// Install Blackfire agent and PHP extension
+	// Note: Fedora repo has single 'blackfire-php' package (not versioned like Ubuntu)
+	if err := f.RunSudo("dnf", "install", "-y", "blackfire", "blackfire-php"); err != nil {
+		return fmt.Errorf("failed to install Blackfire: %w", err)
 	}
 
 	return nil
