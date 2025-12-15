@@ -38,7 +38,7 @@ func (r *PHPStanRunner) buildArgs(paths []string, level int) []string {
 	phpBin := r.manager.GetPHPBinary()
 	phpstanBin := filepath.Join(r.manager.GetVendorBinPath(), "phpstan")
 
-	args := []string{phpBin, phpstanBin, "analyse"}
+	args := []string{phpBin, phpstanBin, "analyse"} //nolint:misspell // PHPStan uses British spelling
 
 	// Check for config file
 	configFile := r.getConfigFile()
