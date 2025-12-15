@@ -18,9 +18,13 @@ var phpWrapperScript string
 //go:embed templates/composer.sh
 var composerWrapperScript string
 
+//go:embed templates/blackfire.sh
+var blackfireWrapperScript string
+
 const (
-	WrapperScriptName         = "php"
-	ComposerWrapperScriptName = "composer"
+	WrapperScriptName          = "php"
+	ComposerWrapperScriptName  = "composer"
+	BlackfireWrapperScriptName = "blackfire"
 )
 
 // Manager handles PHP wrapper installation and management
@@ -149,10 +153,59 @@ func (m *Manager) UninstallComposer() error {
 	return nil
 }
 
-// InstallAll installs both PHP and Composer wrappers
+// GetBlackfireWrapperPath returns the path where the blackfire wrapper should be installed
+func (m *Manager) GetBlackfireWrapperPath() string {
+	return filepath.Join(m.platform.MageBoxDir(), "bin", BlackfireWrapperScriptName)
+}
+
+// GenerateBlackfireWrapper returns the Blackfire wrapper script content
+func (m *Manager) GenerateBlackfireWrapper() string {
+	return blackfireWrapperScript
+}
+
+// InstallBlackfire creates and installs the Blackfire wrapper script
+func (m *Manager) InstallBlackfire() error {
+	binDir := filepath.Join(m.platform.MageBoxDir(), "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return fmt.Errorf("failed to create bin directory: %w", err)
+	}
+
+	wrapperPath := m.GetBlackfireWrapperPath()
+	content := m.GenerateBlackfireWrapper()
+
+	if err := os.WriteFile(wrapperPath, []byte(content), 0755); err != nil {
+		return fmt.Errorf("failed to write blackfire wrapper script: %w", err)
+	}
+
+	return nil
+}
+
+// IsBlackfireInstalled checks if the blackfire wrapper is already installed
+func (m *Manager) IsBlackfireInstalled() bool {
+	wrapperPath := m.GetBlackfireWrapperPath()
+	info, err := os.Stat(wrapperPath)
+	if err != nil {
+		return false
+	}
+	return info.Mode().Perm()&0111 != 0 // Check if executable
+}
+
+// UninstallBlackfire removes the Blackfire wrapper script
+func (m *Manager) UninstallBlackfire() error {
+	wrapperPath := m.GetBlackfireWrapperPath()
+	if err := os.Remove(wrapperPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove blackfire wrapper script: %w", err)
+	}
+	return nil
+}
+
+// InstallAll installs PHP, Composer, and Blackfire wrappers
 func (m *Manager) InstallAll() error {
 	if err := m.Install(); err != nil {
 		return err
 	}
-	return m.InstallComposer()
+	if err := m.InstallComposer(); err != nil {
+		return err
+	}
+	return m.InstallBlackfire()
 }
