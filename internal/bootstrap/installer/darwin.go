@@ -223,6 +223,49 @@ func (d *DarwinInstaller) ConfigurePHPINI(versions []string) error {
 	return nil
 }
 
+// InstallBlackfire installs Blackfire agent and PHP extension for all versions
+func (d *DarwinInstaller) InstallBlackfire(versions []string) error {
+	// Add Blackfire tap and install agent
+	if err := d.RunCommand("brew tap blackfireio/homebrew-blackfire"); err != nil {
+		return fmt.Errorf("failed to add Blackfire tap: %w", err)
+	}
+
+	if err := d.RunCommand("brew install blackfire"); err != nil {
+		return fmt.Errorf("failed to install Blackfire agent: %w", err)
+	}
+
+	// Install Blackfire PHP extension via pecl for each version
+	base := "/usr/local"
+	if d.BaseInstaller.Platform.IsAppleSilicon {
+		base = "/opt/homebrew"
+	}
+
+	for _, version := range versions {
+		peclBin := fmt.Sprintf("%s/opt/php@%s/bin/pecl", base, version)
+		// Install blackfire extension (ignore errors if already installed)
+		_ = d.RunCommandSilent(fmt.Sprintf("%s install blackfire 2>/dev/null || true", peclBin))
+	}
+
+	return nil
+}
+
+// InstallTideways installs Tideways PHP extension for all versions
+func (d *DarwinInstaller) InstallTideways(versions []string) error {
+	// On macOS, Tideways is installed via pecl
+	base := "/usr/local"
+	if d.BaseInstaller.Platform.IsAppleSilicon {
+		base = "/opt/homebrew"
+	}
+
+	for _, version := range versions {
+		peclBin := fmt.Sprintf("%s/opt/php@%s/bin/pecl", base, version)
+		// Install tideways extension (ignore errors if already installed)
+		_ = d.RunCommandSilent(fmt.Sprintf("%s install tideways 2>/dev/null || true", peclBin))
+	}
+
+	return nil
+}
+
 // PackageManager returns "brew" for macOS
 func (d *DarwinInstaller) PackageManager() string {
 	return "brew"

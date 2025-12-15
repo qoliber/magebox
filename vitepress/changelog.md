@@ -2,6 +2,25 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.10] - 2025-12-14
+
+### Blackfire & Tideways in Bootstrap
+
+Bootstrap now automatically installs **Blackfire** and **Tideways** profilers for all PHP versions:
+
+- **Fedora**: Adds Blackfire/Tideways repos, installs agent and PHP extensions
+- **Ubuntu/Debian**: Adds repos with GPG keys, installs packages
+- **macOS**: Uses Homebrew tap and pecl
+- **Arch**: Uses pecl (agent must be installed from AUR)
+
+After bootstrap, configure credentials with:
+```bash
+magebox blackfire config --server-id=XXX --server-token=XXX
+magebox blackfire on
+```
+
+---
+
 ## [0.12.9] - 2025-12-14
 
 ### Varnish Integration Fix

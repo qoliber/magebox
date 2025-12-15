@@ -322,6 +322,69 @@ func (u *UbuntuInstaller) ConfigurePHPINI(versions []string) error {
 	return nil
 }
 
+// InstallBlackfire installs Blackfire agent and PHP extension for all versions
+func (u *UbuntuInstaller) InstallBlackfire(versions []string) error {
+	// Add Blackfire GPG key and repository
+	if err := u.RunCommand("curl -sSL https://packages.blackfire.io/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/blackfire-archive-keyring.gpg"); err != nil {
+		return fmt.Errorf("failed to add Blackfire GPG key: %w", err)
+	}
+
+	repoLine := "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/blackfire-archive-keyring.gpg] https://packages.blackfire.io/debian any main"
+	if err := u.RunCommand(fmt.Sprintf("echo '%s' | sudo tee /etc/apt/sources.list.d/blackfire.list", repoLine)); err != nil {
+		return fmt.Errorf("failed to add Blackfire repository: %w", err)
+	}
+
+	// Update apt cache
+	if err := u.RunSudo("apt", "update"); err != nil {
+		return fmt.Errorf("failed to update apt: %w", err)
+	}
+
+	// Install Blackfire agent
+	if err := u.RunSudo("apt", "install", "-y", "blackfire"); err != nil {
+		return fmt.Errorf("failed to install Blackfire agent: %w", err)
+	}
+
+	// Install Blackfire PHP extension for each version
+	for _, version := range versions {
+		pkgName := fmt.Sprintf("blackfire-php%s", strings.ReplaceAll(version, ".", ""))
+		if err := u.RunSudo("apt", "install", "-y", pkgName); err != nil {
+			// Don't fail if extension not available for this PHP version
+			continue
+		}
+	}
+
+	return nil
+}
+
+// InstallTideways installs Tideways PHP extension for all versions
+func (u *UbuntuInstaller) InstallTideways(versions []string) error {
+	// Add Tideways GPG key and repository
+	if err := u.RunCommand("curl -sSL https://packages.tideways.com/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/tideways-archive-keyring.gpg"); err != nil {
+		return fmt.Errorf("failed to add Tideways GPG key: %w", err)
+	}
+
+	repoLine := "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/tideways-archive-keyring.gpg] https://packages.tideways.com/apt-packages any-version main"
+	if err := u.RunCommand(fmt.Sprintf("echo '%s' | sudo tee /etc/apt/sources.list.d/tideways.list", repoLine)); err != nil {
+		return fmt.Errorf("failed to add Tideways repository: %w", err)
+	}
+
+	// Update apt cache
+	if err := u.RunSudo("apt", "update"); err != nil {
+		return fmt.Errorf("failed to update apt: %w", err)
+	}
+
+	// Install Tideways PHP extension for each version
+	for _, version := range versions {
+		pkgName := fmt.Sprintf("tideways-php-%s", version)
+		if err := u.RunSudo("apt", "install", "-y", pkgName); err != nil {
+			// Don't fail if extension not available for this PHP version
+			continue
+		}
+	}
+
+	return nil
+}
+
 // PackageManager returns "apt" for Ubuntu/Debian
 func (u *UbuntuInstaller) PackageManager() string {
 	return "apt"

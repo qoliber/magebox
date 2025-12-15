@@ -378,6 +378,59 @@ func (f *FedoraInstaller) ConfigurePHPINI(versions []string) error {
 	return nil
 }
 
+// InstallBlackfire installs Blackfire agent and PHP extension for all versions
+func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
+	// Add Blackfire repository
+	repoURL := "https://packages.blackfire.io/fedora/blackfire.repo"
+	if err := f.RunSudo("sh", "-c", fmt.Sprintf("curl -sSL %s -o /etc/yum.repos.d/blackfire.repo", repoURL)); err != nil {
+		return fmt.Errorf("failed to add Blackfire repository: %w", err)
+	}
+
+	// Install Blackfire agent
+	if err := f.RunSudo("dnf", "install", "-y", "blackfire"); err != nil {
+		return fmt.Errorf("failed to install Blackfire agent: %w", err)
+	}
+
+	// Install Blackfire PHP extension for each version
+	for _, version := range versions {
+		remiVersion := strings.ReplaceAll(version, ".", "")
+		pkgName := fmt.Sprintf("blackfire-php%s", remiVersion)
+		if err := f.RunSudo("dnf", "install", "-y", pkgName); err != nil {
+			// Don't fail if extension not available for this PHP version
+			continue
+		}
+	}
+
+	return nil
+}
+
+// InstallTideways installs Tideways PHP extension for all versions
+func (f *FedoraInstaller) InstallTideways(versions []string) error {
+	// Add Tideways repository
+	repoContent := `[tideways]
+name=Tideways
+baseurl=https://packages.tideways.com/rpm-packages/fedora/$releasever/$basearch
+gpgcheck=1
+gpgkey=https://packages.tideways.com/key.gpg
+enabled=1
+`
+	if err := f.WriteFile("/etc/yum.repos.d/tideways.repo", repoContent); err != nil {
+		return fmt.Errorf("failed to add Tideways repository: %w", err)
+	}
+
+	// Install Tideways PHP extension for each version
+	for _, version := range versions {
+		remiVersion := strings.ReplaceAll(version, ".", "")
+		pkgName := fmt.Sprintf("tideways-php%s", remiVersion)
+		if err := f.RunSudo("dnf", "install", "-y", pkgName); err != nil {
+			// Don't fail if extension not available for this PHP version
+			continue
+		}
+	}
+
+	return nil
+}
+
 // PackageManager returns "dnf" for Fedora
 func (f *FedoraInstaller) PackageManager() string {
 	return "dnf"

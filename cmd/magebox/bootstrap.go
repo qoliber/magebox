@@ -341,6 +341,38 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println(cli.Success("done"))
 		}
 	}
+
+	// Install Blackfire profiler
+	if len(installedPHPVersions) > 0 {
+		fmt.Println()
+		fmt.Print("  Installing Blackfire profiler... ")
+		versions := make([]string, len(installedPHPVersions))
+		for i, ver := range installedPHPVersions {
+			versions[i] = ver.Version
+		}
+		if err := bootstrapper.GetInstaller().InstallBlackfire(versions); err != nil {
+			fmt.Println(cli.Warning("skipped"))
+			cli.PrintWarning("Blackfire: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	// Install Tideways profiler
+	if len(installedPHPVersions) > 0 {
+		fmt.Println()
+		fmt.Print("  Installing Tideways profiler... ")
+		versions := make([]string, len(installedPHPVersions))
+		for i, ver := range installedPHPVersions {
+			versions[i] = ver.Version
+		}
+		if err := bootstrapper.GetInstaller().InstallTideways(versions); err != nil {
+			fmt.Println(cli.Warning("skipped"))
+			cli.PrintWarning("Tideways: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
 	fmt.Println()
 
 	// Step 3: Initialize global config

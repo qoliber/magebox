@@ -73,6 +73,12 @@ type Installer interface {
 	// InstallXdebug installs Xdebug for a specific PHP version
 	InstallXdebug(version string) error
 
+	// InstallBlackfire installs Blackfire agent and PHP extension for all versions
+	InstallBlackfire(versions []string) error
+
+	// InstallTideways installs Tideways PHP extension for all versions
+	InstallTideways(versions []string) error
+
 	// ConfigurePHPFPM configures PHP-FPM for the platform
 	ConfigurePHPFPM(versions []string) error
 

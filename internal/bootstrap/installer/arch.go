@@ -302,6 +302,30 @@ func (a *ArchInstaller) ConfigurePHPINI(versions []string) error {
 	return nil
 }
 
+// InstallBlackfire installs Blackfire agent and PHP extension
+func (a *ArchInstaller) InstallBlackfire(versions []string) error {
+	// On Arch, Blackfire needs to be installed via AUR or manually
+	// Install via pecl for the PHP extension
+	fmt.Println("  Note: Blackfire agent must be installed from AUR (blackfire-agent) or manually.")
+	fmt.Println("  Installing PHP extension via pecl...")
+
+	// Install blackfire extension via pecl (ignore errors if it fails)
+	_ = a.RunCommandSilent("pecl install blackfire 2>/dev/null || true")
+
+	return nil
+}
+
+// InstallTideways installs Tideways PHP extension
+func (a *ArchInstaller) InstallTideways(versions []string) error {
+	// On Arch, install Tideways via pecl
+	fmt.Println("  Installing Tideways PHP extension via pecl...")
+
+	// Install tideways extension via pecl (ignore errors if it fails)
+	_ = a.RunCommandSilent("pecl install tideways 2>/dev/null || true")
+
+	return nil
+}
+
 // PackageManager returns "pacman" for Arch
 func (a *ArchInstaller) PackageManager() string {
 	return "pacman"
