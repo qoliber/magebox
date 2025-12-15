@@ -231,17 +231,31 @@ func (m *Manager) ConfigureAgent() error {
 		return fmt.Errorf("blackfire credentials not configured")
 	}
 
-	// Use blackfire-agent -register for configuration
-	cmd := exec.Command("blackfire-agent", "-register")
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("BLACKFIRE_SERVER_ID=%s", m.credentials.ServerID),
-		fmt.Sprintf("BLACKFIRE_SERVER_TOKEN=%s", m.credentials.ServerToken),
-	)
+	agentConfig := "/etc/blackfire/agent"
+
+	// Update server-id
+	cmd := exec.Command("sudo", "sed", "-i",
+		fmt.Sprintf("s/^server-id=.*/server-id=%s/", m.credentials.ServerID),
+		agentConfig)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set server-id: %w", err)
+	}
 
-	return cmd.Run()
+	// Update server-token
+	cmd = exec.Command("sudo", "sed", "-i",
+		fmt.Sprintf("s/^server-token=.*/server-token=%s/", m.credentials.ServerToken),
+		agentConfig)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set server-token: %w", err)
+	}
+
+	return nil
 }
 
 // ConfigureCLI configures the Blackfire CLI with client credentials
