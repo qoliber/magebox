@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // AssetClient handles downloading assets from remote storage
@@ -56,15 +57,53 @@ func (a *AssetClient) Close() error {
 	return nil
 }
 
+// getHostKeyCallback returns a host key callback that verifies against known_hosts
+func getHostKeyCallback() (ssh.HostKeyCallback, error) {
+	// Get user's home directory
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get home directory: %w", err)
+	}
+
+	// Standard known_hosts file location
+	knownHostsPath := filepath.Join(home, ".ssh", "known_hosts")
+
+	// Check if known_hosts exists
+	if _, err := os.Stat(knownHostsPath); os.IsNotExist(err) {
+		// Create .ssh directory if it doesn't exist
+		sshDir := filepath.Join(home, ".ssh")
+		if err := os.MkdirAll(sshDir, 0700); err != nil {
+			return nil, fmt.Errorf("cannot create .ssh directory: %w", err)
+		}
+		// Create empty known_hosts file
+		if err := os.WriteFile(knownHostsPath, []byte{}, 0644); err != nil {
+			return nil, fmt.Errorf("cannot create known_hosts file: %w", err)
+		}
+	}
+
+	// Create host key callback from known_hosts
+	callback, err := knownhosts.New(knownHostsPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse known_hosts: %w", err)
+	}
+
+	return callback, nil
+}
+
 // connectSFTP establishes an SFTP connection
 func (a *AssetClient) connectSFTP() error {
 	config := a.team.Assets
 	port := config.GetDefaultPort()
 
-	// Build SSH config
+	// Build SSH config with proper host key verification
+	hostKeyCallback, err := getHostKeyCallback()
+	if err != nil {
+		return fmt.Errorf("failed to setup host key verification: %w", err)
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		User:            config.Username,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: proper host key verification
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         30 * time.Second,
 	}
 

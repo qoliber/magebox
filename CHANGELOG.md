@@ -5,6 +5,24 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2025-12-15
+
+### Added
+- **`magebox db snapshot`** - Database snapshot management for quick backup/restore:
+  - `magebox db snapshot create [name]` - Create a compressed snapshot
+  - `magebox db snapshot restore <name>` - Restore from a snapshot
+  - `magebox db snapshot list` - List all snapshots for the project
+  - `magebox db snapshot delete <name>` - Delete a snapshot
+  - Snapshots stored in `~/.magebox/snapshots/{project}/`
+  - Automatic gzip compression for smaller files
+- **HTTPS Auth for Teams** - New `--auth=https` option for public repositories:
+  - Default auth method changed from `ssh` to `https`
+  - Enables cloning public repos without SSH keys (e.g., `magento/magento2`)
+  - SSH still available with `--auth=ssh` for private repos
+
+### Security
+- **SSH Host Key Verification** - SFTP connections now verify host keys against `~/.ssh/known_hosts` instead of accepting any key
+
 ## [0.13.0] - 2025-12-15
 
 ### Added

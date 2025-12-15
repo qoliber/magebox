@@ -424,8 +424,8 @@ echo "========================================"
 # Test team collaboration with magento/magento2 GitHub repo
 info "Testing team collaboration with magento/magento2..."
 
-# Add a team configuration (using GitHub provider with magento organization)
-if magebox team add magento2-test --provider=github --org=magento 2>&1; then
+# Add a team configuration (using GitHub provider with magento organization, HTTPS for public repo)
+if magebox team add magento2-test --provider=github --org=magento --auth=https 2>&1; then
     pass "magebox team add"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 

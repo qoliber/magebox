@@ -17,6 +17,7 @@ type AuthMethod string
 
 const (
 	AuthSSH   AuthMethod = "ssh"
+	AuthHTTPS AuthMethod = "https"
 	AuthToken AuthMethod = "token"
 )
 

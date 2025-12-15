@@ -2,6 +2,31 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.13.1] - 2025-12-15
+
+### Database Snapshots & Security
+
+Quick backup and restore for your databases:
+
+```bash
+# Create a snapshot (with optional name)
+magebox db snapshot create           # Auto-named with timestamp
+magebox db snapshot create mybackup  # Named snapshot
+
+# List and manage snapshots
+magebox db snapshot list             # Show all snapshots
+magebox db snapshot restore mybackup # Restore from snapshot
+magebox db snapshot delete mybackup  # Delete snapshot
+```
+
+**Features:**
+- **`magebox db snapshot`** - Full snapshot management for quick backup/restore
+- **Compressed storage** - Snapshots use gzip compression
+- **Per-project snapshots** - Stored in `~/.magebox/snapshots/{project}/`
+- **SSH Security** - SFTP connections now verify host keys against `~/.ssh/known_hosts`
+
+---
+
 ## [0.13.0] - 2025-12-15
 
 ### Multi-Project Management, Restart & Test Infrastructure

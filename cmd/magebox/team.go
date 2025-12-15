@@ -71,7 +71,7 @@ func init() {
 	// Add flags for non-interactive team creation
 	teamAddCmd.Flags().StringVar(&teamAddProvider, "provider", "", "Repository provider (github, gitlab, bitbucket)")
 	teamAddCmd.Flags().StringVar(&teamAddOrg, "org", "", "Organization/namespace")
-	teamAddCmd.Flags().StringVar(&teamAddAuth, "auth", "ssh", "Auth method (ssh, token)")
+	teamAddCmd.Flags().StringVar(&teamAddAuth, "auth", "https", "Auth method (ssh, https, token)")
 	teamAddCmd.Flags().StringVar(&teamAddAssetProvider, "asset-provider", "", "Asset storage provider (sftp, ftp)")
 	teamAddCmd.Flags().StringVar(&teamAddAssetHost, "asset-host", "", "Asset storage host")
 	teamAddCmd.Flags().IntVar(&teamAddAssetPort, "asset-port", 0, "Asset storage port")
@@ -231,8 +231,8 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 
 	// Validate auth
 	auth := team.AuthMethod(authStr)
-	if auth != team.AuthSSH && auth != team.AuthToken {
-		return fmt.Errorf("invalid auth method: %s (use ssh or token)", authStr)
+	if auth != team.AuthSSH && auth != team.AuthHTTPS && auth != team.AuthToken {
+		return fmt.Errorf("invalid auth method: %s (use ssh, https, or token)", authStr)
 	}
 
 	// Build asset config

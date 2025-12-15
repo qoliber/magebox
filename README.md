@@ -423,6 +423,13 @@ magebox db shell                     # Open MySQL shell
 magebox db import dump.sql           # Import database
 magebox db export                    # Export to {project}.sql
 magebox db export backup.sql         # Export to specific file
+
+# Snapshots (quick backup/restore)
+magebox db snapshot create           # Create snapshot with timestamp name
+magebox db snapshot create mybackup  # Create named snapshot
+magebox db snapshot list             # List all snapshots
+magebox db snapshot restore mybackup # Restore from snapshot
+magebox db snapshot delete mybackup  # Delete snapshot
 ```
 
 ### Redis Operations
@@ -630,6 +637,10 @@ magebox config set portainer true
 | `magebox db shell` | Open database shell |
 | `magebox db import <file>` | Import database |
 | `magebox db export [file]` | Export database |
+| `magebox db snapshot create [name]` | Create database snapshot |
+| `magebox db snapshot restore <name>` | Restore database snapshot |
+| `magebox db snapshot list` | List available snapshots |
+| `magebox db snapshot delete <name>` | Delete a snapshot |
 | `magebox redis shell` | Open Redis CLI |
 | `magebox redis flush` | Flush Redis data |
 | `magebox redis info` | Show Redis info |
@@ -1353,66 +1364,13 @@ magebox/
 
 ## Changelog
 
-### v0.3.2 (2025-12-10)
+See the full [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-**OpenSearch/Elasticsearch Enhancements**
-- Added automatic installation of ICU and Phonetic Analysis plugins
-- Added configurable memory allocation for search engines (default: 1GB)
-- Updated default OpenSearch version to 2.19.4
-- Search engine configuration now supports object format with version and memory
-
-**Project Creation Improvements**
-- Composer now runs with explicit PHP binary to ensure correct version is used
-- Added RabbitMQ to quick mode (`magebox new --quick`)
-- Full `setup:install` command is now shown after project creation with all service parameters
-- Displays which PHP version and binary is being used during installation
-
-**Code Cleanup**
-- Removed `magebox cli` command (use `php bin/magento` directly - PHP wrapper handles version)
-- DNS cleanup skipped when using dnsmasq mode (no more unnecessary sudo warnings)
-
-### v0.3.1 (2025-12-10)
-
-**Documentation**
-- Added comprehensive migration guide from Laravel Herd to MageBox
-- Step-by-step instructions for cleaning up Herd configuration
-- Troubleshooting section for common migration issues
-- Updated README to mention Herd comparison
-
-### v0.3.0 (2025-12-10)
-
-**Template Refactoring**
-- Extracted all templates from Go code into separate `.tmpl` files for easier maintenance
-- Added comprehensive template variable documentation in Go files
-- Created README files for each template directory with variable reference tables
-- Added template validation tests for PHP-FPM, Nginx, and Varnish templates
-- Templates remain embedded in binary at compile time (no external dependencies)
-
-**Developer Experience Improvements**
-- Template modifications no longer require touching Go code
-- Clear documentation of available template variables
-- Syntax highlighting and validation in editors for template files
-- Better separation of logic and configuration
-
-### v0.2.3 (2025-12-10)
-
-**PHP Version Management**
-- Added smart PHP wrapper script (`~/.magebox/bin/php`) that automatically detects and uses correct PHP version per project
-- PHP wrapper walks directory tree to find `.magebox.yaml` and uses configured PHP version
-- Fixed `magebox php` command to properly restart services when switching PHP versions
-- Added PHP wrapper installation to bootstrap process
-
-**Bug Fixes**
-- Fixed PHP-FPM logs to use writable directory (`~/.magebox/logs/php-fpm/`)
-- Fixed service lifecycle when switching PHP versions (stop → regenerate configs → start)
-
-### v0.2.2 (2025-12-10)
-
-**Configuration**
-- Renamed `.magebox` → `.magebox.yaml` for better editor support
-- Renamed `.magebox.local` → `.magebox.local.yaml` for clarity
-- Full backward compatibility maintained for legacy filenames
-- Updated all documentation
+**Recent highlights:**
+- **v0.13.0** - Multi-project management (`start --all`, `stop --all`, `restart`), uninstall command, integration test suite
+- **v0.12.x** - Blackfire/Tideways profilers, CLI wrappers, multi-domain store codes, Xdebug improvements
+- **v0.10.x** - Varnish integration, log viewer, error reports, database management
+- **v0.9.0** - Elasticsearch support alongside OpenSearch
 
 ---
 
