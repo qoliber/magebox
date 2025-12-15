@@ -30,7 +30,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.12.16',
+        text: 'v0.13.0',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -108,7 +108,8 @@ export default defineConfig({
             { text: 'Xdebug', link: '/guide/xdebug' },
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
-            { text: 'Linux Installers', link: '/guide/linux-installers' }
+            { text: 'Linux Installers', link: '/guide/linux-installers' },
+            { text: 'Integration Testing', link: '/guide/testing' }
           ]
         },
         {
@@ -205,7 +206,8 @@ export default defineConfig({
             { text: 'Xdebug', link: '/guide/xdebug' },
             { text: 'Logs & Reports', link: '/guide/logs' },
             { text: 'Admin Commands', link: '/guide/admin' },
-            { text: 'Linux Installers', link: '/guide/linux-installers' }
+            { text: 'Linux Installers', link: '/guide/linux-installers' },
+            { text: 'Integration Testing', link: '/guide/testing' }
           ]
         },
         {

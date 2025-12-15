@@ -12,6 +12,9 @@ The following features have been implemented:
 
 | Feature | Version | Description |
 |---------|---------|-------------|
+| Integration Test Suite | v0.13.0 | Docker-based tests for Fedora, Ubuntu, Arch without Docker-in-Docker |
+| Multi-Project Management | v0.13.0 | `start --all`, `stop --all`, `restart`, `uninstall` commands |
+| CLI Wrappers | v0.12.12 | Shell script wrappers for php, composer, blackfire |
 | Varnish Full Integration | v0.10.5 | Automatic Nginx proxy, VCL generation, cache purge |
 | Log Viewer | v0.10.10 | `magebox logs` with split-screen multitail |
 | Error Reports | v0.10.10 | `magebox report` with filesystem watching |
@@ -71,22 +74,6 @@ Web-based performance visualization:
 
 - PHPStorm plugin for MageBox integration
 - VS Code extension
-
-### Integration Test Suite
-
-Docker-based integration tests for CI/CD:
-
-- **Ubuntu container** - Tests bootstrap, all commands, service management
-- **Fedora container** - Tests bootstrap, all commands, service management
-- Automated testing on every release
-- Validates cross-platform compatibility
-
-```bash
-# Run integration tests
-make test-ubuntu    # Test on Ubuntu 24.04
-make test-fedora    # Test on Fedora 41
-make test-all       # Test on all platforms
-```
 
 ## Version 2.0 - User-Customizable Templates
 
