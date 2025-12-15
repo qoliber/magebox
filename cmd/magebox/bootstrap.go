@@ -41,7 +41,7 @@ This command performs the following steps:
   6. Configures Nginx to include MageBox vhosts
   7. Creates and starts Docker services (MySQL, Redis, Mailpit)
   8. Sets up DNS resolution (dnsmasq or /etc/hosts)
-  9. Installs PHP and Composer wrappers for automatic version switching
+  9. Installs CLI wrappers (PHP, Composer, Blackfire) for automatic version switching
   10. Configures sudoers for passwordless service control (Linux)
 
 Supported platforms:
@@ -593,8 +593,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Step 9: Install PHP and Composer wrappers
-	fmt.Println(cli.Header("Step 9: PHP & Composer Wrappers"))
+	// Step 9: Install PHP, Composer, and Blackfire wrappers
+	fmt.Println(cli.Header("Step 9: CLI Wrappers (PHP, Composer, Blackfire)"))
 
 	wrapperMgr := phpwrapper.NewManager(p)
 
@@ -619,6 +619,19 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		if err := wrapperMgr.InstallComposer(); err != nil {
 			fmt.Println(cli.Error("failed"))
 			cli.PrintWarning("Composer wrapper installation failed: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	// Blackfire wrapper (uses project PHP for 'blackfire run' commands)
+	if wrapperMgr.IsBlackfireInstalled() {
+		fmt.Println("  Blackfire wrapper already installed " + cli.Success("✓"))
+	} else {
+		fmt.Print("  Installing Blackfire wrapper script... ")
+		if err := wrapperMgr.InstallBlackfire(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("Blackfire wrapper installation failed: %v", err)
 		} else {
 			fmt.Println(cli.Success("done"))
 		}
