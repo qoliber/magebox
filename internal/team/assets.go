@@ -297,7 +297,7 @@ func FormatSpeed(bytesPerSecond float64) string {
 func (a *AssetClient) TestConnection() error {
 	config := a.team.Assets
 	port := config.GetDefaultPort()
-	addr := fmt.Sprintf("%s:%d", config.Host, port)
+	addr := net.JoinHostPort(config.Host, fmt.Sprintf("%d", port))
 
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
