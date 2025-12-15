@@ -59,6 +59,7 @@ type VhostConfig struct {
 	HTTPSPort     int    // 443 on Linux, 8443 on macOS (port forwarding)
 	BackendPort   int    // Backend port for Varnish (always 8080 when Varnish enabled)
 	StoreCode     string // Magento store code for multi-store setup (default: "default")
+	MageRunType   string // Magento run type: "store" or "website" (default: "store")
 }
 
 // ProxyConfig contains data needed to generate a proxy vhost
@@ -134,6 +135,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			HTTPSPort:     httpsPort,
 			BackendPort:   backendPort,
 			StoreCode:     domain.GetStoreCode(),
+			MageRunType:   domain.GetMageRunType(),
 		}
 
 		// Get SSL cert paths if SSL is enabled

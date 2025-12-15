@@ -74,7 +74,7 @@ server {
     set $MAGE_ROOT {{.DocumentRoot}};
     set $MAGE_MODE developer;
     set $MAGE_RUN_CODE {{.StoreCode}};
-    set $MAGE_RUN_TYPE store;
+    set $MAGE_RUN_TYPE {{.MageRunType}};
 
     root $MAGE_ROOT;
     index index.php;

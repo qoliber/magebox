@@ -205,39 +205,6 @@ func (m *Manager) findXdebugSo(phpVersion string) string {
 	return ""
 }
 
-// ensureXdebugConfig ensures xdebug configuration is set for development
-func (m *Manager) ensureXdebugConfig(phpVersion string) error {
-	iniFile := m.getXdebugIniPath(phpVersion)
-	if iniFile == "" {
-		return nil
-	}
-
-	content, err := os.ReadFile(iniFile)
-	if err != nil {
-		return err
-	}
-
-	// Check if xdebug.mode is already configured
-	if strings.Contains(string(content), "xdebug.mode") {
-		return nil
-	}
-
-	// Generate configuration from template
-	config, err := GenerateXdebugConfig(DefaultXdebugConfig())
-	if err != nil {
-		return fmt.Errorf("failed to generate xdebug config: %w", err)
-	}
-
-	f, err := os.OpenFile(iniFile, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.WriteString("\n" + config)
-	return err
-}
-
 // GenerateXdebugConfig generates Xdebug configuration from template
 func GenerateXdebugConfig(cfg XdebugConfig) (string, error) {
 	tmpl, err := template.New("xdebug.ini").Parse(xdebugIniTemplate)

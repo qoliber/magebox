@@ -2,6 +2,31 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.14] - 2025-12-15
+
+### Multi-Domain Store Code Fix
+
+- **Fixed `mage_run_code` and `mage_run_type` not being passed to nginx** - Domain configs now correctly use `mage_run_code` and `mage_run_type` YAML keys
+- **Dynamic `MAGE_RUN_TYPE`** - No longer hardcoded to `store`, now reads from domain config (supports `store` or `website`)
+
+Example multi-store configuration:
+
+```yaml
+domains:
+  - host: mystore.test
+    root: pub
+  - host: wholesale.test
+    root: pub
+    mage_run_code: wholesale
+    mage_run_type: website
+  - host: uk.mystore.test
+    root: pub
+    mage_run_code: uk_store
+    mage_run_type: store
+```
+
+---
+
 ## [0.12.13] - 2025-12-15
 
 ### Xdebug Fedora/Remi Fix

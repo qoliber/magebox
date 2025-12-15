@@ -52,10 +52,11 @@ func (c *Command) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Domain represents a domain configuration
 type Domain struct {
-	Host      string `yaml:"host"`
-	Root      string `yaml:"root,omitempty"`
-	SSL       *bool  `yaml:"ssl,omitempty"`
-	StoreCode string `yaml:"store_code,omitempty"` // Magento store code for multi-store setup
+	Host        string `yaml:"host"`
+	Root        string `yaml:"root,omitempty"`
+	SSL         *bool  `yaml:"ssl,omitempty"`
+	MageRunCode string `yaml:"mage_run_code,omitempty"` // Magento store/website code for multi-store setup
+	MageRunType string `yaml:"mage_run_type,omitempty"` // "store" or "website" (default: "store")
 }
 
 // Services represents the services configuration
@@ -137,10 +138,18 @@ func (d *Domain) IsSSLEnabled() bool {
 
 // GetStoreCode returns the Magento store code, defaulting to "default"
 func (d *Domain) GetStoreCode() string {
-	if d.StoreCode == "" {
+	if d.MageRunCode == "" {
 		return "default"
 	}
-	return d.StoreCode
+	return d.MageRunCode
+}
+
+// GetMageRunType returns the Magento run type, defaulting to "store"
+func (d *Domain) GetMageRunType() string {
+	if d.MageRunType == "" {
+		return "store"
+	}
+	return d.MageRunType
 }
 
 // Validate checks if the configuration is valid

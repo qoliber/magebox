@@ -72,6 +72,22 @@ Web-based performance visualization:
 - PHPStorm plugin for MageBox integration
 - VS Code extension
 
+### Integration Test Suite
+
+Docker-based integration tests for CI/CD:
+
+- **Ubuntu container** - Tests bootstrap, all commands, service management
+- **Fedora container** - Tests bootstrap, all commands, service management
+- Automated testing on every release
+- Validates cross-platform compatibility
+
+```bash
+# Run integration tests
+make test-ubuntu    # Test on Ubuntu 24.04
+make test-fedora    # Test on Fedora 41
+make test-all       # Test on all platforms
+```
+
 ## Version 2.0 - User-Customizable Templates
 
 ### Overview

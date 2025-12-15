@@ -92,9 +92,9 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 
 	// Create new domain
 	newDomain := config.Domain{
-		Host:      host,
-		Root:      domainRoot,
-		StoreCode: domainStoreCode,
+		Host:        host,
+		Root:        domainRoot,
+		MageRunCode: domainStoreCode,
 	}
 
 	// Only set SSL if explicitly changed from default (true)
@@ -163,11 +163,7 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	storeCode := newDomain.StoreCode
-	if storeCode == "" {
-		storeCode = "default"
-	}
-	cli.PrintInfo("Domain %s configured with store code: %s", host, storeCode)
+	cli.PrintInfo("Domain %s configured with store code: %s", host, newDomain.GetStoreCode())
 
 	return nil
 }
@@ -275,11 +271,6 @@ func runDomainList(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	for _, d := range cfg.Domains {
-		storeCode := d.StoreCode
-		if storeCode == "" {
-			storeCode = "default"
-		}
-
 		sslStatus := "SSL"
 		if !d.IsSSLEnabled() {
 			sslStatus = "HTTP"
@@ -293,7 +284,7 @@ func runDomainList(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s\n", cli.Highlight(d.Host))
 		fmt.Printf("    URL:        %s://%s\n", protocol, d.Host)
 		fmt.Printf("    Root:       %s\n", d.GetRoot())
-		fmt.Printf("    Store Code: %s\n", storeCode)
+		fmt.Printf("    Store Code: %s\n", d.GetStoreCode())
 		fmt.Printf("    SSL:        %s\n", sslStatus)
 		fmt.Println()
 	}
