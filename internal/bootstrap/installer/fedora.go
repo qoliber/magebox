@@ -387,6 +387,12 @@ func (f *FedoraInstaller) ConfigurePHPINI(versions []string) error {
 
 // InstallBlackfire installs Blackfire agent and PHP extension for all versions
 func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
+	// Import GPG key first to avoid "skipped OpenPGP checks" warning
+	if err := f.RunSudo("rpm", "--import", "https://packages.blackfire.io/gpg.key"); err != nil {
+		// Non-fatal, continue anyway
+		fmt.Println("  Warning: could not import Blackfire GPG key")
+	}
+
 	// Add Blackfire repository
 	repoURL := "https://packages.blackfire.io/fedora/blackfire.repo"
 	if err := f.RunSudo("sh", "-c", fmt.Sprintf("curl -sSL %s -o /etc/yum.repos.d/blackfire.repo", repoURL)); err != nil {
@@ -404,6 +410,9 @@ func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
 
 // InstallTideways installs Tideways PHP extension for all versions
 func (f *FedoraInstaller) InstallTideways(versions []string) error {
+	// Import GPG key first
+	_ = f.RunCommandSilent("sudo rpm --import https://packages.tideways.com/key.gpg 2>/dev/null")
+
 	// dnf5 (Fedora 41+) has issues with cloudsmith repos, so we download RPMs directly
 	// Latest versions as of Dec 2025
 	phpPkg := "https://packages.tideways.com/rpm-packages/x86_64/tideways-php-5.0.44-1.x86_64.rpm"
