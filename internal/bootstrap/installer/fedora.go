@@ -413,30 +413,14 @@ func (f *FedoraInstaller) InstallBlackfire(versions []string) error {
 
 // InstallTideways installs Tideways PHP extension for all versions
 func (f *FedoraInstaller) InstallTideways(versions []string) error {
-	// Add Tideways repository (uses $basearch, not fedora/$releasever)
-	// Note: Tideways may not have packages for all Fedora versions
-	repoContent := `[tideways]
-name=Tideways
-baseurl=https://packages.tideways.com/rpm-packages/$basearch
-repo_gpgcheck=1
-enabled=0
-skip_if_unavailable=1
-gpgkey=https://packages.tideways.com/key.gpg
-gpgcheck=1
-sslverify=1
-sslcacert=/etc/pki/tls/certs/ca-bundle.crt
-metadata_expire=300
-pkg_gpgcheck=1
-autorefresh=1
-type=rpm-md
-`
-	if err := f.WriteFile("/etc/yum.repos.d/tideways.repo", repoContent); err != nil {
-		return fmt.Errorf("failed to add Tideways repository: %w", err)
-	}
+	// dnf5 (Fedora 41+) has issues with cloudsmith repos, so we download RPMs directly
+	// Latest versions as of Dec 2025
+	phpPkg := "https://packages.tideways.com/rpm-packages/x86_64/tideways-php-5.0.44-1.x86_64.rpm"
+	daemonPkg := "https://packages.tideways.com/rpm-packages/x86_64/tideways-daemon-1.9.48-1.x86_64.rpm"
+	cliPkg := "https://packages.tideways.com/rpm-packages/x86_64/tideways-cli-1.3.24-1.x86_64.rpm"
 
-	// Install Tideways daemon and PHP extension (enable repo only for this command)
-	// Use quiet mode to suppress 404 errors if repo doesn't support this Fedora version
-	_ = f.RunCommandSilent("sudo dnf install -y -q --enablerepo=tideways tideways-php tideways-daemon 2>/dev/null")
+	// Install directly from URLs (dnf handles this well)
+	_ = f.RunCommandSilent(fmt.Sprintf("sudo dnf install -y -q %s %s %s 2>/dev/null", phpPkg, daemonPkg, cliPkg))
 
 	return nil
 }
