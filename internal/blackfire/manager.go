@@ -117,11 +117,9 @@ func (m *Manager) Enable(phpVersion string) error {
 		return fmt.Errorf("blackfire extension not installed for PHP %s", phpVersion)
 	}
 
-	// Disable Xdebug first to avoid conflicts
+	// Disable Xdebug first to avoid conflicts (non-fatal if it fails)
 	if m.xdebugMgr.IsEnabled(phpVersion) {
-		if err := m.xdebugMgr.Disable(phpVersion); err != nil {
-			return fmt.Errorf("failed to disable xdebug: %w", err)
-		}
+		_ = m.xdebugMgr.Disable(phpVersion) // Ignore errors - xdebug may not have ini file
 	}
 
 	iniPath := m.getExtensionIniPath(phpVersion)
