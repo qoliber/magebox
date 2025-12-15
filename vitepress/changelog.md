@@ -2,6 +2,19 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.12.11] - 2025-12-15
+
+### Tideways Repository Fix & Profiler Sudoers
+
+- **Fixed Tideways repository URL for Fedora** - Changed from `fedora/$releasever/$basearch` to just `$basearch`
+- **Added passwordless sudo for Blackfire/Tideways**:
+  - Fedora: `dnf install -y blackfire*`, `tideways*`
+  - Ubuntu: `apt install -y blackfire*`, `tideways*`
+  - Arch: `pacman -S --noconfirm *blackfire*`, `*tideways*`
+- **Added systemctl sudoers for blackfire-agent** - start/stop/restart/enable
+
+---
+
 ## [0.12.10] - 2025-12-14
 
 ### Blackfire & Tideways in Bootstrap
