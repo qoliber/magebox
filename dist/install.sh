@@ -26,6 +26,7 @@ INSTALL_DIR="${MAGEBOX_INSTALL_DIR:-/usr/local/bin}"
 BINARY_NAME="magebox"
 
 print_banner() {
+    local version="${1:-}"
     echo -e "${BLUE}"
     echo '                            _'
     echo '                           | |'
@@ -34,8 +35,9 @@ print_banner() {
     echo '| | | | | | (_| | (_| |  __/ |_) | (_) >  <'
     echo '|_| |_| |_|\__,_|\__, |\___|_.__/ \___/_/\_\'
     echo '                  __/ |'
-    echo '                 |___/'
-    echo -e "${NC}"
+    echo -n '                 |___/'
+    echo -e "${NC}  ${version}"
+    echo ""
     echo "Fast, native Magento development environment"
     echo ""
 }
@@ -211,23 +213,24 @@ create_alias() {
 }
 
 main() {
-    print_banner
-
-    # Check dependencies
+    # Check dependencies first (quietly)
     if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
         error "curl or wget is required but not installed"
     fi
+
+    # Get version early so we can show it in the banner
+    VERSION="${MAGEBOX_VERSION:-$(get_latest_version)}"
+    if [ -z "$VERSION" ]; then
+        error "Failed to determine version. Set MAGEBOX_VERSION or check your internet connection."
+    fi
+
+    # Now print banner with version
+    print_banner "$VERSION"
 
     # Detect platform
     OS=$(detect_os)
     ARCH=$(detect_arch)
     info "Detected platform: ${OS}/${ARCH}"
-
-    # Get version
-    VERSION="${MAGEBOX_VERSION:-$(get_latest_version)}"
-    if [ -z "$VERSION" ]; then
-        error "Failed to determine version. Set MAGEBOX_VERSION or check your internet connection."
-    fi
     info "Version: ${VERSION}"
 
     # Download
