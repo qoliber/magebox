@@ -14,9 +14,9 @@ var SupportedVersions = map[platform.Type]map[string][]string{
 	},
 	platform.Linux: {
 		"fedora": {"38", "39", "40", "41", "42", "43"}, // Fedora 38-43
-		"ubuntu": {"20.04", "22.04", "24.04"},    // LTS versions
-		"debian": {"11", "12"},                   // Bullseye, Bookworm
-		"arch":   {"rolling"},                    // Arch is rolling release
+		"ubuntu": {"20.04", "22.04", "24.04"},          // LTS versions
+		"debian": {"11", "12"},                         // Bullseye, Bookworm
+		"arch":   {"rolling"},                          // Arch is rolling release
 	},
 }
 
