@@ -10,8 +10,9 @@ import (
 
 // PHPUnitRunner handles PHPUnit test execution
 type PHPUnitRunner struct {
-	manager *Manager
-	config  *config.PHPUnitTestConfig
+	manager           *Manager
+	config            *config.PHPUnitTestConfig
+	integrationConfig *config.IntegrationTestConfig
 }
 
 // NewPHPUnitRunner creates a new PHPUnit runner
@@ -20,6 +21,11 @@ func NewPHPUnitRunner(m *Manager, cfg *config.PHPUnitTestConfig) *PHPUnitRunner 
 		manager: m,
 		config:  cfg,
 	}
+}
+
+// SetIntegrationConfig sets the integration test configuration
+func (r *PHPUnitRunner) SetIntegrationConfig(cfg *config.IntegrationTestConfig) {
+	r.integrationConfig = cfg
 }
 
 // RunUnit runs PHPUnit unit tests
@@ -32,13 +38,63 @@ func (r *PHPUnitRunner) RunUnit(filter string, testsuite string) error {
 	return r.manager.StreamCommand("PHPUnit", args...)
 }
 
+// IntegrationOptions contains options for running integration tests
+type IntegrationOptions struct {
+	Filter    string
+	TestSuite string
+	UseTmpfs  bool
+	TmpfsSize string
+	MySQLVer  string
+	KeepAlive bool
+}
+
 // RunIntegration runs Magento integration tests
 func (r *PHPUnitRunner) RunIntegration(filter string, testsuite string) error {
+	return r.RunIntegrationWithOptions(IntegrationOptions{
+		Filter:    filter,
+		TestSuite: testsuite,
+	})
+}
+
+// RunIntegrationWithOptions runs Magento integration tests with advanced options
+func (r *PHPUnitRunner) RunIntegrationWithOptions(opts IntegrationOptions) error {
 	if !r.manager.isComposerPackageInstalled("phpunit/phpunit") {
 		return fmt.Errorf("PHPUnit is not installed. Run: magebox test setup")
 	}
 
-	args := r.buildArgs(filter, testsuite, true)
+	// If tmpfs is enabled, start the test database container
+	if opts.UseTmpfs {
+		dbManager := NewIntegrationDBManager(r.manager, r.integrationConfig)
+
+		// Set custom tmpfs size if provided
+		if opts.TmpfsSize != "" && r.integrationConfig != nil {
+			r.integrationConfig.TmpfsSize = opts.TmpfsSize
+		}
+
+		mysqlVersion := opts.MySQLVer
+		if mysqlVersion == "" {
+			mysqlVersion = dbManager.GetDefaultVersion()
+		}
+
+		fmt.Println("\n📦 Setting up test database (tmpfs)...")
+		if err := dbManager.StartContainer(mysqlVersion, true); err != nil {
+			return fmt.Errorf("failed to start test database: %w", err)
+		}
+
+		// Show connection info
+		info := dbManager.GetConnectionInfo(mysqlVersion)
+		fmt.Printf("  ✓ Database ready: %s:%s/%s\n\n", info["host"], info["port"], info["database"])
+
+		// Cleanup after tests unless keep-alive is set
+		if !opts.KeepAlive {
+			defer func() {
+				fmt.Println("\n🧹 Cleaning up test database...")
+				_ = dbManager.StopContainer(mysqlVersion, true)
+			}()
+		}
+	}
+
+	args := r.buildArgs(opts.Filter, opts.TestSuite, true)
 	return r.manager.StreamCommand("Integration Tests", args...)
 }
 

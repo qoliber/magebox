@@ -16,6 +16,10 @@ magebox test setup
 magebox test unit
 magebox test unit --filter=ProductTest
 
+# Run integration tests with RAM-based MySQL (FAST!)
+magebox test integration --tmpfs
+magebox test integration --tmpfs --tmpfs-size=2g
+
 # Run static analysis
 magebox test phpstan --level=5
 magebox test phpcs --standard=Magento2
@@ -31,12 +35,38 @@ magebox test status
 **Features:**
 - **`magebox test setup`** - Interactive wizard to install PHPUnit, PHPStan, PHPCS, PHPMD
 - **`magebox test unit`** - Run PHPUnit unit tests with filter and testsuite options
-- **`magebox test integration`** - Run Magento integration tests
+- **`magebox test integration`** - Run Magento integration tests with tmpfs support
 - **`magebox test phpstan`** - Run PHPStan static analysis (levels 0-9)
 - **`magebox test phpcs`** - Run PHP_CodeSniffer with Magento2 or PSR12 standards
 - **`magebox test phpmd`** - Run PHP Mess Detector with configurable rulesets
 - **`magebox test all`** - Run all tests except integration (ideal for CI/CD)
 - **`magebox test status`** - Show installed tools and configuration status
+
+### Tmpfs MySQL for Integration Tests
+
+Run MySQL entirely in RAM for **10-100x faster** integration tests:
+
+```bash
+# Fast integration tests with RAM-based MySQL
+magebox test integration --tmpfs
+
+# Allocate more RAM for larger test suites
+magebox test integration --tmpfs --tmpfs-size=2g
+
+# Keep container running for repeated test runs
+magebox test integration --tmpfs --keep-alive
+
+# Use specific MySQL version
+magebox test integration --tmpfs --mysql-version=8.4
+```
+
+Container naming: `mysql-{version}-test` (e.g., `mysql-8-0-test`)
+
+### PHPStan Magento Extension
+
+Automatic support for [bitexpert/phpstan-magento](https://github.com/bitExpert/phpstan-magento):
+- Factory method analysis for ObjectManager
+- Auto-generates `phpstan.neon` with extension includes when installed
 
 **Configuration in `.magebox.yaml`:**
 ```yaml
@@ -49,6 +79,9 @@ testing:
     paths: ["app/code"]
   phpmd:
     ruleset: "cleancode,codesize,design"
+  integration:
+    tmpfs: true
+    tmpfs_size: "2g"
 ```
 
 See the new [Testing & Code Quality](/guide/testing-tools) documentation for full details.

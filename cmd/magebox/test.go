@@ -23,6 +23,11 @@ var (
 	phpstanLevel  int
 	phpcsStandard string
 	phpmdRuleset  string
+	// Integration test flags
+	integrationTmpfs     bool
+	integrationTmpfsSize string
+	integrationMySQLVer  string
+	integrationKeepAlive bool
 )
 
 // testCmd is the root test command
@@ -84,9 +89,17 @@ var testIntegrationCmd = &cobra.Command{
 
 Note: Integration tests require a separate database and may take a long time.
 
+Tmpfs Mode:
+  Use --tmpfs to run MySQL in RAM for much faster tests. This creates a
+  dedicated test container named mysql-{version}-test (e.g., mysql-8-0-test).
+
 Examples:
-  magebox test integration                 # Run all integration tests
-  magebox test integration --filter=Cart   # Run tests matching filter`,
+  magebox test integration                           # Run all integration tests
+  magebox test integration --filter=Cart             # Run tests matching filter
+  magebox test integration --tmpfs                   # Run with MySQL in RAM (fast!)
+  magebox test integration --tmpfs --tmpfs-size=2g   # Use 2GB RAM for MySQL
+  magebox test integration --tmpfs --keep-alive      # Keep container after tests
+  magebox test integration --mysql-version=8.4       # Use specific MySQL version`,
 	Run: runTestIntegration,
 }
 
@@ -155,6 +168,10 @@ func init() {
 
 	testIntegrationCmd.Flags().StringVarP(&testFilter, "filter", "f", "", "Filter tests by name")
 	testIntegrationCmd.Flags().StringVarP(&testSuite, "testsuite", "t", "", "Test suite to run")
+	testIntegrationCmd.Flags().BoolVar(&integrationTmpfs, "tmpfs", false, "Run MySQL in RAM for faster tests")
+	testIntegrationCmd.Flags().StringVar(&integrationTmpfsSize, "tmpfs-size", "1g", "RAM size for tmpfs MySQL (e.g., 1g, 2g)")
+	testIntegrationCmd.Flags().StringVar(&integrationMySQLVer, "mysql-version", "8.0", "MySQL version for test container")
+	testIntegrationCmd.Flags().BoolVar(&integrationKeepAlive, "keep-alive", false, "Keep test container running after tests")
 
 	testPHPStanCmd.Flags().IntVarP(&phpstanLevel, "level", "l", -1, "PHPStan analysis level (0-9)")
 
@@ -337,17 +354,41 @@ func runTestIntegration(cmd *cobra.Command, args []string) {
 	cfg, _ := loadProjectConfig(cwd)
 
 	var phpunitCfg *config.PHPUnitTestConfig
+	var integrationCfg *config.IntegrationTestConfig
 	if cfg != nil && cfg.Testing != nil {
 		phpunitCfg = cfg.Testing.PHPUnit
+		integrationCfg = cfg.Testing.Integration
 	}
 
 	runner := testing.NewPHPUnitRunner(mgr, phpunitCfg)
+	runner.SetIntegrationConfig(integrationCfg)
 
 	cli.PrintTitle("Running Magento Integration Tests")
-	cli.PrintWarning("Integration tests may take a long time and require database setup")
+
+	// Check if tmpfs is enabled via flag or config
+	useTmpfs := integrationTmpfs
+	if !useTmpfs && integrationCfg != nil {
+		useTmpfs = integrationCfg.Tmpfs
+	}
+
+	if useTmpfs {
+		cli.PrintInfo("Using tmpfs MySQL container for faster tests")
+	} else {
+		cli.PrintWarning("Integration tests may take a long time and require database setup")
+		cli.PrintInfo("Tip: Use --tmpfs to run MySQL in RAM for much faster tests")
+	}
 	fmt.Println()
 
-	if err := runner.RunIntegration(testFilter, testSuite); err != nil {
+	opts := testing.IntegrationOptions{
+		Filter:    testFilter,
+		TestSuite: testSuite,
+		UseTmpfs:  useTmpfs,
+		TmpfsSize: integrationTmpfsSize,
+		MySQLVer:  integrationMySQLVer,
+		KeepAlive: integrationKeepAlive,
+	}
+
+	if err := runner.RunIntegrationWithOptions(opts); err != nil {
 		os.Exit(1)
 	}
 }

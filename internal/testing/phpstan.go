@@ -132,7 +132,20 @@ func (r *PHPStanRunner) GenerateConfig(level int, paths []string) error {
 		paths = DefaultPaths()
 	}
 
-	content := fmt.Sprintf(`parameters:
+	// Check if bitexpert/phpstan-magento is installed
+	hasMagentoExtension := r.manager.isComposerPackageInstalled("bitexpert/phpstan-magento")
+
+	content := ""
+
+	// Include bitexpert/phpstan-magento extension if installed
+	if hasMagentoExtension {
+		content += `includes:
+    - vendor/bitexpert/phpstan-magento/extension.neon
+
+`
+	}
+
+	content += fmt.Sprintf(`parameters:
     level: %d
     paths:
 `, level)
@@ -144,7 +157,20 @@ func (r *PHPStanRunner) GenerateConfig(level int, paths []string) error {
 	content += `
     # Magento-specific settings
     treatPhpDocTypesAsCertain: false
+`
 
+	// Add Magento-specific configuration if extension is installed
+	if hasMagentoExtension {
+		content += `
+    # bitexpert/phpstan-magento configuration
+    # Enables ObjectManager factory method analysis
+    magento:
+        # Path to Magento root (autodetected if not set)
+        # magentoRootPath: %currentWorkingDirectory%
+`
+	}
+
+	content += `
     # Optional: ignore specific errors
     # ignoreErrors:
     #     - '#Variable \$[a-zA-Z]+ might not be defined#'

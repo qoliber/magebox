@@ -32,13 +32,16 @@ type PHPUnitTestConfig struct {
 
 // IntegrationTestConfig represents Magento integration test configuration
 type IntegrationTestConfig struct {
-	Enabled bool   `yaml:"enabled,omitempty"`
-	Config  string `yaml:"config,omitempty"`
-	DBHost  string `yaml:"db_host,omitempty"`
-	DBPort  int    `yaml:"db_port,omitempty"`
-	DBName  string `yaml:"db_name,omitempty"`
-	DBUser  string `yaml:"db_user,omitempty"`
-	DBPass  string `yaml:"db_pass,omitempty"`
+	Enabled   bool   `yaml:"enabled,omitempty"`
+	Config    string `yaml:"config,omitempty"`
+	DBHost    string `yaml:"db_host,omitempty"`
+	DBPort    int    `yaml:"db_port,omitempty"`
+	DBName    string `yaml:"db_name,omitempty"`
+	DBUser    string `yaml:"db_user,omitempty"`
+	DBPass    string `yaml:"db_pass,omitempty"`
+	Tmpfs     bool   `yaml:"tmpfs,omitempty"`      // Run MySQL in RAM for faster tests
+	TmpfsSize string `yaml:"tmpfs_size,omitempty"` // RAM size (default: 1g)
+	KeepAlive bool   `yaml:"keep_alive,omitempty"` // Keep container running after tests
 }
 
 // PHPStanTestConfig represents PHPStan configuration

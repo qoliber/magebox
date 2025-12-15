@@ -11,12 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`magebox test`** - Comprehensive testing and code quality commands:
   - `magebox test setup` - Interactive wizard to install PHPUnit, PHPStan, PHPCS, PHPMD
   - `magebox test unit` - Run PHPUnit unit tests with filter and testsuite options
-  - `magebox test integration` - Run Magento integration tests
+  - `magebox test integration` - Run Magento integration tests with tmpfs support
   - `magebox test phpstan` - Run PHPStan static analysis (levels 0-9)
   - `magebox test phpcs` - Run PHP_CodeSniffer with Magento2 or PSR12 standards
   - `magebox test phpmd` - Run PHP Mess Detector with configurable rulesets
   - `magebox test all` - Run all tests except integration (for CI/CD)
   - `magebox test status` - Show installed tools and their configuration status
+- **Tmpfs MySQL for integration tests** - Run MySQL in RAM for 10-100x faster tests:
+  - `--tmpfs` flag to enable RAM-based MySQL container
+  - `--tmpfs-size` to configure RAM allocation (default: 1g)
+  - `--mysql-version` to specify MySQL version (default: 8.0)
+  - `--keep-alive` to keep container running after tests
+  - Container naming: `mysql-{version}-test` (e.g., `mysql-8-0-test`)
+- **PHPStan Magento extension support** - Automatic integration with `bitexpert/phpstan-magento`:
+  - Factory method analysis for ObjectManager
+  - Auto-generates `phpstan.neon` with extension includes
 - **Testing configuration in `.magebox.yaml`** - Configure paths, levels, standards, and rulesets per project
 - **Comprehensive testing documentation** - Added "Testing" section in navigation with detailed command reference
 

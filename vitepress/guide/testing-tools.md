@@ -137,6 +137,10 @@ Run Magento integration tests.
 Integration tests require a separate database and can take a long time to run. They may also modify data, so use a dedicated test database.
 :::
 
+::: tip Fast Mode with tmpfs
+Use `--tmpfs` to run MySQL entirely in RAM. This can make integration tests **10-100x faster** by eliminating disk I/O!
+:::
+
 **Usage:**
 ```bash
 magebox test integration [options]
@@ -148,6 +152,10 @@ magebox test integration [options]
 |--------|-------|-------------|
 | `--filter` | `-f` | Filter tests by name |
 | `--testsuite` | `-t` | Run specific test suite |
+| `--tmpfs` | | Run MySQL in RAM for faster tests |
+| `--tmpfs-size` | | RAM allocation for tmpfs MySQL (default: `1g`) |
+| `--mysql-version` | | MySQL version for test container (default: `8.0`) |
+| `--keep-alive` | | Keep test container running after tests finish |
 
 **Examples:**
 ```bash
@@ -159,6 +167,35 @@ magebox test integration --filter=CartTest
 
 # Run specific test suite
 magebox test integration --testsuite=Integration
+
+# FAST: Run with MySQL in RAM (recommended!)
+magebox test integration --tmpfs
+
+# Use more RAM for larger test suites
+magebox test integration --tmpfs --tmpfs-size=2g
+
+# Keep container for repeated test runs
+magebox test integration --tmpfs --keep-alive
+
+# Use specific MySQL version
+magebox test integration --tmpfs --mysql-version=8.4
+```
+
+**Tmpfs Mode (RAM-based MySQL):**
+
+When using `--tmpfs`, MageBox creates a dedicated MySQL container:
+- Container name: `mysql-{version}-test` (e.g., `mysql-8-0-test`)
+- All data stored in RAM - extremely fast I/O
+- Automatically cleaned up after tests (unless `--keep-alive`)
+- Perfect for CI/CD pipelines
+
+**Container Management:**
+```bash
+# Check if test container is running
+docker ps | grep mysql-.*-test
+
+# Manually stop and remove test container
+docker stop mysql-8-0-test && docker rm mysql-8-0-test
 ```
 
 **How It Works:**
@@ -166,6 +203,7 @@ magebox test integration --testsuite=Integration
 1. Uses PHPUnit with Magento's integration test bootstrap
 2. Looks for config at `dev/tests/integration/phpunit.xml` or `.xml.dist`
 3. Requires Magento's integration test framework to be set up
+4. With `--tmpfs`: Creates ephemeral MySQL container with RAM storage
 
 **Configuration in `.magebox.yaml`:**
 ```yaml
@@ -177,7 +215,11 @@ testing:
     db_port: 33080
     db_name: "magento_integration_tests"
     db_user: "root"
-    db_pass: "magebox"
+    db_pass: "root"
+    # Enable tmpfs by default for this project
+    tmpfs: true
+    tmpfs_size: "2g"
+    keep_alive: false
 ```
 
 **Setting Up Integration Tests:**
@@ -187,7 +229,7 @@ testing:
    cp dev/tests/integration/phpunit.xml.dist dev/tests/integration/phpunit.xml
    ```
 
-2. Create test database:
+2. Create test database (or use `--tmpfs` to auto-create):
    ```bash
    magebox db shell
    CREATE DATABASE magento_integration_tests;
