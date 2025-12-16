@@ -124,7 +124,7 @@ domains:
 services:
   mysql: "8.0"      # Or mariadb: "10.6"
   redis: true
-  opensearch: "2.12"
+  opensearch: "2.19.4"
   mailpit: true
   # varnish: true   # Uncomment if using Varnish
 ```

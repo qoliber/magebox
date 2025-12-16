@@ -23,7 +23,7 @@ Enable services in your `.magebox.yaml` file:
 services:
   mysql: "8.0"
   redis: true
-  opensearch: "2.12"
+  opensearch: "2.19.4"
   rabbitmq: true
   mailpit: true
   varnish: false

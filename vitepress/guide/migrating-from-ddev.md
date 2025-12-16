@@ -128,7 +128,7 @@ domains:
 services:
   mysql: "8.0"      # Map from DDEV database config
   redis: true
-  opensearch: "2.12"
+  opensearch: "2.19.4"
   mailpit: true
 ```
 

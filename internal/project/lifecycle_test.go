@@ -261,7 +261,7 @@ php: "8.2"
 services:
   mysql: "8.0"
   redis: true
-  opensearch: "2.12"
+  opensearch: "2.19.4"
 `
 	if err := os.WriteFile(filepath.Join(projectPath, config.ConfigFileName), []byte(configContent), 0644); err != nil {
 		t.Fatalf("failed to write config: %v", err)

@@ -243,7 +243,7 @@ services:
     version: "8.0"
     port: 3306
   redis: "7.2"
-  opensearch: "2.12"
+  opensearch: "2.19.4"
   mailpit: true
 env:
   MAGE_MODE: developer

@@ -370,7 +370,7 @@ func TestComposeGenerator_collectRequiredServices(t *testing.T) {
 	if !rs.redis {
 		t.Error("Should require Redis")
 	}
-	if rs.opensearch["2.12"] == nil {
+	if rs.opensearch["2.19.4"] == nil {
 		t.Error("Should require OpenSearch 2.12")
 	}
 }

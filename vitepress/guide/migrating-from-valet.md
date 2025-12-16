@@ -107,7 +107,7 @@ domains:
 services:
   mysql: "8.0"
   redis: true
-  opensearch: "2.12"
+  opensearch: "2.19.4"
   mailpit: true
 ```
 
@@ -211,7 +211,7 @@ services:
 
 ```yaml
 services:
-  opensearch: "2.12"
+  opensearch: "2.19.4"
 ```
 
 ## Command Comparison
@@ -240,7 +240,7 @@ valet elasticsearch on
 MageBox:
 ```yaml
 services:
-  opensearch: "2.12"  # Or elasticsearch: "8.11"
+  opensearch: "2.19.4"  # Or elasticsearch: "8.11"
 ```
 
 ### Xdebug
