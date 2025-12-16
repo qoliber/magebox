@@ -2,6 +2,37 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.15.0] - 2025-12-16
+
+### Verbose Logging
+
+New verbose flags for debugging and troubleshooting:
+
+```bash
+magebox -v start     # Basic - shows commands being run
+magebox -vv start    # Detailed - shows command output
+magebox -vvv start   # Debug - full debug info
+```
+
+**Features:**
+- Three verbosity levels: `-v` (basic), `-vv` (detailed), `-vvv` (debug)
+- Color-coded output: `[verbose]` (cyan), `[debug]` (yellow), `[trace]` (magenta)
+- Platform and Linux distro detection logging
+- Docker Compose command detection (V2 vs V1 fallback)
+- Bootstrap process debugging
+- PHP version detection
+
+**Debug output includes:**
+- MageBox version and verbosity level
+- Environment variables (MAGEBOX_*, DOCKER_*, PATH, HOME)
+- Platform type, architecture, home directory
+- Linux distro family detection from `/etc/os-release`
+- Docker Compose version detection
+
+This makes it much easier to diagnose issues and report bugs with full context.
+
+---
+
 ## [0.14.5] - 2025-12-16
 
 ### Expanded Linux Distribution Support

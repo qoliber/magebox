@@ -36,10 +36,10 @@ func TestIsEnabled(t *testing.T) {
 	defer SetLevel(LevelQuiet)
 
 	tests := []struct {
-		name        string
-		setLevel    Level
-		checkLevel  Level
-		shouldBeOn  bool
+		name       string
+		setLevel   Level
+		checkLevel Level
+		shouldBeOn bool
 	}{
 		{"quiet_check_quiet", LevelQuiet, LevelQuiet, true},
 		{"quiet_check_basic", LevelQuiet, LevelBasic, false},

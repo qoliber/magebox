@@ -2,6 +2,39 @@
 
 Common issues and solutions when using MageBox.
 
+## Verbose Mode for Debugging
+
+When troubleshooting issues, use the verbose flags to get more information:
+
+```bash
+# Basic verbose - shows commands being run
+magebox -v start
+
+# Detailed verbose - shows command output
+magebox -vv start
+
+# Debug verbose - shows full debug info including platform detection
+magebox -vvv start
+```
+
+**Debug output includes:**
+- Platform and Linux distro detection
+- Docker Compose command detection (V2 vs V1)
+- PHP version detection
+- Service startup details
+- SSL certificate generation
+
+Example debug output:
+```
+[trace] MageBox version: 0.15.0
+[trace] Verbosity level: 3
+[trace] Detecting platform...
+[trace] Platform type: linux, arch: amd64
+[trace] os-release: ID=fedora, ID_LIKE=, PRETTY_NAME=Fedora Linux 42
+[trace] Detecting Docker Compose command...
+[trace] Docker Compose V2 detected: docker compose
+```
+
 ## Services Not Starting
 
 ### Docker Not Running
@@ -497,15 +530,20 @@ sudo setenforce 0
 
 If you're still stuck:
 
-1. Check the logs:
+1. Run with verbose mode:
+   ```bash
+   magebox -vvv start
+   ```
+
+2. Check the logs:
    ```bash
    magebox logs
    ```
 
-2. Check service status:
+3. Check service status:
    ```bash
    magebox status
    docker ps
    ```
 
-3. Open an issue on [GitHub](https://github.com/qoliber/magebox/issues)
+4. Open an issue on [GitHub](https://github.com/qoliber/magebox/issues) with verbose output
