@@ -106,21 +106,21 @@ func (u *UbuntuInstaller) InstallPrerequisites() error {
 // InstallPHP installs a specific PHP version via Ondrej PPA
 func (u *UbuntuInstaller) InstallPHP(version string) error {
 	// Install PHP with all required extensions
+	// Note: sodium is included in php-common on Ubuntu/Debian
 	packages := []string{
 		fmt.Sprintf("php%s-fpm", version),
 		fmt.Sprintf("php%s-cli", version),
 		fmt.Sprintf("php%s-common", version),
-		fmt.Sprintf("php%s-mysql", version),
-		fmt.Sprintf("php%s-xml", version),
+		fmt.Sprintf("php%s-opcache", version),
+		fmt.Sprintf("php%s-zip", version),
 		fmt.Sprintf("php%s-curl", version),
 		fmt.Sprintf("php%s-mbstring", version),
-		fmt.Sprintf("php%s-zip", version),
+		fmt.Sprintf("php%s-xml", version),
+		fmt.Sprintf("php%s-bcmath", version),
 		fmt.Sprintf("php%s-gd", version),
 		fmt.Sprintf("php%s-intl", version),
-		fmt.Sprintf("php%s-bcmath", version),
+		fmt.Sprintf("php%s-mysql", version),
 		fmt.Sprintf("php%s-soap", version),
-		fmt.Sprintf("php%s-opcache", version),
-		fmt.Sprintf("php%s-sodium", version),
 	}
 
 	args := append([]string{"apt", "install", "-y"}, packages...)
