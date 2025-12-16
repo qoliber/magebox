@@ -447,8 +447,13 @@ func (m *Manager) Init(projectPath string, projectName string) error {
 		return fmt.Errorf("%s file already exists", config.ConfigFileName)
 	}
 
+	// Get configured TLD from global config
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	// Derive domain from project name
-	domain := projectName + ".test"
+	domain := projectName + "." + tld
 
 	content := fmt.Sprintf(`name: %s
 domains:

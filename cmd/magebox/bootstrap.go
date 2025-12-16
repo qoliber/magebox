@@ -607,12 +607,14 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Generate Mailpit vhost (mailpit.magebox.test)
+	// Generate Mailpit vhost
+	tld := globalCfg.GetTLD()
+	mailpitDomain := fmt.Sprintf("mailpit.magebox.%s", tld)
 	fmt.Print("  Setting up Mailpit vhost... ")
 	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
 	mailpitCfg := nginx.ProxyConfig{
 		Name:       "mailpit",
-		Domain:     "mailpit.magebox.test",
+		Domain:     mailpitDomain,
 		ProxyHost:  "127.0.0.1",
 		ProxyPort:  8025,
 		SSLEnabled: true,
@@ -631,14 +633,14 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	dnsManager := dns.NewDnsmasqManager(p)
 
 	if p.Type == platform.Linux {
-		// On Linux, auto-configure dnsmasq for *.test wildcard DNS
+		// On Linux, auto-configure dnsmasq for wildcard DNS
 		dnsmasqConfigured := false
 		if dnsManager.IsConfigured() && dnsManager.IsRunning() {
 			fmt.Println("  dnsmasq configured and running " + cli.Success("✓"))
 			dnsmasqConfigured = true
 		} else {
 			if dnsManager.IsInstalled() {
-				fmt.Print("  Configuring dnsmasq for *.test domains... ")
+				fmt.Printf("  Configuring dnsmasq for *.%s domains... ", tld)
 				if err := bootstrapper.SetupDNS(); err != nil {
 					fmt.Println(cli.Error("failed"))
 					cli.PrintWarning("dnsmasq config failed: %v", err)
@@ -664,7 +666,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	} else if globalCfg.UseDnsmasq() {
 		// macOS - check if dnsmasq configured
 		if dnsManager.IsConfigured() {
-			fmt.Println("  dnsmasq configured for *.test " + cli.Success("✓"))
+			fmt.Printf("  dnsmasq configured for *.%s %s\n", tld, cli.Success("✓"))
 		} else {
 			fmt.Println("  dnsmasq not yet configured")
 			cli.PrintInfo("Run %s to configure wildcard DNS", cli.Command("magebox dns setup"))
@@ -778,7 +780,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println("Services available:")
 	fmt.Printf("  MySQL 8.0:    %s (root password: magebox)\n", cli.URL("localhost:33080"))
 	fmt.Printf("  Redis:        %s\n", cli.URL("localhost:6379"))
-	fmt.Printf("  Mailpit:      %s\n", cli.URL("https://mailpit.magebox.test"))
+	fmt.Printf("  Mailpit:      %s\n", cli.URL(fmt.Sprintf("https://mailpit.magebox.%s", tld)))
 	if globalCfg.Portainer {
 		fmt.Printf("  Portainer:    %s\n", cli.URL("http://localhost:9000"))
 	}

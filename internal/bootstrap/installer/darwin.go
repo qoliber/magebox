@@ -5,9 +5,11 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
 )
 
@@ -178,16 +180,22 @@ func (d *DarwinInstaller) ConfigureSELinux() error {
 	return nil
 }
 
-// SetupDNS configures DNS resolution for .test domains on macOS
+// SetupDNS configures DNS resolution for local domains on macOS
 func (d *DarwinInstaller) SetupDNS() error {
+	// Get configured TLD
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	// Create /etc/resolver directory
 	if err := d.RunSudo("mkdir", "-p", "/etc/resolver"); err != nil {
 		return fmt.Errorf("failed to create resolver directory: %w", err)
 	}
 
-	// Create resolver config for .test domain
+	// Create resolver config for the TLD
 	resolverContent := "nameserver 127.0.0.1\n"
-	if err := d.WriteFile("/etc/resolver/test", resolverContent); err != nil {
+	resolverPath := "/etc/resolver/" + tld
+	if err := d.WriteFile(resolverPath, resolverContent); err != nil {
 		return fmt.Errorf("failed to write resolver config: %w", err)
 	}
 

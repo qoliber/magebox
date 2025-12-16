@@ -21,10 +21,11 @@ var dnsCmd = &cobra.Command{
 var dnsSetupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Setup dnsmasq for wildcard DNS",
-	Long: `Sets up dnsmasq to resolve *.test domains to localhost.
+	Long: `Sets up dnsmasq to resolve local development domains to localhost.
 
 This eliminates the need to add each domain to /etc/hosts manually.
-Requires dnsmasq to be installed first.`,
+Requires dnsmasq to be installed first.
+The TLD used is configured via 'magebox config set tld <value>' (default: test).`,
 	RunE: runDnsSetup,
 }
 
@@ -47,6 +48,11 @@ func runDnsSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Load global config for TLD
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	dnsMgr := dns.NewDnsmasqManager(p)
 
 	// Check if dnsmasq is installed
@@ -57,7 +63,7 @@ func runDnsSetup(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	cli.PrintInfo("Setting up dnsmasq for *.test domain resolution...")
+	cli.PrintInfo("Setting up dnsmasq for *.%s domain resolution...", tld)
 
 	// Configure dnsmasq
 	if err := dnsMgr.Configure(); err != nil {
@@ -79,14 +85,12 @@ func runDnsSetup(cmd *cobra.Command, args []string) error {
 	}
 
 	// Update global config
-	homeDir, _ := os.UserHomeDir()
-	globalCfg, _ := config.LoadGlobalConfig(homeDir)
 	globalCfg.DNSMode = "dnsmasq"
 	_ = config.SaveGlobalConfig(homeDir, globalCfg)
 
 	cli.PrintSuccess("dnsmasq configured successfully!")
 	fmt.Println()
-	cli.PrintInfo("All *.test domains now resolve to 127.0.0.1")
+	cli.PrintInfo("All *.%s domains now resolve to 127.0.0.1", tld)
 	fmt.Println(cli.Bullet("No need to edit /etc/hosts for new projects"))
 
 	// Show test command with correct DNS server address
@@ -94,7 +98,7 @@ func runDnsSetup(cmd *cobra.Command, args []string) error {
 	if p.Type == platform.Linux {
 		dnsServer = "127.0.0.2"
 	}
-	fmt.Println(cli.Bullet("Test with: " + cli.Command("dig test.test @"+dnsServer)))
+	fmt.Println(cli.Bullet("Test with: " + cli.Command(fmt.Sprintf("dig test.%s @%s", tld, dnsServer))))
 
 	return nil
 }

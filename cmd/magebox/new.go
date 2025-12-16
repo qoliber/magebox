@@ -206,6 +206,11 @@ func runNew(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Load global config for TLD
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	cli.PrintLogoSmall(version)
 	fmt.Println()
 
@@ -485,7 +490,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	}
 
 	// Domain
-	defaultDomain := projectName + ".test"
+	defaultDomain := projectName + "." + tld
 	fmt.Printf("  Domain [%s]: ", defaultDomain)
 	domainInput, _ := reader.ReadString('\n')
 	domainInput = strings.TrimSpace(domainInput)
@@ -790,6 +795,11 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	cli.PrintTitle("Quick Install - MageOS with Sample Data")
 	fmt.Println()
 
+	// Load global config for TLD
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	// Defaults for quick mode
 	selectedVersion := mageosVersions[0] // MageOS 1.0.4 (latest)
 	selectedPHP := DefaultPHPVersion
@@ -813,7 +823,7 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	}
 
 	// Domain from project name
-	domainInput := projectName + ".test"
+	domainInput := projectName + "." + tld
 
 	// Check PHP availability
 	detector := php.NewDetector(p)

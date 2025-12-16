@@ -66,9 +66,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Get configured TLD
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	cli.PrintSuccess("Created %s for project '%s'", config.ConfigFileName, projectName)
 	fmt.Println()
-	fmt.Printf("Domain: %s\n", cli.URL(projectName+".test"))
+	fmt.Printf("Domain: %s\n", cli.URL(projectName+"."+tld))
 	fmt.Println()
 	cli.PrintInfo("Next steps:")
 	fmt.Println(cli.Bullet("Edit " + config.ConfigFileName + " to customize your configuration"))

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
 )
 
@@ -257,17 +258,25 @@ func (u *UbuntuInstaller) ConfigureSELinux() error {
 	return nil
 }
 
-// SetupDNS configures DNS resolution for .test domains
+// SetupDNS configures DNS resolution for local domains
 func (u *UbuntuInstaller) SetupDNS() error {
+	// Get configured TLD
+	homeDir, _ := os.UserHomeDir()
+	globalCfg, _ := config.LoadGlobalConfig(homeDir)
+	tld := globalCfg.GetTLD()
+
 	// Create MageBox dnsmasq config
 	configDir := "/etc/dnsmasq.d"
 	if err := u.RunSudo("mkdir", "-p", configDir); err != nil {
 		return err
 	}
 
-	mageboxConf := `# MageBox - Resolve *.test to localhost
-address=/test/127.0.0.1
-`
+	mageboxConf := fmt.Sprintf(`# MageBox - Resolve *.%s to localhost
+address=/%s/127.0.0.1
+listen-address=127.0.0.2
+port=53
+bind-interfaces
+`, tld, tld)
 	if err := u.WriteFile("/etc/dnsmasq.d/magebox.conf", mageboxConf); err != nil {
 		return err
 	}
@@ -275,16 +284,16 @@ address=/test/127.0.0.1
 	// Check if systemd-resolved is running (common on Ubuntu 18.04+)
 	cmd := exec.Command("systemctl", "is-active", "systemd-resolved")
 	if cmd.Run() == nil {
-		// Configure systemd-resolved to use dnsmasq for .test
+		// Configure systemd-resolved to use dnsmasq for the TLD
 		resolvedDir := "/etc/systemd/resolved.conf.d"
 		if err := u.RunSudo("mkdir", "-p", resolvedDir); err != nil {
 			return err
 		}
 
-		resolvedConfig := `[Resolve]
-DNS=127.0.0.1
-Domains=~test
-`
+		resolvedConfig := fmt.Sprintf(`[Resolve]
+DNS=127.0.0.2
+Domains=~%s
+`, tld)
 		if err := u.WriteFile(resolvedDir+"/magebox.conf", resolvedConfig); err != nil {
 			return err
 		}

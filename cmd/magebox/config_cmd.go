@@ -8,6 +8,8 @@ import (
 
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
+	"github.com/qoliber/magebox/internal/dns"
+	"github.com/qoliber/magebox/internal/platform"
 )
 
 var configCmd = &cobra.Command{
@@ -112,6 +114,8 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	oldTLD := cfg.GetTLD()
+
 	switch key {
 	case "dns_mode":
 		if value != "hosts" && value != "dnsmasq" {
@@ -140,6 +144,41 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	}
 
 	cli.PrintSuccess("Configuration updated: %s = %s", key, value)
+
+	// If TLD changed and dnsmasq is configured, reconfigure DNS
+	if key == "tld" && value != oldTLD {
+		p, err := platform.Detect()
+		if err != nil {
+			cli.PrintWarning("Could not detect platform for DNS reconfiguration: %v", err)
+			return nil
+		}
+
+		dnsMgr := dns.NewDnsmasqManager(p)
+		if dnsMgr.IsConfigured() {
+			cli.PrintInfo("Reconfiguring DNS for new TLD: %s", value)
+
+			// Remove old macOS resolver if exists
+			if p.Type == platform.Darwin {
+				_ = dnsMgr.Remove() // This removes the old resolver file
+			}
+
+			// Reconfigure dnsmasq
+			if err := dnsMgr.Configure(); err != nil {
+				cli.PrintWarning("Failed to reconfigure DNS: %v", err)
+				cli.PrintInfo("Run %s to reconfigure manually", cli.Command("magebox dns setup"))
+				return nil
+			}
+
+			// Restart dnsmasq
+			if err := dnsMgr.Restart(); err != nil {
+				cli.PrintWarning("Failed to restart dnsmasq: %v", err)
+				return nil
+			}
+
+			cli.PrintSuccess("DNS reconfigured for *.%s domains", value)
+		}
+	}
+
 	return nil
 }
 
