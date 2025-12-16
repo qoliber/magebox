@@ -2,6 +2,25 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.3] - 2025-12-16
+
+### Cross-Platform Nginx Configuration Fix
+
+Extended the explicit nginx include approach to all platforms:
+
+- **Unified approach** - All platforms (macOS and Linux) now use explicit include directives instead of symlinks
+- **Removed symlink code** - Eliminated the `setupNginxSymlink()` function entirely
+- **Linux compatibility** - Fixes the same "include tries to load directory" issue on Ubuntu/Debian that was fixed on macOS in v0.16.2
+
+**Affected platforms:**
+- macOS (Homebrew) - already fixed in v0.16.2
+- Ubuntu/Debian - previously used symlinks in `/etc/nginx/sites-enabled/`
+- Fedora/Arch - already used direct includes
+
+This ensures consistent, reliable nginx configuration across all supported platforms.
+
+---
+
 ## [0.16.2] - 2025-12-16
 
 ### macOS Nginx Configuration Fix

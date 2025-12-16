@@ -632,47 +632,50 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 	dnsManager := dns.NewDnsmasqManager(p)
 
-	if p.Type == platform.Linux {
-		// On Linux, auto-configure dnsmasq for wildcard DNS
-		dnsmasqConfigured := false
-		if dnsManager.IsConfigured() && dnsManager.IsRunning() {
-			fmt.Println("  dnsmasq configured and running " + cli.Success("✓"))
-			dnsmasqConfigured = true
-		} else {
-			if dnsManager.IsInstalled() {
-				fmt.Printf("  Configuring dnsmasq for *.%s domains... ", tld)
-				if err := bootstrapper.SetupDNS(); err != nil {
-					fmt.Println(cli.Error("failed"))
-					cli.PrintWarning("dnsmasq config failed: %v", err)
-				} else {
-					fmt.Println(cli.Success("done"))
-					dnsmasqConfigured = true
-				}
+	// Auto-configure dnsmasq for wildcard DNS on all platforms
+	dnsmasqConfigured := false
+
+	if dnsManager.IsConfigured() && dnsManager.IsRunning() {
+		fmt.Printf("  dnsmasq configured for *.%s %s\n", tld, cli.Success("✓"))
+		dnsmasqConfigured = true
+	} else {
+		// Check if dnsmasq is installed
+		if !dnsManager.IsInstalled() {
+			fmt.Print("  Installing dnsmasq... ")
+			if err := bootstrapper.GetInstaller().InstallDnsmasq(); err != nil {
+				fmt.Println(cli.Error("failed"))
+				cli.PrintWarning("dnsmasq installation failed: %v", err)
 			} else {
-				fmt.Println("  dnsmasq not installed")
-				cli.PrintInfo("Install with: %s", cli.Command(dnsManager.InstallCommand()))
+				fmt.Println(cli.Success("done"))
 			}
 		}
 
-		// Set dns_mode to dnsmasq if successfully configured
-		if dnsmasqConfigured && globalCfg.DNSMode != "dnsmasq" {
-			globalCfg.DNSMode = "dnsmasq"
-			if err := config.SaveGlobalConfig(homeDir, globalCfg); err != nil {
-				cli.PrintWarning("Failed to save dns_mode config: %v", err)
+		// Configure dnsmasq if now installed
+		if dnsManager.IsInstalled() {
+			fmt.Printf("  Configuring dnsmasq for *.%s domains... ", tld)
+			if err := bootstrapper.SetupDNS(); err != nil {
+				fmt.Println(cli.Error("failed"))
+				cli.PrintWarning("dnsmasq config failed: %v", err)
 			} else {
-				fmt.Println("  Set dns_mode: dnsmasq " + cli.Success("✓"))
+				fmt.Println(cli.Success("done"))
+				dnsmasqConfigured = true
 			}
 		}
-	} else if globalCfg.UseDnsmasq() {
-		// macOS - check if dnsmasq configured
-		if dnsManager.IsConfigured() {
-			fmt.Printf("  dnsmasq configured for *.%s %s\n", tld, cli.Success("✓"))
+	}
+
+	// Set dns_mode to dnsmasq if successfully configured
+	if dnsmasqConfigured && globalCfg.DNSMode != "dnsmasq" {
+		globalCfg.DNSMode = "dnsmasq"
+		if err := config.SaveGlobalConfig(homeDir, globalCfg); err != nil {
+			cli.PrintWarning("Failed to save dns_mode config: %v", err)
 		} else {
-			fmt.Println("  dnsmasq not yet configured")
-			cli.PrintInfo("Run %s to configure wildcard DNS", cli.Command("magebox dns setup"))
+			fmt.Println("  Set dns_mode: dnsmasq " + cli.Success("✓"))
 		}
-	} else {
-		fmt.Println("  Using /etc/hosts mode")
+	} else if !dnsmasqConfigured {
+		// Fall back to hosts mode if dnsmasq setup failed
+		fmt.Println("  Falling back to /etc/hosts mode")
+		globalCfg.DNSMode = "hosts"
+		_ = config.SaveGlobalConfig(homeDir, globalCfg)
 		cli.PrintInfo("Domains will be added to /etc/hosts when you run %s", cli.Command("magebox start"))
 	}
 	fmt.Println()

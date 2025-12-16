@@ -18,8 +18,8 @@ func TestGlobalConfigPath(t *testing.T) {
 func TestDefaultGlobalConfig(t *testing.T) {
 	config := DefaultGlobalConfig()
 
-	if config.DNSMode != "hosts" {
-		t.Errorf("DNSMode = %v, want hosts", config.DNSMode)
+	if config.DNSMode != "dnsmasq" {
+		t.Errorf("DNSMode = %v, want dnsmasq", config.DNSMode)
 	}
 	if config.DefaultPHP != "8.2" {
 		t.Errorf("DefaultPHP = %v, want 8.2", config.DefaultPHP)
@@ -47,8 +47,8 @@ func TestLoadGlobalConfig_NotExists(t *testing.T) {
 	}
 
 	// Should return defaults
-	if config.DNSMode != "hosts" {
-		t.Errorf("DNSMode = %v, want hosts", config.DNSMode)
+	if config.DNSMode != "dnsmasq" {
+		t.Errorf("DNSMode = %v, want dnsmasq", config.DNSMode)
 	}
 }
 
@@ -201,8 +201,8 @@ func TestGlobalConfig_applyDefaults(t *testing.T) {
 	config := &GlobalConfig{}
 	config.applyDefaults()
 
-	if config.DNSMode != "hosts" {
-		t.Errorf("DNSMode = %v, want hosts", config.DNSMode)
+	if config.DNSMode != "dnsmasq" {
+		t.Errorf("DNSMode = %v, want dnsmasq", config.DNSMode)
 	}
 	if config.DefaultPHP != "8.2" {
 		t.Errorf("DefaultPHP = %v, want 8.2", config.DefaultPHP)

@@ -124,7 +124,7 @@ func SaveGlobalConfig(homeDir string, config *GlobalConfig) error {
 // DefaultGlobalConfig returns a GlobalConfig with sensible defaults
 func DefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
-		DNSMode:    "hosts", // Use /etc/hosts by default (works without extra setup)
+		DNSMode:    "dnsmasq", // Use dnsmasq for wildcard DNS (*.test)
 		DefaultPHP: "8.2",
 		DefaultServices: DefaultServices{
 			MySQL: "8.0",
