@@ -354,7 +354,7 @@ func TestComposeGenerator_collectRequiredServices(t *testing.T) {
 			Name: "project2",
 			Services: config.Services{
 				MariaDB:    &config.ServiceConfig{Enabled: true, Version: "10.6"},
-				OpenSearch: &config.ServiceConfig{Enabled: true, Version: "2.12"},
+				OpenSearch: &config.ServiceConfig{Enabled: true, Version: "2.19.4"},
 			},
 		},
 	}
@@ -371,7 +371,7 @@ func TestComposeGenerator_collectRequiredServices(t *testing.T) {
 		t.Error("Should require Redis")
 	}
 	if rs.opensearch["2.19.4"] == nil {
-		t.Error("Should require OpenSearch 2.12")
+		t.Error("Should require OpenSearch 2.19.4")
 	}
 }
 

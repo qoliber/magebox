@@ -7,9 +7,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/qoliber/magebox/internal/cli"
+	"github.com/qoliber/magebox/internal/verbose"
 )
 
 var version = "0.14.5"
+
+// verbosity is the count of -v flags
+var verbosity int
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -26,6 +30,16 @@ var rootCmd = &cobra.Command{
 It uses native PHP-FPM and Nginx for maximum performance,
 with Docker for services like MySQL, Redis, OpenSearch, and Varnish.`,
 	Version: version,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Set verbosity level based on -v count
+		verbose.SetLevel(verbose.Level(verbosity))
+
+		if verbose.IsEnabled(verbose.LevelDebug) {
+			verbose.Debug("MageBox version: %s", version)
+			verbose.Debug("Verbosity level: %d", verbosity)
+			verbose.Env()
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		// Show logo when running without subcommand
 		cli.PrintLogoSmall(version)
@@ -35,6 +49,6 @@ with Docker for services like MySQL, Redis, OpenSearch, and Varnish.`,
 }
 
 func init() {
-	// Root commands are registered in each command file's init()
-	// This keeps root.go clean and each command self-contained
+	// Global verbose flag - can be repeated: -v, -vv, -vvv
+	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "Increase verbosity (-v, -vv, -vvv)")
 }

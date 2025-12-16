@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/qoliber/magebox/internal/verbose"
 )
 
 // Type represents the operating system type
@@ -48,6 +50,8 @@ type Platform struct {
 
 // Detect detects the current platform
 func Detect() (*Platform, error) {
+	verbose.Debug("Detecting platform...")
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
@@ -59,11 +63,18 @@ func Detect() (*Platform, error) {
 		HomeDir: homeDir,
 	}
 
+	verbose.Debug("Platform type: %s, arch: %s", p.Type, p.Arch)
+	verbose.Debug("Home directory: %s", homeDir)
+
 	p.IsAppleSilicon = p.Type == Darwin && p.Arch == "arm64"
+	if p.IsAppleSilicon {
+		verbose.Debug("Apple Silicon detected")
+	}
 
 	// Detect Linux distribution
 	if p.Type == Linux {
 		p.LinuxDistro, p.DistroName, p.DistroTested = detectLinuxDistro()
+		verbose.Debug("Linux distro: %s (family: %s, tested: %v)", p.DistroName, p.LinuxDistro, p.DistroTested)
 	}
 
 	return p, nil
@@ -96,9 +107,12 @@ var testedDistros = map[string]bool{
 // detectLinuxDistro detects the Linux distribution family
 // Returns: distro family, distro name, and whether it's been tested
 func detectLinuxDistro() (LinuxDistro, string, bool) {
+	verbose.Debug("Reading /etc/os-release...")
+
 	// Read /etc/os-release to determine distro
 	data, err := os.ReadFile("/etc/os-release")
 	if err != nil {
+		verbose.Debug("Failed to read /etc/os-release: %v", err)
 		return DistroUnknown, "unknown", false
 	}
 
@@ -112,27 +126,34 @@ func detectLinuxDistro() (LinuxDistro, string, bool) {
 		prettyName = id
 	}
 
+	verbose.Debug("os-release: ID=%s, ID_LIKE=%s, PRETTY_NAME=%s", id, idLike, prettyName)
+
 	// Check if this specific distro has been tested
 	tested := testedDistros[id]
+	verbose.Debug("Distro %s tested: %v", id, tested)
 
 	// Check for Fedora/RHEL/CentOS family
 	if id == "fedora" || id == "rhel" || id == "centos" || id == "rocky" || id == "almalinux" ||
 		strings.Contains(idLike, "fedora") || strings.Contains(idLike, "rhel") {
+		verbose.Debug("Matched Fedora/RHEL family")
 		return DistroFedora, prettyName, tested
 	}
 
 	// Check for Debian/Ubuntu family
 	if id == "debian" || id == "ubuntu" || id == "linuxmint" || id == "pop" ||
 		strings.Contains(idLike, "debian") || strings.Contains(idLike, "ubuntu") {
+		verbose.Debug("Matched Debian/Ubuntu family")
 		return DistroDebian, prettyName, tested
 	}
 
 	// Check for Arch family
 	if id == "arch" || id == "manjaro" || id == "endeavouros" || id == "garuda" || id == "artix" ||
 		strings.Contains(idLike, "arch") {
+		verbose.Debug("Matched Arch family")
 		return DistroArch, prettyName, tested
 	}
 
+	verbose.Debug("No known distro family matched")
 	return DistroUnknown, prettyName, false
 }
 

@@ -174,6 +174,49 @@ run_test "magebox completion zsh" "magebox completion zsh > /dev/null"
 
 echo ""
 echo "========================================"
+echo "=== SECTION 1b: Verbose Flag Testing ==="
+echo "========================================"
+
+# Test verbose flag parsing
+run_test "magebox -v flag" "magebox -v --help 2>&1 | head -5"
+run_test "magebox -vv flag" "magebox -vv --help 2>&1 | head -5"
+run_test "magebox -vvv flag" "magebox -vvv --help 2>&1 | grep -q trace || magebox -vvv --help 2>&1 | head -10"
+
+# Test verbose output shows platform detection at -vvv
+info "Testing verbose platform detection..."
+VERBOSE_OUTPUT=$(magebox -vvv status 2>&1 || true)
+if echo "$VERBOSE_OUTPUT" | grep -q "Detecting platform"; then
+    pass "Verbose shows platform detection"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    fail "Verbose does not show platform detection"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+
+# Test verbose shows distro info
+if echo "$VERBOSE_OUTPUT" | grep -qi "os-release\|distro\|linux"; then
+    pass "Verbose shows distro information"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    skip "Verbose distro info (may not be Linux)"
+    TESTS_SKIPPED=$((TESTS_SKIPPED + 1))
+fi
+
+# Test that regular output (-v) is less verbose than debug (-vvv)
+V_OUTPUT=$(magebox -v status 2>&1 || true)
+VVV_OUTPUT=$(magebox -vvv status 2>&1 || true)
+V_LINES=$(echo "$V_OUTPUT" | wc -l)
+VVV_LINES=$(echo "$VVV_OUTPUT" | wc -l)
+if [[ $VVV_LINES -gt $V_LINES ]]; then
+    pass "Verbosity levels work correctly (-vvv more verbose than -v)"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+else
+    fail "Verbosity levels not working (expected -vvv to be more verbose)"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+fi
+
+echo ""
+echo "========================================"
 echo "=== SECTION 2: Project Init & Config ==="
 echo "========================================"
 

@@ -25,6 +25,7 @@ import (
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/portforward"
 	"github.com/qoliber/magebox/internal/ssl"
+	"github.com/qoliber/magebox/internal/verbose"
 )
 
 var bootstrapCmd = &cobra.Command{
@@ -59,8 +60,11 @@ func init() {
 }
 
 func runBootstrap(cmd *cobra.Command, args []string) error {
+	verbose.Section("Bootstrap Starting")
+
 	p, err := getPlatform()
 	if err != nil {
+		verbose.Debug("Failed to detect platform: %v", err)
 		return err
 	}
 
@@ -142,35 +146,49 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println(cli.Header("Step 1: Checking Dependencies"))
 
 	// Check Docker
+	verbose.Debug("Checking Docker installation...")
 	dockerInstalled := platform.CommandExists("docker")
 	fmt.Printf("  %-15s %s\n", "Docker:", cli.StatusInstalled(dockerInstalled))
 	if !dockerInstalled {
+		verbose.Debug("Docker not found in PATH")
 		errors = append(errors, "Docker is not installed. Install: "+bootstrapper.DockerInstallInstructions())
 	} else {
+		verbose.Debug("Docker binary found, checking daemon...")
 		// Check if Docker daemon is running
 		if !bootstrapper.CheckDockerRunning() {
+			verbose.Debug("Docker daemon is not running")
 			cli.PrintWarning("Docker is installed but not running. Please start Docker.")
 			errors = append(errors, "Docker daemon is not running")
+		} else {
+			verbose.Debug("Docker daemon is running")
 		}
 	}
 
 	// Check Nginx
+	verbose.Debug("Checking Nginx installation...")
 	nginxInstalled := p.IsNginxInstalled()
+	verbose.Debug("Nginx installed: %v (binary: %s)", nginxInstalled, p.NginxBinary())
 	fmt.Printf("  %-15s %s\n", "Nginx:", cli.StatusInstalled(nginxInstalled))
 	if !nginxInstalled {
 		errors = append(errors, "Nginx is not installed. Install: "+p.NginxInstallCommand())
 	}
 
 	// Check mkcert
+	verbose.Debug("Checking mkcert installation...")
 	mkcertInstalled := platform.CommandExists("mkcert")
+	verbose.Debug("mkcert installed: %v", mkcertInstalled)
 	fmt.Printf("  %-15s %s\n", "mkcert:", cli.StatusInstalled(mkcertInstalled))
 	if !mkcertInstalled {
 		errors = append(errors, "mkcert is not installed. Install: "+p.MkcertInstallCommand())
 	}
 
 	// Check PHP versions
+	verbose.Debug("Detecting installed PHP versions...")
 	detector := php.NewDetector(p)
 	installedPHPVersions := detector.DetectInstalled()
+	for _, ver := range installedPHPVersions {
+		verbose.Debug("Found PHP %s at %s", ver.Version, ver.PHPBinary)
+	}
 	fmt.Printf("  %-15s %s (%d versions)\n", "PHP:", cli.StatusInstalled(len(installedPHPVersions) > 0), len(installedPHPVersions))
 
 	fmt.Println()
@@ -311,10 +329,13 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 			inst := bootstrapper.GetInstaller()
 			for _, phpVer := range missingVersions {
+				verbose.Debug("Installing PHP %s...", phpVer)
 				fmt.Printf("  Installing PHP %s...\n", phpVer)
 				if err := inst.InstallPHP(phpVer); err != nil {
+					verbose.Debug("PHP %s installation error: %v", phpVer, err)
 					cli.PrintWarning("Failed to install PHP %s: %v", phpVer, err)
 				} else {
+					verbose.Debug("PHP %s installed successfully", phpVer)
 					fmt.Printf("  PHP %s installed %s\n", phpVer, cli.Success("✓"))
 				}
 				fmt.Println()
@@ -435,15 +456,19 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	// Step 4: Setup mkcert CA
 	fmt.Println(cli.Header("Step 4: SSL Certificate Authority"))
 
+	verbose.Debug("Setting up mkcert CA...")
 	sslMgr := ssl.NewManager(p)
 	if sslMgr.IsCAInstalled() {
+		verbose.Debug("Local CA already installed")
 		fmt.Println("  Local CA already installed " + cli.Success("✓"))
 	} else {
 		fmt.Print("  Installing local CA... ")
 		if err := sslMgr.InstallCA(); err != nil {
+			verbose.Debug("SSL CA installation error: %v", err)
 			fmt.Println(cli.Error("failed"))
 			cli.PrintWarning("SSL setup failed: %v", err)
 		} else {
+			verbose.Debug("Local CA installed successfully")
 			fmt.Println(cli.Success("done"))
 		}
 	}
@@ -480,7 +505,9 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Nginx config: %s\n", cli.Highlight(nginxCtrl.GetNginxConfPath()))
 
 	// Configure nginx for this platform
+	verbose.Debug("Configuring nginx for platform %s...", p.Type)
 	if err := bootstrapper.ConfigureNginx(); err != nil {
+		verbose.Debug("Nginx configuration error: %v", err)
 		cli.PrintWarning("Nginx configuration failed: %v", err)
 	}
 
@@ -543,25 +570,32 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	// Step 7: Setup Docker services
 	fmt.Println(cli.Header("Step 7: Docker Services"))
 
+	verbose.Debug("Setting up Docker services...")
 	composeGen := docker.NewComposeGenerator(p)
 	composeFile := composeGen.ComposeFilePath()
+	verbose.Debug("Compose file path: %s", composeFile)
 
 	fmt.Print("  Generating docker-compose.yml... ")
 	if err := composeGen.GenerateDefaultServices(globalCfg); err != nil {
+		verbose.Debug("Docker compose generation error: %v", err)
 		fmt.Println(cli.Error("failed"))
 		cli.PrintWarning("Docker compose generation failed: %v", err)
 	} else {
+		verbose.Debug("Docker compose file generated successfully")
 		fmt.Println(cli.Success("done"))
 		fmt.Printf("    %s\n", cli.Highlight(composeFile))
 	}
 
 	// Start Docker services
+	verbose.Debug("Starting Docker containers...")
 	fmt.Print("  Starting containers... ")
 	dockerCtrl := docker.NewDockerController(composeFile)
 	if err := dockerCtrl.Up(); err != nil {
+		verbose.Debug("Docker up error: %v", err)
 		fmt.Println(cli.Error("failed"))
 		cli.PrintWarning("Docker services failed to start: %v", err)
 	} else {
+		verbose.Debug("Docker containers started successfully")
 		fmt.Println(cli.Success("done"))
 	}
 

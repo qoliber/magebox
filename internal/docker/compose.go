@@ -11,6 +11,7 @@ import (
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/varnish"
+	"github.com/qoliber/magebox/internal/verbose"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,21 +25,32 @@ var (
 // It detects whether "docker compose" (V2) is available, otherwise falls back to "docker-compose"
 func getComposeCommand() []string {
 	composeCmdOnce.Do(func() {
+		verbose.Debug("Detecting Docker Compose command...")
+
 		// Try "docker compose" first (Docker Compose V2)
 		cmd := exec.Command("docker", "compose", "version")
-		if err := cmd.Run(); err == nil {
+		output, err := cmd.CombinedOutput()
+		if err == nil {
 			composeCmd = []string{"docker", "compose"}
+			verbose.Debug("Docker Compose V2 detected: docker compose")
+			verbose.Detail("Version: %s", strings.TrimSpace(string(output)))
 			return
 		}
+		verbose.Debug("Docker Compose V2 not available: %v", err)
 
 		// Fall back to "docker-compose" (standalone)
 		cmd = exec.Command("docker-compose", "version")
-		if err := cmd.Run(); err == nil {
+		output, err = cmd.CombinedOutput()
+		if err == nil {
 			composeCmd = []string{"docker-compose"}
+			verbose.Debug("Docker Compose V1 (standalone) detected: docker-compose")
+			verbose.Detail("Version: %s", strings.TrimSpace(string(output)))
 			return
 		}
+		verbose.Debug("Docker Compose V1 not available: %v", err)
 
 		// Default to "docker compose" and let it fail with a helpful error
+		verbose.Debug("No Docker Compose found, defaulting to 'docker compose'")
 		composeCmd = []string{"docker", "compose"}
 	})
 	return composeCmd
@@ -49,16 +61,20 @@ func getComposeCommand() []string {
 func BuildComposeCmd(composeFile string, args ...string) *exec.Cmd {
 	baseCmd := getComposeCommand()
 	var fullArgs []string
+	var cmd *exec.Cmd
 
 	if len(baseCmd) == 1 {
 		// docker-compose -f file args...
 		fullArgs = append([]string{"-f", composeFile}, args...)
-		return exec.Command(baseCmd[0], fullArgs...)
+		cmd = exec.Command(baseCmd[0], fullArgs...)
+	} else {
+		// docker compose -f file args...
+		fullArgs = append([]string{baseCmd[1], "-f", composeFile}, args...)
+		cmd = exec.Command(baseCmd[0], fullArgs...)
 	}
 
-	// docker compose -f file args...
-	fullArgs = append([]string{baseCmd[1], "-f", composeFile}, args...)
-	return exec.Command(baseCmd[0], fullArgs...)
+	verbose.Command(cmd.Path, cmd.Args[1:]...)
+	return cmd
 }
 
 // buildComposeCmd is an alias for internal use
