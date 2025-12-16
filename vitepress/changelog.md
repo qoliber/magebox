@@ -2,6 +2,49 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.2] - 2025-12-16
+
+### macOS Nginx Configuration Fix
+
+Fixed nginx vhost loading on macOS with Homebrew:
+
+- **Explicit include directive** - Replaced symlink approach with direct include line in `nginx.conf`
+- **Fixes `include servers/*` issue** - The default Homebrew nginx pattern `include servers/*;` was trying to load the MageBox symlinked directory as a file instead of loading `.conf` files from it
+- **Cleaner integration** - Adds `include ~/.magebox/nginx/vhosts/*.conf;` directly after the `include servers/*;` line
+
+This fixes the "unknown directive" error that occurred on fresh macOS installations when nginx tried to interpret the symlinked directory as a configuration file.
+
+---
+
+## [0.16.1] - 2025-12-16
+
+### Bootstrap Reliability Fix
+
+Fixed bootstrap failure on clean macOS installations:
+
+- **Mailpit vhost generation moved earlier** - Now generates Mailpit vhost before nginx config test
+- **Ensures vhosts directory is not empty** - Nginx config test no longer fails due to empty include directory
+- **Smoother first-time setup** - Bootstrap completes successfully without manual intervention
+
+### Enhanced `magebox check` Command
+
+Added SSL infrastructure status to the check command:
+
+- **mkcert status** - Shows if mkcert is installed and provides install command if missing
+- **Local CA status** - Verifies if mkcert's local Certificate Authority is installed and trusted
+- **Better SSL debugging** - Helps diagnose certificate issues before they cause problems
+
+```bash
+magebox check
+# Now shows:
+# SSL Certificates
+#   mkcert          OK  Installed
+#   Local CA        OK  Installed and trusted
+#   myproject.test  OK  Valid certificate
+```
+
+---
+
 ## [0.16.0] - 2025-12-16
 
 ### Configurable TLD (Top-Level Domain)

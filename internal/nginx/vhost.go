@@ -404,15 +404,10 @@ func (c *Controller) SetupNginxConfig() error {
 		return c.addIncludeToNginxConfDarwin(includeDirective)
 
 	case platform.Linux:
-		switch c.platform.LinuxDistro {
-		case platform.DistroFedora, platform.DistroArch:
-			// Fedora/Arch: add include line directly to nginx.conf
-			// because conf.d/*.conf doesn't recurse into symlinked directories
-			return c.addIncludeToNginxConf(includeDirective)
-		default:
-			// Debian/Ubuntu: use sites-enabled symlink
-			return c.setupNginxSymlink(mageboxVhostsDir)
-		}
+		// All Linux distros: add include line directly to nginx.conf
+		// Symlink approach doesn't work because "include sites-enabled/*" or "include conf.d/*"
+		// tries to load the directory instead of *.conf files inside
+		return c.addIncludeToNginxConf(includeDirective)
 	}
 
 	return fmt.Errorf("unsupported platform")
@@ -508,62 +503,6 @@ func (c *Controller) addIncludeToNginxConf(includeDirective string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-// setupNginxSymlink creates a symlink for platforms that support it
-func (c *Controller) setupNginxSymlink(mageboxVhostsDir string) error {
-	var nginxServersDir string
-	switch c.platform.Type {
-	case platform.Darwin:
-		if _, err := os.Stat("/opt/homebrew/etc/nginx/servers"); err == nil {
-			nginxServersDir = "/opt/homebrew/etc/nginx/servers"
-		} else {
-			nginxServersDir = "/usr/local/etc/nginx/servers"
-		}
-	case platform.Linux:
-		nginxServersDir = "/etc/nginx/sites-enabled"
-	default:
-		return fmt.Errorf("unsupported platform for symlink")
-	}
-
-	// Ensure nginx servers directory exists
-	if _, err := os.Stat(nginxServersDir); os.IsNotExist(err) {
-		cmd := exec.Command("sudo", "mkdir", "-p", nginxServersDir)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to create nginx servers directory: %w", err)
-		}
-	}
-
-	symlinkPath := filepath.Join(nginxServersDir, "magebox")
-
-	// Check if symlink already exists
-	if linkTarget, err := os.Readlink(symlinkPath); err == nil {
-		if linkTarget == mageboxVhostsDir {
-			return nil // Already configured correctly
-		}
-		// Remove old symlink
-		cmd := exec.Command("sudo", "rm", symlinkPath)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to remove old symlink: %w", err)
-		}
-	}
-
-	// Create symlink with sudo
-	cmd := exec.Command("sudo", "ln", "-s", mageboxVhostsDir, symlinkPath)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create symlink: %w", err)
-	}
-
-	return nil
 }
 
 // GetNginxConfPath returns the path to nginx.conf
