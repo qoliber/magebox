@@ -1,0 +1,101 @@
+# MageBox Test Container - Debian 12 (Bookworm)
+# Used for integration testing without Docker-in-Docker
+# Set MAGEBOX_TEST_MODE=1 to skip Docker operations
+
+FROM debian:12
+
+LABEL maintainer="qoliber"
+LABEL description="MageBox integration test environment for Debian 12"
+
+# Prevent interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    nginx \
+    openssl \
+    gnupg2 \
+    ca-certificates \
+    lsb-release \
+    apt-transport-https \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add sury.org PHP repository for multiple PHP versions
+RUN curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
+    && dpkg -i /tmp/debsuryorg-archive-keyring.deb \
+    && sh -c 'echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list' \
+    && apt-get update
+
+# Install PHP versions (8.1, 8.2, 8.3, 8.4) with Magento-required extensions + Xdebug
+RUN apt-get install -y \
+    unzip \
+    php8.1-fpm php8.1-cli php8.1-common php8.1-opcache php8.1-zip php8.1-curl php8.1-mbstring php8.1-xml php8.1-xdebug \
+    php8.1-bcmath php8.1-gd php8.1-intl php8.1-mysql php8.1-soap \
+    php8.2-fpm php8.2-cli php8.2-common php8.2-opcache php8.2-zip php8.2-curl php8.2-mbstring php8.2-xml php8.2-xdebug \
+    php8.2-bcmath php8.2-gd php8.2-intl php8.2-mysql php8.2-soap \
+    php8.3-fpm php8.3-cli php8.3-common php8.3-opcache php8.3-zip php8.3-curl php8.3-mbstring php8.3-xml php8.3-xdebug \
+    php8.3-bcmath php8.3-gd php8.3-intl php8.3-mysql php8.3-soap \
+    php8.4-fpm php8.4-cli php8.4-common php8.4-opcache php8.4-zip php8.4-curl php8.4-mbstring php8.4-xml php8.4-xdebug \
+    php8.4-bcmath php8.4-gd php8.4-intl php8.4-mysql php8.4-soap \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go for building MageBox
+RUN apt-get update && apt-get install -y golang-go \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install mkcert for SSL testing
+RUN curl -L -o /usr/local/bin/mkcert https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64 \
+    && chmod +x /usr/local/bin/mkcert
+
+# Create test user (non-root)
+RUN useradd -m -s /bin/bash testuser \
+    && mkdir -p /home/testuser/.magebox \
+    && chown -R testuser:testuser /home/testuser
+
+# Create nginx config directory writable by testuser
+RUN mkdir -p /home/testuser/.magebox/nginx \
+    && chown -R testuser:testuser /home/testuser/.magebox
+
+# Set up MageBox directories
+RUN mkdir -p /tmp/magebox \
+    && chmod 777 /tmp/magebox
+
+# Copy MageBox source
+WORKDIR /app
+COPY . .
+
+# Build MageBox
+RUN go build -o /usr/local/bin/magebox ./cmd/magebox
+
+# Install Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Copy Composer auth.json if it exists (for Magento repo access)
+RUN mkdir -p /root/.config/composer
+COPY test/containers/test.auth.json* /root/.config/composer/
+RUN if [ -f /root/.config/composer/test.auth.json ]; then \
+        mv /root/.config/composer/test.auth.json /root/.config/composer/auth.json; \
+    fi
+
+# Copy Blackfire credentials if it exists (for Blackfire testing)
+COPY test/containers/test.blackfire.env* /tmp/
+RUN if [ -f /tmp/test.blackfire.env ]; then \
+        mkdir -p /root/.magebox; \
+        mv /tmp/test.blackfire.env /root/.magebox/blackfire.env; \
+    fi
+
+# Set environment variables for test mode
+ENV MAGEBOX_TEST_MODE=1
+ENV HOME=/root
+
+# Run as root for full testing capability
+WORKDIR /root
+
+# Create a sample project for testing
+RUN mkdir -p /root/test-project/app/etc \
+    && mkdir -p /root/test-project/pub
+
+# Default command runs tests
+CMD ["magebox", "--version"]

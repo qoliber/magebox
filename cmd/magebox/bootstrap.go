@@ -64,38 +64,73 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	cli.PrintLogoSmall(version)
+	fmt.Println()
+	cli.PrintTitle("MageBox Bootstrap")
+	fmt.Println()
+
+	// Step 0: Platform Detection - show warning for untested distros
+	fmt.Println(cli.Header("Step 0: Platform Detection"))
+
+	if p.Type == platform.Linux {
+		fmt.Printf("  OS: %s\n", cli.Highlight(p.DistroName))
+		fmt.Printf("  Family: %s\n", p.LinuxDistro)
+
+		if p.LinuxDistro == platform.DistroUnknown {
+			fmt.Println()
+			cli.PrintError("Unsupported Linux distribution")
+			fmt.Println()
+			fmt.Println("  MageBox requires a distribution based on:")
+			fmt.Println("    - Debian/Ubuntu (apt)")
+			fmt.Println("    - Fedora/RHEL/CentOS (dnf)")
+			fmt.Println("    - Arch Linux (pacman)")
+			fmt.Println()
+			cli.PrintInfo("If your distro is based on one of these, please report this at:")
+			fmt.Println("  https://github.com/qoliber/magebox/issues")
+			return fmt.Errorf("unsupported distribution")
+		}
+
+		if !p.DistroTested {
+			fmt.Println("  Status: " + cli.Warning("Not officially tested"))
+			fmt.Println()
+			cli.PrintWarning("MageBox has not been tested on %s", p.DistroName)
+			fmt.Println("  It should work since it's based on " + string(p.LinuxDistro) + ", but you may encounter issues.")
+			fmt.Println("  Please report any problems at: https://github.com/qoliber/magebox/issues")
+			fmt.Println()
+
+			// Ask user if they want to continue
+			fmt.Print("Continue with bootstrap? [Y/n]: ")
+			reader := bufio.NewReader(os.Stdin)
+			answer, _ := reader.ReadString('\n')
+			answer = strings.TrimSpace(strings.ToLower(answer))
+
+			if answer != "" && answer != "y" && answer != "yes" {
+				fmt.Println()
+				cli.PrintInfo("Bootstrap canceled")
+				return nil
+			}
+		} else {
+			fmt.Println("  Status: " + cli.Success("Supported"))
+		}
+	}
+	fmt.Println()
+
 	// Create bootstrapper for this platform
 	bootstrapper, err := bootstrap.NewBootstrapper(p)
 	if err != nil {
 		return fmt.Errorf("unsupported platform: %w", err)
 	}
 
-	cli.PrintLogoSmall(version)
-	fmt.Println()
-	cli.PrintTitle("MageBox Bootstrap")
-	fmt.Println()
-
-	// Step 0: Validate OS version
-	fmt.Println(cli.Header("Step 0: Platform Detection"))
+	// Validate OS version for additional info
 	osInfo, err := bootstrapper.ValidateOS()
-	if err != nil {
-		cli.PrintWarning("Could not detect OS version: %v", err)
-	} else {
-		fmt.Printf("  OS: %s %s", cli.Highlight(osInfo.Name), osInfo.Version)
+	if err == nil && osInfo.Version != "" {
+		fmt.Printf("  Version: %s", osInfo.Version)
 		if osInfo.Codename != "" {
 			fmt.Printf(" (%s)", osInfo.Codename)
 		}
 		fmt.Println()
-		if osInfo.Supported {
-			fmt.Println("  Status: " + cli.Success("Supported"))
-		} else {
-			fmt.Println("  Status: " + cli.Warning("Not officially tested"))
-			if osInfo.Message != "" {
-				cli.PrintInfo("%s", osInfo.Message)
-			}
-		}
+		fmt.Println()
 	}
-	fmt.Println()
 
 	fmt.Println("Setting up MageBox development environment...")
 	fmt.Println()

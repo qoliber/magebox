@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Available distributions
-DISTROS=("fedora42" "ubuntu" "ubuntu22" "ubuntu-arm64" "archlinux")
+DISTROS=("fedora42" "ubuntu" "ubuntu22" "ubuntu-arm64" "debian" "rocky9" "archlinux")
 
 # Print colored output
 print_status() {
@@ -50,6 +50,8 @@ usage() {
     echo "  ubuntu        Ubuntu 24.04 with ondrej/php PPA"
     echo "  ubuntu22      Ubuntu 22.04 with ondrej/php PPA"
     echo "  ubuntu-arm64  Ubuntu 24.04 ARM64 with ondrej/php PPA"
+    echo "  debian        Debian 12 with sury.org PHP"
+    echo "  rocky9        Rocky Linux 9 with Remi PHP"
     echo "  archlinux     Arch Linux (latest)"
     echo "  all           Run all distributions (default)"
     echo ""

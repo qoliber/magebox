@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -123,13 +124,21 @@ func (u *Updater) Update(result *UpdateResult) error {
 		return fmt.Errorf("failed to set permissions: %w", err)
 	}
 
-	// Backup current binary
+	// Check if we can write to the install directory
+	installDir := filepath.Dir(execPath)
+	needsSudo := !isWritable(installDir)
+
+	if needsSudo {
+		// Use sudo to install
+		return u.installWithSudo(tmpFile, execPath)
+	}
+
+	// Direct install without sudo
 	backupPath := execPath + ".backup"
 	if err := os.Rename(execPath, backupPath); err != nil {
 		return fmt.Errorf("failed to backup current binary: %w", err)
 	}
 
-	// Move new binary into place
 	if err := os.Rename(tmpFile, execPath); err != nil {
 		// Try to restore backup
 		_ = os.Rename(backupPath, execPath)
@@ -138,6 +147,46 @@ func (u *Updater) Update(result *UpdateResult) error {
 
 	// Remove backup
 	_ = os.Remove(backupPath)
+
+	return nil
+}
+
+// isWritable checks if a directory is writable by the current user
+func isWritable(path string) bool {
+	testFile := filepath.Join(path, ".magebox-write-test")
+	f, err := os.Create(testFile)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	os.Remove(testFile)
+	return true
+}
+
+// installWithSudo installs the binary using sudo
+func (u *Updater) installWithSudo(tmpFile, execPath string) error {
+	backupPath := execPath + ".backup"
+
+	// Backup current binary with sudo
+	cmd := exec.Command("sudo", "mv", execPath, backupPath)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to backup current binary: %w", err)
+	}
+
+	// Move new binary into place with sudo
+	cmd = exec.Command("sudo", "mv", tmpFile, execPath)
+	if err := cmd.Run(); err != nil {
+		// Try to restore backup
+		_ = exec.Command("sudo", "mv", backupPath, execPath).Run()
+		return fmt.Errorf("failed to install new binary: %w", err)
+	}
+
+	// Set permissions with sudo
+	cmd = exec.Command("sudo", "chmod", "+x", execPath)
+	_ = cmd.Run()
+
+	// Remove backup with sudo
+	_ = exec.Command("sudo", "rm", "-f", backupPath).Run()
 
 	return nil
 }

@@ -42,6 +42,8 @@ type Platform struct {
 	HomeDir        string
 	IsAppleSilicon bool
 	LinuxDistro    LinuxDistro
+	DistroName     string // Actual distro name (e.g., "endeavouros", "rocky")
+	DistroTested   bool   // Whether this specific distro has been tested
 }
 
 // Detect detects the current platform
@@ -61,7 +63,7 @@ func Detect() (*Platform, error) {
 
 	// Detect Linux distribution
 	if p.Type == Linux {
-		p.LinuxDistro = detectLinuxDistro()
+		p.LinuxDistro, p.DistroName, p.DistroTested = detectLinuxDistro()
 	}
 
 	return p, nil
@@ -79,41 +81,77 @@ func getType() Type {
 	}
 }
 
+// Tested distributions - these have been verified to work with MageBox
+var testedDistros = map[string]bool{
+	"fedora":  true,
+	"ubuntu":  true,
+	"debian":  true,
+	"arch":    true,
+	"rocky":   true,
+	"rhel":    true,
+	"centos":  true,
+	"manjaro": true,
+}
+
 // detectLinuxDistro detects the Linux distribution family
-func detectLinuxDistro() LinuxDistro {
+// Returns: distro family, distro name, and whether it's been tested
+func detectLinuxDistro() (LinuxDistro, string, bool) {
 	// Read /etc/os-release to determine distro
 	data, err := os.ReadFile("/etc/os-release")
 	if err != nil {
-		return DistroUnknown
+		return DistroUnknown, "unknown", false
 	}
 
-	content := strings.ToLower(string(data))
+	// Parse os-release into key=value map
+	osRelease := parseOSRelease(string(data))
+
+	id := strings.ToLower(osRelease["ID"])
+	idLike := strings.ToLower(osRelease["ID_LIKE"])
+	prettyName := osRelease["PRETTY_NAME"]
+	if prettyName == "" {
+		prettyName = id
+	}
+
+	// Check if this specific distro has been tested
+	tested := testedDistros[id]
 
 	// Check for Fedora/RHEL/CentOS family
-	if strings.Contains(content, "id=fedora") ||
-		strings.Contains(content, "id=rhel") ||
-		strings.Contains(content, "id=centos") ||
-		strings.Contains(content, "id=rocky") ||
-		strings.Contains(content, "id=almalinux") {
-		return DistroFedora
+	if id == "fedora" || id == "rhel" || id == "centos" || id == "rocky" || id == "almalinux" ||
+		strings.Contains(idLike, "fedora") || strings.Contains(idLike, "rhel") {
+		return DistroFedora, prettyName, tested
 	}
 
 	// Check for Debian/Ubuntu family
-	if strings.Contains(content, "id=debian") ||
-		strings.Contains(content, "id=ubuntu") ||
-		strings.Contains(content, "id=linuxmint") ||
-		strings.Contains(content, "id=pop") {
-		return DistroDebian
+	if id == "debian" || id == "ubuntu" || id == "linuxmint" || id == "pop" ||
+		strings.Contains(idLike, "debian") || strings.Contains(idLike, "ubuntu") {
+		return DistroDebian, prettyName, tested
 	}
 
 	// Check for Arch family
-	if strings.Contains(content, "id=arch") ||
-		strings.Contains(content, "id=manjaro") ||
-		strings.Contains(content, "id=endeavouros") {
-		return DistroArch
+	if id == "arch" || id == "manjaro" || id == "endeavouros" || id == "garuda" || id == "artix" ||
+		strings.Contains(idLike, "arch") {
+		return DistroArch, prettyName, tested
 	}
 
-	return DistroUnknown
+	return DistroUnknown, prettyName, false
+}
+
+// parseOSRelease parses /etc/os-release content into a map
+func parseOSRelease(content string) map[string]string {
+	result := make(map[string]string)
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := parts[0]
+			value := strings.Trim(parts[1], "\"'")
+			result[key] = value
+		}
+	}
+	return result
 }
 
 // IsSupported returns true if the platform is supported
