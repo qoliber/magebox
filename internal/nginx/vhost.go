@@ -425,26 +425,38 @@ func (c *Controller) addIncludeToNginxConfDarwin(includeDirective string) error 
 
 	// Check if include already exists
 	if strings.Contains(string(content), includeDirective) {
-		return nil // Already configured
+		// Already configured, but still remove invalid "include servers/*;" if present
+		newContent := string(content)
+		newContent = strings.Replace(newContent, "include servers/*;", "# include servers/*; # Disabled by MageBox (invalid: loads directories)", 1)
+		if newContent != string(content) {
+			if err := os.WriteFile(nginxConf, []byte(newContent), 0644); err != nil {
+				return fmt.Errorf("failed to write nginx.conf: %w", err)
+			}
+		}
+		return nil
 	}
 
-	// Find "include servers/*;" and add our include after it
-	// Homebrew nginx.conf uses "include servers/*;" by default
+	// Replace "include servers/*;" with our specific include
+	// The default "include servers/*;" is invalid as it tries to load directories
+	newContent := string(content)
 	marker := "include servers/*;"
-	if !strings.Contains(string(content), marker) {
-		// Try alternate pattern without semicolon space variations
-		marker = "include servers/*"
-		if !strings.Contains(string(content), marker) {
-			return fmt.Errorf("could not find 'include servers/*' in nginx.conf")
+	if strings.Contains(newContent, marker) {
+		newContent = strings.Replace(newContent, marker, includeDirective+" # MageBox vhosts", 1)
+	} else {
+		// Try to find closing brace of http block and add before it
+		// This handles fresh nginx installs or custom configs
+		if strings.Contains(newContent, "http {") {
+			// Find last } in the file (closing http block)
+			lastBrace := strings.LastIndex(newContent, "}")
+			if lastBrace > 0 {
+				newContent = newContent[:lastBrace] + "    " + includeDirective + " # MageBox vhosts\n" + newContent[lastBrace:]
+			} else {
+				return fmt.Errorf("could not find http block closing brace in nginx.conf")
+			}
+		} else {
+			return fmt.Errorf("could not find http block in nginx.conf")
 		}
 	}
-
-	newContent := strings.Replace(
-		string(content),
-		marker,
-		marker+"\n    "+includeDirective+" # MageBox vhosts",
-		1,
-	)
 
 	// Write back to nginx.conf (no sudo needed on macOS with Homebrew)
 	if err := os.WriteFile(nginxConf, []byte(newContent), 0644); err != nil {
