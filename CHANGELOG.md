@@ -5,6 +5,21 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.5] - 2025-12-16
+
+### Added
+- **Debian 12 and Rocky Linux 9 test containers** - Expanded CI testing coverage
+- **Improved Linux distro detection** - Better support for derivative distributions:
+  - Proper parsing of `/etc/os-release` (handles quoted values)
+  - `ID_LIKE` support for derivatives (EndeavourOS, Pop!_OS, Garuda, etc.)
+  - Warning for untested but compatible distros instead of hard failure
+
+### Fixed
+- **EndeavourOS bootstrap** - Fixed detection failing due to quoted values in os-release
+- **Ubuntu PHP installation** - Removed non-existent `php-sodium` package (bundled in php-common)
+- **OpenSearch version** - Updated from 2.12 to 2.19.4 (2.12 tag doesn't exist on Docker Hub)
+- **Self-update permissions** - Automatic sudo when updating binary in /usr/local/bin
+
 ## [0.14.4] - 2025-12-16
 
 ### Added
