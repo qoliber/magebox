@@ -326,8 +326,49 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check 6: SSL Certificates
+	fmt.Println(cli.Header("SSL Certificates"))
+
+	// Check mkcert installation
+	mkcertInstalled := platform.CommandExists("mkcert")
+	if mkcertInstalled {
+		results = append(results, checkResult{
+			name:    "mkcert",
+			status:  "ok",
+			message: "Installed",
+		})
+	} else {
+		results = append(results, checkResult{
+			name:    "mkcert",
+			status:  "error",
+			message: fmt.Sprintf("Not installed - run '%s'", p.MkcertInstallCommand()),
+		})
+	}
+	printCheckResult(results[len(results)-1])
+
+	// Check if local CA is installed
+	if mkcertInstalled {
+		caRoot := getMkcertCARoot()
+		if caRoot != "" {
+			rootCAPath := filepath.Join(caRoot, "rootCA.pem")
+			if _, err := os.Stat(rootCAPath); err == nil {
+				results = append(results, checkResult{
+					name:    "Local CA",
+					status:  "ok",
+					message: "Installed and trusted",
+				})
+			} else {
+				results = append(results, checkResult{
+					name:    "Local CA",
+					status:  "warning",
+					message: "Not installed - run 'mkcert -install'",
+				})
+			}
+			printCheckResult(results[len(results)-1])
+		}
+	}
+
+	// Check domain certificates
 	if cfg != nil && len(cfg.Domains) > 0 {
-		fmt.Println(cli.Header("SSL Certificates"))
 		for _, domain := range cfg.Domains {
 			if domain.IsSSLEnabled() {
 				// Certificates are stored in ~/.magebox/certs/{domain}/cert.pem
@@ -348,8 +389,8 @@ func runCheck(cmd *cobra.Command, args []string) error {
 				printCheckResult(results[len(results)-1])
 			}
 		}
-		fmt.Println()
 	}
+	fmt.Println()
 
 	// Check 7: DNS Resolution
 	if cfg != nil && len(cfg.Domains) > 0 {
@@ -480,6 +521,16 @@ func checkPHPExtensions(p *platform.Platform, version string) []checkResult {
 	printCheckResult(results[len(results)-1])
 
 	return results
+}
+
+// getMkcertCARoot returns the mkcert CA root directory
+func getMkcertCARoot() string {
+	cmd := exec.Command("mkcert", "-CAROOT")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func checkDatabaseConnection(p *platform.Platform, cfg *config.Config) checkResult {

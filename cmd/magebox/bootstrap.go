@@ -519,6 +519,25 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Vhosts dir: %s\n", cli.Highlight(vhostsDir))
 	}
 
+	// Generate Mailpit vhost BEFORE nginx test (so vhosts dir isn't empty)
+	tld := globalCfg.GetTLD()
+	mailpitDomain := fmt.Sprintf("mailpit.magebox.%s", tld)
+	fmt.Print("  Creating Mailpit vhost... ")
+	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
+	mailpitCfg := nginx.ProxyConfig{
+		Name:       "mailpit",
+		Domain:     mailpitDomain,
+		ProxyHost:  "127.0.0.1",
+		ProxyPort:  8025,
+		SSLEnabled: true,
+	}
+	if err := vhostGen.GenerateProxyVhost(mailpitCfg); err != nil {
+		fmt.Println(cli.Error("failed"))
+		cli.PrintWarning("Mailpit vhost generation failed: %v", err)
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+
 	// Setup nginx.conf include
 	fmt.Print("  Adding MageBox include... ")
 	if err := nginxCtrl.SetupNginxConfig(); err != nil {
@@ -605,25 +624,6 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		for _, svc := range services {
 			fmt.Printf("    %s %s\n", cli.Success("✓"), svc)
 		}
-	}
-
-	// Generate Mailpit vhost
-	tld := globalCfg.GetTLD()
-	mailpitDomain := fmt.Sprintf("mailpit.magebox.%s", tld)
-	fmt.Print("  Setting up Mailpit vhost... ")
-	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
-	mailpitCfg := nginx.ProxyConfig{
-		Name:       "mailpit",
-		Domain:     mailpitDomain,
-		ProxyHost:  "127.0.0.1",
-		ProxyPort:  8025,
-		SSLEnabled: true,
-	}
-	if err := vhostGen.GenerateProxyVhost(mailpitCfg); err != nil {
-		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Mailpit vhost generation failed: %v", err)
-	} else {
-		fmt.Println(cli.Success("done"))
 	}
 	fmt.Println()
 
