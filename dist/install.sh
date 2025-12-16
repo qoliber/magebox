@@ -92,7 +92,8 @@ download_binary() {
     local url="https://github.com/${GITHUB_REPO}/releases/download/v${version}/magebox-${os}-${arch}"
     local tmp_file="/tmp/magebox-$$"
 
-    info "Downloading MageBox v${version} for ${os}/${arch}..."
+    # Use >&2 to send info to stderr so it doesn't get captured with the return value
+    info "Downloading MageBox v${version} for ${os}/${arch}..." >&2
 
     if command -v curl &> /dev/null; then
         curl -fsSL "$url" -o "$tmp_file" || error "Download failed. Check if release exists: $url"

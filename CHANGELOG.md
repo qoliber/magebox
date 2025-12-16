@@ -5,6 +5,11 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2025-12-16
+
+### Fixed
+- **Installer checksum verification** - Fixed bug where download info message was captured with filename, causing checksum verification to fail
+
 ## [0.14.1] - 2025-12-15
 
 ### Added

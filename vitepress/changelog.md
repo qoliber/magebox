@@ -2,6 +2,14 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.14.2] - 2025-12-16
+
+### Bug Fix
+
+Fixed installer checksum verification failure. The download info message was being captured with the filename, causing checksum verification to fail.
+
+---
+
 ## [0.14.1] - 2025-12-15
 
 ### Short Command Aliases
