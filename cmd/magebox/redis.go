@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -74,8 +73,7 @@ func runRedisFlush(cmd *cobra.Command, args []string) error {
 	cli.PrintInfo("Flushing Redis cache...")
 
 	// Run redis-cli FLUSHALL
-	flushCmd := exec.Command("docker", "compose", "-f", composeFile, "exec", "-T", "redis",
-		"redis-cli", "FLUSHALL")
+	flushCmd := docker.BuildComposeCmd(composeFile, "exec", "-T", "redis", "redis-cli", "FLUSHALL")
 	output, err := flushCmd.CombinedOutput()
 	if err != nil {
 		cli.PrintError("Failed to flush Redis: %v", err)
@@ -119,7 +117,7 @@ func runRedisShell(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Open interactive redis-cli
-	shellCmd := exec.Command("docker", "compose", "-f", composeFile, "exec", "redis", "redis-cli")
+	shellCmd := docker.BuildComposeCmd(composeFile, "exec", "redis", "redis-cli")
 	shellCmd.Stdin = os.Stdin
 	shellCmd.Stdout = os.Stdout
 	shellCmd.Stderr = os.Stderr
@@ -155,8 +153,7 @@ func runRedisInfo(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Get Redis info
-	infoCmd := exec.Command("docker", "compose", "-f", composeFile, "exec", "-T", "redis",
-		"redis-cli", "INFO")
+	infoCmd := docker.BuildComposeCmd(composeFile, "exec", "-T", "redis", "redis-cli", "INFO")
 	output, err := infoCmd.Output()
 	if err != nil {
 		cli.PrintError("Failed to get Redis info: %v", err)

@@ -6,12 +6,65 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/platform"
 	"github.com/qoliber/magebox/internal/varnish"
 	"gopkg.in/yaml.v3"
 )
+
+// composeCommand stores whether to use "docker compose" (V2) or "docker-compose" (standalone)
+var (
+	composeCmd     []string
+	composeCmdOnce sync.Once
+)
+
+// getComposeCommand returns the docker compose command to use
+// It detects whether "docker compose" (V2) is available, otherwise falls back to "docker-compose"
+func getComposeCommand() []string {
+	composeCmdOnce.Do(func() {
+		// Try "docker compose" first (Docker Compose V2)
+		cmd := exec.Command("docker", "compose", "version")
+		if err := cmd.Run(); err == nil {
+			composeCmd = []string{"docker", "compose"}
+			return
+		}
+
+		// Fall back to "docker-compose" (standalone)
+		cmd = exec.Command("docker-compose", "version")
+		if err := cmd.Run(); err == nil {
+			composeCmd = []string{"docker-compose"}
+			return
+		}
+
+		// Default to "docker compose" and let it fail with a helpful error
+		composeCmd = []string{"docker", "compose"}
+	})
+	return composeCmd
+}
+
+// BuildComposeCmd builds a compose command with the given arguments
+// It auto-detects whether to use "docker compose" (V2) or "docker-compose" (standalone)
+func BuildComposeCmd(composeFile string, args ...string) *exec.Cmd {
+	baseCmd := getComposeCommand()
+	var fullArgs []string
+
+	if len(baseCmd) == 1 {
+		// docker-compose -f file args...
+		fullArgs = append([]string{"-f", composeFile}, args...)
+		return exec.Command(baseCmd[0], fullArgs...)
+	}
+
+	// docker compose -f file args...
+	fullArgs = append([]string{baseCmd[1], "-f", composeFile}, args...)
+	return exec.Command(baseCmd[0], fullArgs...)
+}
+
+// buildComposeCmd is an alias for internal use
+func buildComposeCmd(composeFile string, args ...string) *exec.Cmd {
+	return BuildComposeCmd(composeFile, args...)
+}
 
 // Default database credentials
 const (
@@ -531,7 +584,7 @@ func NewDockerController(composeFile string) *DockerController {
 
 // Up starts all services
 func (c *DockerController) Up() error {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "up", "-d")
+	cmd := buildComposeCmd(c.composeFile, "up", "-d")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -539,7 +592,7 @@ func (c *DockerController) Up() error {
 
 // Down stops all services
 func (c *DockerController) Down() error {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "down")
+	cmd := buildComposeCmd(c.composeFile, "down")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -547,7 +600,7 @@ func (c *DockerController) Down() error {
 
 // StartService starts a specific service
 func (c *DockerController) StartService(serviceName string) error {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "up", "-d", serviceName)
+	cmd := buildComposeCmd(c.composeFile, "up", "-d", serviceName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -555,14 +608,14 @@ func (c *DockerController) StartService(serviceName string) error {
 
 // StopService stops a specific service
 func (c *DockerController) StopService(serviceName string) error {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "stop", serviceName)
+	cmd := buildComposeCmd(c.composeFile, "stop", serviceName)
 	return cmd.Run()
 }
 
 // IsServiceRunning checks if a service is running
 func (c *DockerController) IsServiceRunning(serviceName string) bool {
-	// First try docker-compose (preferred if compose file is up-to-date)
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "ps", "-q", serviceName)
+	// First try docker compose
+	cmd := buildComposeCmd(c.composeFile, "ps", "-q", serviceName)
 	output, err := cmd.Output()
 	if err == nil && len(strings.TrimSpace(string(output))) > 0 {
 		return true
@@ -624,8 +677,8 @@ func insertVersionDots(v string) string {
 
 // Exec executes a command in a running container
 func (c *DockerController) Exec(serviceName string, command ...string) error {
-	args := append([]string{"compose", "-f", c.composeFile, "exec", serviceName}, command...)
-	cmd := exec.Command("docker", args...)
+	args := append([]string{"exec", serviceName}, command...)
+	cmd := buildComposeCmd(c.composeFile, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -634,21 +687,21 @@ func (c *DockerController) Exec(serviceName string, command ...string) error {
 
 // ExecSilent executes a command in a running container without terminal attachment
 func (c *DockerController) ExecSilent(serviceName string, command ...string) error {
-	args := append([]string{"compose", "-f", c.composeFile, "exec", "-T", serviceName}, command...)
-	cmd := exec.Command("docker", args...)
+	args := append([]string{"exec", "-T", serviceName}, command...)
+	cmd := buildComposeCmd(c.composeFile, args...)
 	return cmd.Run()
 }
 
 // CreateDatabase creates a database in the MySQL/MariaDB service
 func (c *DockerController) CreateDatabase(serviceName, dbName string) error {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "exec", "-T", serviceName,
+	cmd := buildComposeCmd(c.composeFile, "exec", "-T", serviceName,
 		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
 	return cmd.Run()
 }
 
 // DatabaseExists checks if a database exists
 func (c *DockerController) DatabaseExists(serviceName, dbName string) bool {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "exec", "-T", serviceName,
+	cmd := buildComposeCmd(c.composeFile, "exec", "-T", serviceName,
 		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
 	output, err := cmd.Output()
 	return err == nil && strings.Contains(string(output), dbName)
@@ -735,7 +788,7 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 
 // GetRunningServices returns a list of running services
 func (c *DockerController) GetRunningServices() ([]string, error) {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "ps", "--services", "--filter", "status=running")
+	cmd := buildComposeCmd(c.composeFile, "ps", "--services", "--filter", "status=running")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -752,7 +805,7 @@ func (c *DockerController) GetRunningServices() ([]string, error) {
 
 // GetAllServices returns a list of all defined services
 func (c *DockerController) GetAllServices() ([]string, error) {
-	cmd := exec.Command("docker", "compose", "-f", c.composeFile, "ps", "--services")
+	cmd := buildComposeCmd(c.composeFile, "ps", "--services")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err

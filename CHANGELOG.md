@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Warning for untested but compatible distros instead of hard failure
 
 ### Fixed
+- **Docker Compose V1 fallback** - Auto-detects and uses `docker-compose` (standalone) when `docker compose` (V2) is not available
 - **EndeavourOS bootstrap** - Fixed detection failing due to quoted values in os-release
 - **Ubuntu PHP installation** - Removed non-existent `php-sodium` package (bundled in php-common)
 - **OpenSearch version** - Updated from 2.12 to 2.19.4 (2.12 tag doesn't exist on Docker Hub)
