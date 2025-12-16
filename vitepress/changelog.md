@@ -2,6 +2,46 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.0] - 2025-12-16
+
+### Configurable TLD (Top-Level Domain)
+
+You can now customize the top-level domain used for all MageBox projects:
+
+```bash
+# Change from .test to .local
+magebox config set tld local
+
+# Change to .dev
+magebox config set tld dev
+```
+
+**Features:**
+- All domain generation now uses the configured TLD from global config
+- DNS automatically reconfigures when TLD changes
+- dnsmasq and systemd-resolved configs use dynamic TLD
+- macOS resolver file created at `/etc/resolver/<tld>`
+- Default remains `.test` for compatibility
+
+**Example workflow:**
+```bash
+# Set your preferred TLD
+magebox config set tld local
+
+# New projects will use .local
+magebox init mystore
+# Creates mystore.local
+
+# Existing projects update on restart
+magebox restart
+```
+
+::: tip
+The `.test` TLD is recommended as it's reserved for testing and won't conflict with real domains.
+:::
+
+---
+
 ## [0.15.2] - 2025-12-16
 
 ### DNS Improvements

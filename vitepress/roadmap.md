@@ -12,6 +12,8 @@ The following features have been implemented:
 
 | Feature | Version | Description |
 |---------|---------|-------------|
+| Configurable TLD | v0.16.0 | `magebox config set tld <value>` for custom top-level domains |
+| Verbose Logging | v0.15.0 | `-v`, `-vv`, `-vvv` flags for debugging |
 | Testing & Code Quality | v0.14.0 | `magebox test` commands for PHPUnit, PHPStan, PHPCS, PHPMD |
 | Self-Hosted Git Support | v0.14.4 | GitLab CE/EE and Bitbucket Server with `--url` flag |
 | Expanded Linux Support | v0.14.5 | Debian 12, Rocky Linux 9, derivative distros (EndeavourOS, Pop!_OS) |
