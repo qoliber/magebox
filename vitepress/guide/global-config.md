@@ -10,7 +10,7 @@ magebox config show
 
 Output:
 ```yaml
-dns_mode: hosts
+dns_mode: dnsmasq
 default_php: "8.2"
 tld: test
 portainer: false
@@ -39,11 +39,16 @@ DNS resolution method for `.test` domains.
 
 | Value | Description |
 |-------|-------------|
-| `hosts` | Modify `/etc/hosts` for each domain (default) |
-| `dnsmasq` | Use dnsmasq for wildcard `*.test` resolution |
+| `dnsmasq` | Use dnsmasq for wildcard `*.test` resolution (default) |
+| `hosts` | Modify `/etc/hosts` for each domain (fallback) |
+
+::: tip New in v0.16.6
+Dnsmasq is now the default DNS mode. Bootstrap automatically installs and configures dnsmasq.
+:::
 
 ```bash
-magebox config set dns_mode dnsmasq
+# Switch to hosts mode if needed
+magebox config set dns_mode hosts
 ```
 
 ### default_php
@@ -115,7 +120,7 @@ nano ~/.magebox/config.yaml
 ```
 
 ```yaml
-dns_mode: hosts
+dns_mode: dnsmasq
 default_php: "8.2"
 tld: test
 portainer: false

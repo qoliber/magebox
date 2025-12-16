@@ -144,18 +144,18 @@ commands:
 
 ### dns_mode
 
-`string` | Default: `"hosts"`
+`string` | Default: `"dnsmasq"` (since v0.16.6)
 
 DNS resolution method.
 
 ```yaml
-dns_mode: hosts
+dns_mode: dnsmasq
 ```
 
 | Value | Description |
 |-------|-------------|
-| `hosts` | Modify /etc/hosts for each domain |
-| `dnsmasq` | Use dnsmasq for wildcard *.test resolution |
+| `dnsmasq` | Use dnsmasq for wildcard *.test resolution (default) |
+| `hosts` | Modify /etc/hosts for each domain (fallback) |
 
 ---
 

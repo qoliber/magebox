@@ -653,12 +653,21 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		// Configure dnsmasq if now installed
 		if dnsManager.IsInstalled() {
 			fmt.Printf("  Configuring dnsmasq for *.%s domains... ", tld)
-			if err := bootstrapper.SetupDNS(); err != nil {
+			if err := dnsManager.Configure(); err != nil {
 				fmt.Println(cli.Error("failed"))
 				cli.PrintWarning("dnsmasq config failed: %v", err)
 			} else {
 				fmt.Println(cli.Success("done"))
-				dnsmasqConfigured = true
+
+				// Start dnsmasq service
+				fmt.Print("  Starting dnsmasq service... ")
+				if err := dnsManager.Start(); err != nil {
+					fmt.Println(cli.Error("failed"))
+					cli.PrintWarning("dnsmasq start failed: %v", err)
+				} else {
+					fmt.Println(cli.Success("done"))
+					dnsmasqConfigured = true
+				}
 			}
 		}
 	}

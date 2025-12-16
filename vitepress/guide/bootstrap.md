@@ -71,11 +71,11 @@ Running `magebox bootstrap` will:
    - Start database containers
    - Start Redis, Mailpit, etc.
 
-7. **Configure DNS**
-   - Setup /etc/hosts entries, or
-   - Configure dnsmasq for wildcard domains
+7. **Configure DNS (dnsmasq by default)**
+   - Install and configure dnsmasq for wildcard `*.test` DNS
    - **Linux**: Configure dnsmasq + systemd-resolved for `.test` wildcard DNS
    - **macOS**: Create `/etc/resolver/test` for wildcard resolution
+   - Falls back to `/etc/hosts` mode if dnsmasq setup fails
 
 8. **Install PHP Wrapper**
    - Create smart PHP wrapper at `~/.magebox/bin/php`
@@ -142,8 +142,9 @@ Starting Docker services...
   ✓ Mailpit started
 
 Configuring DNS...
-  ? DNS mode: [hosts/dnsmasq] hosts
-  ✓ DNS configured
+  Installing dnsmasq... done
+  Configuring dnsmasq for *.test domains... done
+  Set dns_mode: dnsmasq ✓
 
 Installing PHP wrapper...
   ✓ Created ~/.magebox/bin/php
@@ -265,11 +266,28 @@ See [DNS Configuration](/guide/dns) for manual setup options
 
 ## DNS Mode Selection
 
-During bootstrap, you'll be asked to choose a DNS mode:
+::: tip New in v0.16.6
+Dnsmasq is now the **default DNS mode**. Bootstrap automatically installs and configures dnsmasq on all platforms.
+:::
 
-### hosts Mode (Default)
+### dnsmasq Mode (Default)
 
-Uses `/etc/hosts` for domain resolution:
+Uses dnsmasq for wildcard domain resolution:
+
+- All `*.test` domains resolve automatically
+- No hosts file modifications needed
+- No sudo prompts during `magebox start/stop`
+- Supports unlimited subdomains
+
+```bash
+# All *.test domains resolve to 127.0.0.1
+curl https://anything.test  # Works automatically
+curl https://api.anything.test  # Also works!
+```
+
+### hosts Mode (Fallback)
+
+Uses `/etc/hosts` for domain resolution. MageBox automatically falls back to this mode if dnsmasq setup fails:
 
 - Simple and reliable
 - Requires adding each domain manually
@@ -281,17 +299,10 @@ Uses `/etc/hosts` for domain resolution:
 127.0.0.1 another.test
 ```
 
-### dnsmasq Mode
-
-Uses dnsmasq for wildcard domain resolution:
-
-- All `*.test` domains resolve automatically
-- No hosts file modifications needed
-- Requires dnsmasq installation
+To manually switch to hosts mode:
 
 ```bash
-# All *.test domains resolve to 127.0.0.1
-curl https://anything.test  # Works automatically
+magebox config set dns_mode hosts
 ```
 
 ## PHP Wrapper Setup

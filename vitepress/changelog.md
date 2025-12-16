@@ -2,6 +2,54 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.6] - 2025-12-16
+
+### Dnsmasq as Default DNS Mode
+
+MageBox now uses **dnsmasq** as the default DNS mode instead of `/etc/hosts`:
+
+- **Automatic dnsmasq setup** - Bootstrap now installs and configures dnsmasq automatically on all platforms
+- **Wildcard DNS support** - All `*.test` domains resolve automatically without editing `/etc/hosts`
+- **Graceful fallback** - If dnsmasq setup fails, MageBox falls back to `/etc/hosts` mode
+- **Zero configuration** - New installations "just work" with wildcard DNS out of the box
+
+**Benefits of dnsmasq:**
+- No sudo password prompts during `magebox start/stop`
+- Supports unlimited subdomains (e.g., `api.mystore.test`, `admin.mystore.test`)
+- Faster project switching
+- Cleaner `/etc/hosts` file
+
+**Fallback behavior:**
+If dnsmasq installation or configuration fails during bootstrap, MageBox automatically falls back to hosts mode and domains are added to `/etc/hosts` when you run `magebox start`.
+
+---
+
+## [0.16.5] - 2025-12-16
+
+### Test Coverage
+
+Added comprehensive unit tests for nginx configuration:
+
+- **Darwin nginx.conf tests** - Validates include replacement on macOS
+- **Linux nginx.conf tests** - Validates include addition on Linux distros
+- **MageBoxDir tests** - Ensures correct home directory resolution for different users
+- **Include directive tests** - Verifies correct path generation per user
+
+---
+
+## [0.16.4] - 2025-12-16
+
+### Nginx Configuration Improvements
+
+Improved nginx.conf modification for better reliability:
+
+- **Replace instead of append** - Now replaces invalid `include servers/*;` with MageBox include instead of adding after it
+- **Comment out invalid includes** - If MageBox is already configured but `include servers/*;` is still present, it gets commented out
+- **Fresh install support** - Handles nginx installs without `include servers/*;` by adding include to http block
+- **Better error handling** - Clearer error messages when nginx.conf structure is unexpected
+
+---
+
 ## [0.16.3] - 2025-12-16
 
 ### Cross-Platform Nginx Configuration Fix

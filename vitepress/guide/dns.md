@@ -4,7 +4,30 @@ MageBox supports two DNS modes for resolving `.test` domains.
 
 ## DNS Modes
 
-### hosts Mode (Default)
+### dnsmasq Mode (Default)
+
+::: tip New in v0.16.6
+Dnsmasq is now the **default DNS mode**. Bootstrap automatically installs and configures dnsmasq on all platforms.
+:::
+
+Uses dnsmasq for wildcard domain resolution:
+
+```
+*.test → 127.0.0.1
+```
+
+**Pros:**
+- All `.test` domains resolve automatically
+- No hosts file modifications needed
+- No sudo password prompts during `magebox start/stop`
+- Instant support for new domains and subdomains
+- Supports unlimited subdomains (e.g., `api.mystore.test`, `admin.mystore.test`)
+
+**Cons:**
+- Requires dnsmasq to be running
+- Slightly more complex initial setup (handled automatically by bootstrap)
+
+### hosts Mode (Fallback)
 
 Modifies `/etc/hosts` to resolve domains:
 
@@ -21,36 +44,35 @@ Modifies `/etc/hosts` to resolve domains:
 **Cons:**
 - Requires sudo for each domain change
 - Each domain must be added manually
-
-### dnsmasq Mode
-
-Uses dnsmasq for wildcard domain resolution:
-
-```
-*.test → 127.0.0.1
-```
-
-**Pros:**
-- All `.test` domains resolve automatically
-- No hosts file modifications
-- Instant new domain support
-
-**Cons:**
-- Requires dnsmasq installation
-- More complex setup
+- Doesn't support wildcard subdomains
 
 ## Setting DNS Mode
 
-### During Bootstrap
+### During Bootstrap (Automatic)
 
-You'll be prompted to choose:
+Bootstrap automatically installs and configures dnsmasq on all platforms:
 
 ```bash
 magebox bootstrap
-# ? DNS mode: [hosts/dnsmasq]
+# Installing dnsmasq... done
+# Configuring dnsmasq for *.test domains... done
+# Set dns_mode: dnsmasq ✓
 ```
 
-### After Bootstrap
+If dnsmasq setup fails for any reason, MageBox automatically falls back to hosts mode.
+
+### Switching to hosts Mode
+
+If you prefer the simpler hosts mode:
+
+```bash
+magebox config set dns_mode hosts
+# Domains will be added to /etc/hosts on next start
+```
+
+### Switching to dnsmasq Mode
+
+To switch from hosts to dnsmasq:
 
 ```bash
 magebox config set dns_mode dnsmasq
@@ -84,7 +106,23 @@ Add:
 
 ## dnsmasq Mode Setup
 
-### Installation
+::: info Automatic Setup
+As of v0.16.6, dnsmasq is automatically installed and configured during `magebox bootstrap`. The manual steps below are only needed if you're troubleshooting or setting up dnsmasq outside of bootstrap.
+:::
+
+### Automatic Setup
+
+```bash
+magebox bootstrap
+# or if already bootstrapped:
+magebox dns setup
+```
+
+This installs dnsmasq (if needed) and configures it to resolve `.test` domains.
+
+### Manual Installation
+
+If automatic setup fails, you can install dnsmasq manually:
 
 #### macOS
 
@@ -98,15 +136,17 @@ brew install dnsmasq
 sudo apt install dnsmasq
 ```
 
-### Configuration
+#### Fedora/RHEL
 
-Run the setup command:
+```bash
+sudo dnf install dnsmasq
+```
+
+Then run the setup command:
 
 ```bash
 magebox dns setup
 ```
-
-This configures dnsmasq to resolve `.test` domains.
 
 ### Manual Configuration
 
@@ -435,6 +475,10 @@ Changing TLD affects all projects and requires regenerating SSL certificates.
 
 ## Recommended Approach
 
-- **Single developer**: hosts mode is simpler
-- **Many projects**: dnsmasq saves time with automatic resolution
-- **Team environment**: Document your choice for consistency
+::: tip Recommendation
+**Use dnsmasq** (the default) - it provides the best experience with automatic wildcard DNS and no sudo prompts.
+:::
+
+- **Default setup**: dnsmasq mode - automatic wildcard DNS, no sudo prompts
+- **Minimal setup**: hosts mode - if you have issues with dnsmasq or prefer simplicity
+- **Team environment**: Stick with dnsmasq (the default) for consistency across all team members
