@@ -27,30 +27,43 @@ func getComposeCommand() []string {
 	composeCmdOnce.Do(func() {
 		verbose.Debug("Detecting Docker Compose command...")
 
+		// Check which docker we're using (Docker Desktop, OrbStack, Colima, etc.)
+		dockerPath, _ := exec.LookPath("docker")
+		verbose.Debug("Docker binary: %s", dockerPath)
+
 		// Try "docker compose" first (Docker Compose V2)
 		cmd := exec.Command("docker", "compose", "version")
 		output, err := cmd.CombinedOutput()
 		if err == nil {
-			composeCmd = []string{"docker", "compose"}
-			verbose.Debug("Docker Compose V2 detected: docker compose")
-			verbose.Detail("Version: %s", strings.TrimSpace(string(output)))
-			return
+			// Verify compose actually works with a simple command
+			// OrbStack and some setups have "docker compose version" but broken -f flag
+			testCmd := exec.Command("docker", "compose", "ls")
+			_, testErr := testCmd.CombinedOutput()
+			if testErr == nil {
+				composeCmd = []string{"docker", "compose"}
+				verbose.Debug("Docker Compose V2 detected: docker compose")
+				verbose.Detail("Version: %s", strings.TrimSpace(string(output)))
+				return
+			}
+			verbose.Debug("Docker Compose V2 'ls' command failed, trying standalone...")
+		} else {
+			verbose.Debug("Docker Compose V2 not available: %v", err)
 		}
-		verbose.Debug("Docker Compose V2 not available: %v", err)
 
-		// Fall back to "docker-compose" (standalone)
+		// Fall back to "docker-compose" (standalone) - works with OrbStack, Colima, etc.
 		cmd = exec.Command("docker-compose", "version")
 		output, err = cmd.CombinedOutput()
 		if err == nil {
 			composeCmd = []string{"docker-compose"}
-			verbose.Debug("Docker Compose V1 (standalone) detected: docker-compose")
+			verbose.Debug("Docker Compose standalone detected: docker-compose")
 			verbose.Detail("Version: %s", strings.TrimSpace(string(output)))
 			return
 		}
-		verbose.Debug("Docker Compose V1 not available: %v", err)
+		verbose.Debug("Docker Compose standalone not available: %v", err)
 
 		// Default to "docker compose" and let it fail with a helpful error
-		verbose.Debug("No Docker Compose found, defaulting to 'docker compose'")
+		verbose.Debug("No working Docker Compose found, defaulting to 'docker compose'")
+		fmt.Println("[WARN] Docker Compose not detected properly. If using OrbStack, install: brew install docker-compose")
 		composeCmd = []string{"docker", "compose"}
 	})
 	return composeCmd
