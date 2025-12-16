@@ -2,6 +2,27 @@
 
 Complete reference for all MageBox commands.
 
+## Global Flags
+
+These flags work with any command:
+
+### `-v`, `-vv`, `-vvv`
+
+Enable verbose logging for debugging and troubleshooting.
+
+```bash
+magebox -v start      # Basic - shows commands being run
+magebox -vv start     # Detailed - shows command output
+magebox -vvv start    # Debug - full debug info
+```
+
+**Verbosity levels:**
+- `-v` (basic) - Shows commands being executed
+- `-vv` (detailed) - Shows command output and results
+- `-vvv` (debug) - Full debug information including platform detection
+
+Output is color-coded: `[verbose]` (cyan), `[debug]` (yellow), `[trace]` (magenta)
+
 ## Project Commands
 
 ### `magebox init [name]`
@@ -25,6 +46,7 @@ Start the project environment.
 
 ```bash
 magebox start
+magebox start --all    # Start all discovered projects
 ```
 
 This command:
@@ -35,6 +57,9 @@ This command:
 5. Generates SSL certificates (if needed)
 6. Reloads Nginx
 
+**Options:**
+- `--all` - Start all discovered MageBox projects at once
+
 ---
 
 ### `magebox stop`
@@ -43,9 +68,15 @@ Stop the project environment.
 
 ```bash
 magebox stop
+magebox stop --all      # Stop all running projects
+magebox stop --dry-run  # Preview what would happen
 ```
 
 Stops PHP-FPM pool and removes Nginx configuration.
+
+**Options:**
+- `--all` - Stop all running MageBox projects at once
+- `--dry-run` - Preview what would happen without making changes
 
 ---
 
@@ -55,9 +86,13 @@ Restart the project environment.
 
 ```bash
 magebox restart
+magebox restart --all   # Restart all projects
 ```
 
 Equivalent to `stop` followed by `start`.
+
+**Options:**
+- `--all` - Restart all MageBox projects at once
 
 ---
 
@@ -141,6 +176,44 @@ magebox cli setup:upgrade
 ```
 
 Executes `php bin/magento` with correct PHP version and environment.
+
+## Mode Commands
+
+### `magebox dev`
+
+Switch to development mode optimized for debugging.
+
+```bash
+magebox dev
+```
+
+This command configures:
+- **OPcache:** Disabled (code changes apply immediately)
+- **Xdebug:** Enabled (step debugging available)
+- **Blackfire:** Disabled (conflicts with Xdebug)
+
+Settings are persisted in `.magebox.local.yaml`.
+
+---
+
+### `magebox prod`
+
+Switch to production mode optimized for performance.
+
+```bash
+magebox prod
+```
+
+This command configures:
+- **OPcache:** Enabled (faster PHP execution)
+- **Xdebug:** Disabled (no debugging overhead)
+- **Blackfire:** Disabled (enable manually when profiling)
+
+Settings are persisted in `.magebox.local.yaml`.
+
+::: tip
+Use `magebox dev` during active development, and `magebox prod` when testing production-like performance.
+:::
 
 ## Custom Commands
 
@@ -243,6 +316,64 @@ magebox db reset
 
 Equivalent to `db drop` followed by `db create`. Requires confirmation.
 
+---
+
+### `magebox db snapshot create [name]`
+
+Create a database snapshot for quick backup.
+
+```bash
+magebox db snapshot create              # Auto-named with timestamp
+magebox db snapshot create mybackup     # Named snapshot
+```
+
+**Arguments:**
+- `name` - Snapshot name (optional, defaults to timestamp)
+
+Snapshots are compressed with gzip and stored in `~/.magebox/snapshots/{project}/`.
+
+---
+
+### `magebox db snapshot restore <name>`
+
+Restore database from a snapshot.
+
+```bash
+magebox db snapshot restore mybackup
+```
+
+**Arguments:**
+- `name` - Snapshot name to restore (required)
+
+::: warning
+This replaces the current database. The existing data will be lost.
+:::
+
+---
+
+### `magebox db snapshot list`
+
+List all snapshots for the current project.
+
+```bash
+magebox db snapshot list
+```
+
+Shows snapshot name, size, and creation date.
+
+---
+
+### `magebox db snapshot delete <name>`
+
+Delete a snapshot.
+
+```bash
+magebox db snapshot delete mybackup
+```
+
+**Arguments:**
+- `name` - Snapshot name to delete (required)
+
 ## Redis Commands
 
 ### `magebox redis shell`
@@ -272,6 +403,59 @@ Show Redis statistics.
 ```bash
 magebox redis info
 ```
+
+## Queue Commands
+
+Commands for managing RabbitMQ message queues.
+
+### `magebox queue status`
+
+View RabbitMQ queue status with message counts.
+
+```bash
+magebox queue status
+```
+
+Shows all queues with:
+- Queue name
+- Message count (ready/unacked)
+- Consumer count
+
+Uses the RabbitMQ Management API.
+
+---
+
+### `magebox queue flush`
+
+Purge all messages from all queues.
+
+```bash
+magebox queue flush
+```
+
+::: danger
+This permanently deletes all queued messages. Use with caution!
+:::
+
+---
+
+### `magebox queue consumer [name]`
+
+Run Magento queue consumers.
+
+```bash
+# Run a specific consumer
+magebox queue consumer product_action_attribute.update
+
+# Run all consumers via cron
+magebox queue consumer --all
+```
+
+**Arguments:**
+- `name` - Consumer name (optional if using `--all`)
+
+**Options:**
+- `--all` - Start all configured consumers via Magento cron
 
 ## Log Commands
 
@@ -433,6 +617,34 @@ magebox list
 ```
 
 Shows projects found from Nginx vhost configurations.
+
+---
+
+### `magebox uninstall`
+
+Clean uninstall of MageBox components.
+
+```bash
+magebox uninstall                    # Interactive uninstall
+magebox uninstall --force            # Skip confirmation
+magebox uninstall --dry-run          # Preview what would happen
+magebox uninstall --keep-vhosts      # Keep nginx configurations
+```
+
+This command:
+1. Stops all running MageBox projects
+2. Removes CLI wrappers (php, composer, blackfire) from `~/.magebox/bin/`
+3. Removes nginx vhost configurations
+4. Cleans up MageBox configuration
+
+**Options:**
+- `--force` - Skip confirmation prompt
+- `--dry-run` - Preview what would be removed without making changes
+- `--keep-vhosts` - Preserve nginx vhost configurations
+
+::: warning
+This does not uninstall MageBox itself (the binary), only the components it manages.
+:::
 
 ## SSL Commands
 
@@ -818,11 +1030,25 @@ magebox team add myteam \
   --org myorganization \
   --auth ssh
 
+# Self-hosted GitLab
+magebox team add myteam \
+  --provider gitlab \
+  --org mygroup \
+  --url https://gitlab.mycompany.com \
+  --auth ssh
+
+# Self-hosted Bitbucket Server
+magebox team add myteam \
+  --provider bitbucket \
+  --org MYPROJECT \
+  --url https://bitbucket.mycompany.com \
+  --auth ssh
+
 # With asset storage
 magebox team add myteam \
   --provider github \
   --org myorg \
-  --auth ssh \
+  --auth https \
   --asset-provider sftp \
   --asset-host backup.example.com \
   --asset-port 22 \
@@ -833,7 +1059,8 @@ magebox team add myteam \
 **Options:**
 - `--provider` - Repository provider (github/gitlab/bitbucket)
 - `--org` - Organization/namespace name
-- `--auth` - Authentication method (ssh/token)
+- `--url` - Custom URL for self-hosted instances (GitLab CE/EE, Bitbucket Server)
+- `--auth` - Authentication method (https/ssh, default: https)
 - `--asset-provider` - Asset storage provider (sftp/ftp)
 - `--asset-host` - Asset storage hostname
 - `--asset-port` - Asset storage port
@@ -841,6 +1068,10 @@ magebox team add myteam \
 - `--asset-username` - Asset storage username
 
 When flags are omitted, an interactive wizard prompts for the values.
+
+::: tip
+Use `--auth=https` for public repositories (no SSH key needed). Use `--auth=ssh` for private repositories.
+:::
 
 ---
 
@@ -955,6 +1186,123 @@ magebox sync --media
 
 ::: tip
 Run from within a project directory. Auto-detects team from git remote.
+:::
+
+## Test Commands
+
+Commands for running tests and code quality checks.
+
+### `magebox test setup`
+
+Interactive wizard to install testing tools.
+
+```bash
+magebox test setup
+```
+
+Installs PHPUnit, PHPStan, PHPCS, and PHPMD based on your selections.
+
+---
+
+### `magebox test unit`
+
+Run PHPUnit unit tests.
+
+```bash
+magebox test unit
+magebox test unit --filter=ProductTest
+magebox test unit --testsuite=unit
+```
+
+**Options:**
+- `--filter` - Filter tests by name
+- `--testsuite` - Run specific test suite
+
+---
+
+### `magebox test integration`
+
+Run Magento integration tests with optional RAM-based MySQL.
+
+```bash
+magebox test integration
+magebox test integration --tmpfs              # Use RAM-based MySQL (10-100x faster)
+magebox test integration --tmpfs --tmpfs-size=2g
+magebox test integration --tmpfs --keep-alive # Keep container for repeated runs
+```
+
+**Options:**
+- `--tmpfs` - Use RAM-based MySQL container
+- `--tmpfs-size` - RAM allocation (default: 1g)
+- `--mysql-version` - MySQL version (default: 8.0)
+- `--keep-alive` - Keep container running after tests
+
+---
+
+### `magebox test phpstan`
+
+Run PHPStan static analysis.
+
+```bash
+magebox test phpstan
+magebox test phpstan --level=5
+```
+
+**Options:**
+- `--level` - Analysis level 0-9 (default from config or 1)
+
+---
+
+### `magebox test phpcs`
+
+Run PHP_CodeSniffer.
+
+```bash
+magebox test phpcs
+magebox test phpcs --standard=PSR12
+```
+
+**Options:**
+- `--standard` - Coding standard (Magento2/PSR12)
+
+---
+
+### `magebox test phpmd`
+
+Run PHP Mess Detector.
+
+```bash
+magebox test phpmd
+magebox test phpmd --ruleset=cleancode,design
+```
+
+**Options:**
+- `--ruleset` - Rulesets to apply (comma-separated)
+
+---
+
+### `magebox test all`
+
+Run all tests except integration.
+
+```bash
+magebox test all
+```
+
+Runs unit tests, PHPStan, PHPCS, and PHPMD in sequence. Ideal for CI/CD pipelines.
+
+---
+
+### `magebox test status`
+
+Show installed testing tools and their configuration.
+
+```bash
+magebox test status
+```
+
+::: tip
+See the [Testing & Code Quality](/guide/testing-tools) guide for detailed configuration options.
 :::
 
 ## Utility Commands
