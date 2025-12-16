@@ -10,7 +10,7 @@ import (
 	"github.com/qoliber/magebox/internal/verbose"
 )
 
-var version = "0.16.4"
+var version = "0.16.5"
 
 // verbosity is the count of -v flags
 var verbosity int
