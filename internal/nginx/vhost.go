@@ -399,8 +399,9 @@ func (c *Controller) SetupNginxConfig() error {
 
 	switch c.platform.Type {
 	case platform.Darwin:
-		// macOS: use symlink approach (Homebrew nginx supports it)
-		return c.setupNginxSymlink(mageboxVhostsDir)
+		// macOS: add explicit include to nginx.conf
+		// The default "include servers/*;" doesn't work with symlinked directories
+		return c.addIncludeToNginxConfDarwin(includeDirective)
 
 	case platform.Linux:
 		switch c.platform.LinuxDistro {
@@ -415,6 +416,47 @@ func (c *Controller) SetupNginxConfig() error {
 	}
 
 	return fmt.Errorf("unsupported platform")
+}
+
+// addIncludeToNginxConfDarwin adds an include directive to macOS nginx.conf
+func (c *Controller) addIncludeToNginxConfDarwin(includeDirective string) error {
+	nginxConf := c.GetNginxConfPath()
+
+	// Read current config
+	content, err := os.ReadFile(nginxConf)
+	if err != nil {
+		return fmt.Errorf("failed to read nginx.conf: %w", err)
+	}
+
+	// Check if include already exists
+	if strings.Contains(string(content), includeDirective) {
+		return nil // Already configured
+	}
+
+	// Find "include servers/*;" and add our include after it
+	// Homebrew nginx.conf uses "include servers/*;" by default
+	marker := "include servers/*;"
+	if !strings.Contains(string(content), marker) {
+		// Try alternate pattern without semicolon space variations
+		marker = "include servers/*"
+		if !strings.Contains(string(content), marker) {
+			return fmt.Errorf("could not find 'include servers/*' in nginx.conf")
+		}
+	}
+
+	newContent := strings.Replace(
+		string(content),
+		marker,
+		marker+"\n    "+includeDirective+" # MageBox vhosts",
+		1,
+	)
+
+	// Write back to nginx.conf (no sudo needed on macOS with Homebrew)
+	if err := os.WriteFile(nginxConf, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write nginx.conf: %w", err)
+	}
+
+	return nil
 }
 
 // addIncludeToNginxConf adds an include directive to nginx.conf
