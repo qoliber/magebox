@@ -7,8 +7,8 @@ FROM rockylinux:9
 LABEL maintainer="qoliber"
 LABEL description="MageBox integration test environment for Rocky Linux 9"
 
-# Install dependencies
-RUN dnf install -y \
+# Install dependencies (--allowerasing needed to replace curl-minimal with curl)
+RUN dnf install -y --allowerasing \
     dnf-plugins-core \
     curl \
     git \

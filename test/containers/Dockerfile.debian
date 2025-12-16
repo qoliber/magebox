@@ -23,9 +23,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Add sury.org PHP repository for multiple PHP versions
-RUN curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
-    && dpkg -i /tmp/debsuryorg-archive-keyring.deb \
-    && sh -c 'echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list' \
+RUN curl -sSL https://packages.sury.org/php/apt.gpg -o /etc/apt/trusted.gpg.d/php.gpg \
+    && echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list \
     && apt-get update
 
 # Install PHP versions (8.1, 8.2, 8.3, 8.4) with Magento-required extensions + Xdebug
@@ -41,9 +40,11 @@ RUN apt-get install -y \
     php8.4-bcmath php8.4-gd php8.4-intl php8.4-mysql php8.4-soap \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go for building MageBox
-RUN apt-get update && apt-get install -y golang-go \
-    && rm -rf /var/lib/apt/lists/*
+# Install Go for building MageBox (need newer version than Debian provides)
+RUN curl -L https://go.dev/dl/go1.24.0.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Install mkcert for SSL testing
 RUN curl -L -o /usr/local/bin/mkcert https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64 \
