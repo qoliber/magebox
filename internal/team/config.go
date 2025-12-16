@@ -194,6 +194,20 @@ func (t *Team) GetAssetKeyPath() string {
 
 // GetCloneURL returns the clone URL for a project based on auth method
 func (t *Team) GetCloneURL(project *Project) string {
+	// Handle self-hosted instances
+	if t.Repositories.URL != "" {
+		baseURL := strings.TrimSuffix(t.Repositories.URL, "/")
+		// Extract host from URL for SSH
+		host := strings.TrimPrefix(baseURL, "https://")
+		host = strings.TrimPrefix(host, "http://")
+
+		if t.Repositories.Auth == AuthSSH {
+			return fmt.Sprintf("git@%s:%s.git", host, project.Repo)
+		}
+		return fmt.Sprintf("%s/%s.git", baseURL, project.Repo)
+	}
+
+	// Default cloud URLs
 	switch t.Repositories.Provider {
 	case ProviderGitHub:
 		if t.Repositories.Auth == AuthSSH {

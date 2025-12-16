@@ -42,6 +42,7 @@ type RepositoryConfig struct {
 	Provider     RepositoryProvider `yaml:"provider"`
 	Organization string             `yaml:"organization"`
 	Auth         AuthMethod         `yaml:"auth"`
+	URL          string             `yaml:"url,omitempty"` // Custom URL for self-hosted instances (e.g., https://gitlab.mycompany.com)
 	// Token is read from environment variable MAGEBOX_{TEAM}_TOKEN or MAGEBOX_GIT_TOKEN
 }
 

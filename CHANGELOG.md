@@ -5,6 +5,18 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.4] - 2025-12-16
+
+### Added
+- **Self-hosted GitLab/Bitbucket support** - New `--url` flag for `magebox team add` to specify custom instance URLs:
+  - `magebox team add myteam --provider=gitlab --org=mygroup --url=https://gitlab.mycompany.com`
+  - Supports both GitLab CE/EE and Bitbucket Server/Data Center
+  - Clone URLs automatically use the custom host
+- **Bitbucket Server API support** - Repository listing now works with self-hosted Bitbucket instances
+
+### Fixed
+- **Bitbucket authentication error** - Now shows helpful message when token is required for private repos
+
 ## [0.14.3] - 2025-12-16
 
 ### Fixed

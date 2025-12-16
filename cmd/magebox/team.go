@@ -60,6 +60,7 @@ var (
 	teamAddProvider      string
 	teamAddOrg           string
 	teamAddAuth          string
+	teamAddURL           string // For self-hosted GitLab/Bitbucket
 	teamAddAssetProvider string
 	teamAddAssetHost     string
 	teamAddAssetPort     int
@@ -72,6 +73,7 @@ func init() {
 	teamAddCmd.Flags().StringVar(&teamAddProvider, "provider", "", "Repository provider (github, gitlab, bitbucket)")
 	teamAddCmd.Flags().StringVar(&teamAddOrg, "org", "", "Organization/namespace")
 	teamAddCmd.Flags().StringVar(&teamAddAuth, "auth", "https", "Auth method (ssh, https, token)")
+	teamAddCmd.Flags().StringVar(&teamAddURL, "url", "", "Custom URL for self-hosted GitLab/Bitbucket (e.g., https://gitlab.mycompany.com)")
 	teamAddCmd.Flags().StringVar(&teamAddAssetProvider, "asset-provider", "", "Asset storage provider (sftp, ftp)")
 	teamAddCmd.Flags().StringVar(&teamAddAssetHost, "asset-host", "", "Asset storage host")
 	teamAddCmd.Flags().IntVar(&teamAddAssetPort, "asset-port", 0, "Asset storage port")
@@ -139,7 +141,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 	// Check if we have enough flags for non-interactive mode
 	nonInteractive := teamAddProvider != "" && teamAddOrg != ""
 
-	var providerStr, org, authStr string
+	var providerStr, org, authStr, repoURL string
 	var assetProviderStr, assetHost, assetPath, assetUsername string
 	var assetPort int
 
@@ -151,6 +153,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 		if authStr == "" {
 			authStr = "ssh"
 		}
+		repoURL = teamAddURL
 		assetProviderStr = strings.ToLower(teamAddAssetProvider)
 		assetHost = teamAddAssetHost
 		assetPort = teamAddAssetPort
@@ -189,6 +192,13 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 		authStr = strings.TrimSpace(strings.ToLower(authStr))
 		if authStr == "" {
 			authStr = "ssh"
+		}
+
+		// Self-hosted URL (for GitLab/Bitbucket)
+		if providerStr == "gitlab" || providerStr == "bitbucket" {
+			fmt.Print("Custom URL (leave empty for cloud): ")
+			repoURL, _ = reader.ReadString('\n')
+			repoURL = strings.TrimSpace(repoURL)
 		}
 
 		fmt.Println()
@@ -264,6 +274,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 			Provider:     provider,
 			Organization: org,
 			Auth:         auth,
+			URL:          repoURL,
 		},
 		Assets:   assetConfig,
 		Projects: make(map[string]*team.Project),
@@ -320,7 +331,11 @@ func runTeamList(cmd *cobra.Command, args []string) error {
 
 	for name, t := range config.Teams {
 		fmt.Printf("  %s\n", cli.Highlight(name))
-		fmt.Printf("    Repository: %s (%s/%s)\n", t.Repositories.Provider, t.Repositories.Organization, t.Repositories.Auth)
+		if t.Repositories.URL != "" {
+			fmt.Printf("    Repository: %s (%s/%s) @ %s\n", t.Repositories.Provider, t.Repositories.Organization, t.Repositories.Auth, t.Repositories.URL)
+		} else {
+			fmt.Printf("    Repository: %s (%s/%s)\n", t.Repositories.Provider, t.Repositories.Organization, t.Repositories.Auth)
+		}
 		if t.Assets.Provider != "" {
 			fmt.Printf("    Assets:     %s://%s@%s:%d%s\n",
 				t.Assets.Provider, t.Assets.Username, t.Assets.Host,

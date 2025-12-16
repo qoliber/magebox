@@ -204,13 +204,19 @@ func (r *RepositoryClient) listGitHubRepos(filter string) ([]Repository, error) 
 	return repos, nil
 }
 
-// listGitLabRepos lists repositories from GitLab
+// listGitLabRepos lists repositories from GitLab (cloud or self-hosted)
 func (r *RepositoryClient) listGitLabRepos(filter string) ([]Repository, error) {
 	org := r.team.Repositories.Organization
 	token := r.team.GetToken()
 
+	// Use custom URL for self-hosted GitLab, or default to gitlab.com
+	baseURL := "https://gitlab.com"
+	if r.team.Repositories.URL != "" {
+		baseURL = strings.TrimSuffix(r.team.Repositories.URL, "/")
+	}
+
 	// GitLab uses groups or users
-	url := fmt.Sprintf("https://gitlab.com/api/v4/groups/%s/projects?per_page=100", org)
+	url := fmt.Sprintf("%s/api/v4/groups/%s/projects?per_page=100", baseURL, org)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -230,7 +236,7 @@ func (r *RepositoryClient) listGitLabRepos(filter string) ([]Repository, error) 
 
 	// If group endpoint fails, try user endpoint
 	if resp.StatusCode == 404 {
-		url = fmt.Sprintf("https://gitlab.com/api/v4/users/%s/projects?per_page=100", org)
+		url = fmt.Sprintf("%s/api/v4/users/%s/projects?per_page=100", baseURL, org)
 		req, _ = http.NewRequest("GET", url, nil)
 		if token != "" {
 			req.Header.Set("PRIVATE-TOKEN", token)
@@ -280,12 +286,23 @@ func (r *RepositoryClient) listGitLabRepos(filter string) ([]Repository, error) 
 	return repos, nil
 }
 
-// listBitbucketRepos lists repositories from Bitbucket
+// listBitbucketRepos lists repositories from Bitbucket (cloud or self-hosted)
 func (r *RepositoryClient) listBitbucketRepos(filter string) ([]Repository, error) {
 	org := r.team.Repositories.Organization
 	token := r.team.GetToken()
 
-	url := fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s?pagelen=100", org)
+	// Use custom URL for self-hosted Bitbucket Server, or default to Bitbucket Cloud
+	var url string
+	var isServer bool
+	if r.team.Repositories.URL != "" {
+		// Self-hosted Bitbucket Server uses different API
+		baseURL := strings.TrimSuffix(r.team.Repositories.URL, "/")
+		url = fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos?limit=100", baseURL, org)
+		isServer = true
+	} else {
+		// Bitbucket Cloud
+		url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s?pagelen=100", org)
+	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -303,9 +320,19 @@ func (r *RepositoryClient) listBitbucketRepos(filter string) ([]Repository, erro
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		return nil, fmt.Errorf("authentication required - set MAGEBOX_%s_TOKEN environment variable",
+			strings.ToUpper(strings.ReplaceAll(r.team.Name, "-", "_")))
+	}
+
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("Bitbucket API error: %s - %s", resp.Status, string(body))
+	}
+
+	// Handle self-hosted Bitbucket Server response
+	if isServer {
+		return r.parseBitbucketServerResponse(resp.Body, filter)
 	}
 
 	var bbResponse struct {
@@ -353,6 +380,57 @@ func (r *RepositoryClient) listBitbucketRepos(filter string) ([]Repository, erro
 			SSHURL:        sshURL,
 			Private:       br.IsPrivate,
 			DefaultBranch: br.MainBranch.Name,
+		})
+	}
+
+	return repos, nil
+}
+
+// parseBitbucketServerResponse parses the response from self-hosted Bitbucket Server
+func (r *RepositoryClient) parseBitbucketServerResponse(body io.Reader, filter string) ([]Repository, error) {
+	var serverResponse struct {
+		Values []struct {
+			Slug        string `json:"slug"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			Public      bool   `json:"public"`
+			Links       struct {
+				Clone []struct {
+					Name string `json:"name"`
+					Href string `json:"href"`
+				} `json:"clone"`
+			} `json:"links"`
+		} `json:"values"`
+	}
+
+	if err := json.NewDecoder(body).Decode(&serverResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse Bitbucket Server response: %w", err)
+	}
+
+	var repos []Repository
+	org := r.team.Repositories.Organization
+	for _, br := range serverResponse.Values {
+		if filter != "" && !matchFilter(br.Name, filter) {
+			continue
+		}
+
+		var cloneURL, sshURL string
+		for _, link := range br.Links.Clone {
+			if link.Name == "http" || link.Name == "https" {
+				cloneURL = link.Href
+			} else if link.Name == "ssh" {
+				sshURL = link.Href
+			}
+		}
+
+		repos = append(repos, Repository{
+			Name:          br.Slug,
+			FullName:      fmt.Sprintf("%s/%s", org, br.Slug),
+			Description:   br.Description,
+			CloneURL:      cloneURL,
+			SSHURL:        sshURL,
+			Private:       !br.Public,
+			DefaultBranch: "master", // Bitbucket Server doesn't return default branch in list
 		})
 	}
 

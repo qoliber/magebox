@@ -2,6 +2,36 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.14.4] - 2025-12-16
+
+### Self-Hosted GitLab & Bitbucket Support
+
+MageBox now supports self-hosted GitLab and Bitbucket instances:
+
+```bash
+# Self-hosted GitLab
+magebox team add myteam \
+  --provider=gitlab \
+  --org=mygroup \
+  --url=https://gitlab.mycompany.com \
+  --auth=ssh
+
+# Self-hosted Bitbucket Server
+magebox team add myteam \
+  --provider=bitbucket \
+  --org=MYPROJECT \
+  --url=https://bitbucket.mycompany.com \
+  --auth=ssh
+```
+
+**Features:**
+- Custom URL support for GitLab CE/EE and Bitbucket Server/Data Center
+- `magebox team myteam repos` now works with self-hosted instances
+- Clone URLs automatically use the custom host
+- Better error messages when authentication is required
+
+---
+
 ## [0.14.3] - 2025-12-16
 
 ### Bug Fix
