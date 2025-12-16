@@ -162,20 +162,27 @@ install_binary() {
 setup_aliases() {
     local install_path="${INSTALL_DIR}/${BINARY_NAME}"
 
-    echo ""
-    echo -e "${BLUE}Short Command Aliases${NC}"
-    echo ""
-    echo "Create shorter command aliases for faster typing:"
-    echo ""
-    echo "  1) mbox        - recommended, descriptive"
-    echo "  2) mb          - shortest (2 chars)"
-    echo "  3) Both        - create both aliases"
-    echo "  4) Skip        - use only 'magebox'"
-    echo ""
+    # Check if running interactively (stdin is a terminal)
+    if [ -t 0 ]; then
+        echo ""
+        echo -e "${BLUE}Short Command Aliases${NC}"
+        echo ""
+        echo "Create shorter command aliases for faster typing:"
+        echo ""
+        echo "  1) mbox        - recommended, descriptive"
+        echo "  2) mb          - shortest (2 chars)"
+        echo "  3) Both        - create both aliases"
+        echo "  4) Skip        - use only 'magebox'"
+        echo ""
 
-    # Read user choice
-    read -p "Choose [1-4, default: 1]: " choice
-    choice="${choice:-1}"
+        # Read user choice
+        read -p "Choose [1-4, default: 1]: " choice
+        choice="${choice:-1}"
+    else
+        # Non-interactive mode (curl | bash) - use default
+        info "Creating default alias 'mbox'..."
+        choice="1"
+    fi
 
     case "$choice" in
         1)

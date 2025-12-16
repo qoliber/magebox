@@ -2,6 +2,14 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.14.3] - 2025-12-16
+
+### Bug Fix
+
+Fixed installer hanging when running via `curl | bash`. The alias selection prompt now auto-detects non-interactive mode and uses the default `mbox` alias.
+
+---
+
 ## [0.14.2] - 2025-12-16
 
 ### Bug Fix
