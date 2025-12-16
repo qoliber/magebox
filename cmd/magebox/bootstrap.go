@@ -687,6 +687,18 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		_ = config.SaveGlobalConfig(homeDir, globalCfg)
 		cli.PrintInfo("Domains will be added to /etc/hosts when you run %s", cli.Command("magebox start"))
 	}
+
+	// Test DNS resolution if dnsmasq was configured
+	if dnsmasqConfigured {
+		testDomain := fmt.Sprintf("test.%s", tld)
+		fmt.Printf("  Testing DNS resolution for %s... ", testDomain)
+		if dnsManager.TestResolution(testDomain) {
+			fmt.Println(cli.Success("✓ resolves to 127.0.0.1"))
+		} else {
+			fmt.Println(cli.Warning("not resolving yet"))
+			cli.PrintInfo("DNS may need a moment to propagate. Test with: dig +short %s @127.0.0.1", testDomain)
+		}
+	}
 	fmt.Println()
 
 	// Step 9: Install PHP, Composer, and Blackfire wrappers
