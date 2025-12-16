@@ -12,6 +12,9 @@ The following features have been implemented:
 
 | Feature | Version | Description |
 |---------|---------|-------------|
+| Testing & Code Quality | v0.14.0 | `magebox test` commands for PHPUnit, PHPStan, PHPCS, PHPMD |
+| Self-Hosted Git Support | v0.14.4 | GitLab CE/EE and Bitbucket Server with `--url` flag |
+| Expanded Linux Support | v0.14.5 | Debian 12, Rocky Linux 9, derivative distros (EndeavourOS, Pop!_OS) |
 | Dev/Prod Modes | v0.13.2 | `magebox dev` and `magebox prod` for quick mode switching |
 | Queue Management | v0.13.2 | `magebox queue status/flush/consumer` for RabbitMQ |
 | Database Snapshots | v0.13.1 | `magebox db snapshot create/restore/list/delete` |

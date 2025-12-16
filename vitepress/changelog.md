@@ -2,6 +2,27 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.14.5] - 2025-12-16
+
+### Expanded Linux Distribution Support
+
+New test containers and improved compatibility:
+
+- **Debian 12** - Added test container with sury.org PHP repository
+- **Rocky Linux 9** - Added test container with Remi PHP repository
+- **Improved distro detection** - Better support for derivative distributions:
+  - Proper parsing of `/etc/os-release` (handles quoted values)
+  - `ID_LIKE` support for derivatives (EndeavourOS, Pop!_OS, Garuda, etc.)
+  - Warning for untested but compatible distros instead of hard failure
+
+**Bug Fixes:**
+- Fixed EndeavourOS bootstrap (quoted values in os-release)
+- Fixed Ubuntu PHP installation (removed non-existent `php-sodium` package)
+- Fixed OpenSearch version (updated from 2.12 to 2.19.4)
+- Fixed self-update permissions (automatic sudo for /usr/local/bin)
+
+---
+
 ## [0.14.4] - 2025-12-16
 
 ### Self-Hosted GitLab & Bitbucket Support

@@ -34,6 +34,8 @@ This allows testing:
 | Ubuntu 24.04 | `Dockerfile.ubuntu` | 8.1, 8.2, 8.3, 8.4 (ondrej/php) |
 | Ubuntu 22.04 | `Dockerfile.ubuntu22` | 8.1, 8.2, 8.3, 8.4 (ondrej/php) |
 | Ubuntu 24.04 ARM64 | `Dockerfile.ubuntu-arm64` | 8.1, 8.2, 8.3, 8.4 (ondrej/php) |
+| Debian 12 | `Dockerfile.debian` | 8.1, 8.2, 8.3, 8.4 (sury.org) |
+| Rocky Linux 9 | `Dockerfile.rocky9` | 8.1, 8.2, 8.3, 8.4 (Remi) |
 | Arch Linux | `Dockerfile.archlinux` | Latest only (pacman) |
 
 ## Running Tests
