@@ -632,8 +632,10 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 	if p.Type == platform.Linux {
 		// On Linux, auto-configure dnsmasq for *.test wildcard DNS
+		dnsmasqConfigured := false
 		if dnsManager.IsConfigured() && dnsManager.IsRunning() {
 			fmt.Println("  dnsmasq configured and running " + cli.Success("✓"))
+			dnsmasqConfigured = true
 		} else {
 			if dnsManager.IsInstalled() {
 				fmt.Print("  Configuring dnsmasq for *.test domains... ")
@@ -642,10 +644,21 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 					cli.PrintWarning("dnsmasq config failed: %v", err)
 				} else {
 					fmt.Println(cli.Success("done"))
+					dnsmasqConfigured = true
 				}
 			} else {
 				fmt.Println("  dnsmasq not installed")
 				cli.PrintInfo("Install with: %s", cli.Command(dnsManager.InstallCommand()))
+			}
+		}
+
+		// Set dns_mode to dnsmasq if successfully configured
+		if dnsmasqConfigured && globalCfg.DNSMode != "dnsmasq" {
+			globalCfg.DNSMode = "dnsmasq"
+			if err := config.SaveGlobalConfig(homeDir, globalCfg); err != nil {
+				cli.PrintWarning("Failed to save dns_mode config: %v", err)
+			} else {
+				fmt.Println("  Set dns_mode: dnsmasq " + cli.Success("✓"))
 			}
 		}
 	} else if globalCfg.UseDnsmasq() {

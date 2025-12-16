@@ -56,23 +56,46 @@ func TestDnsmasqManager_getConfigPath(t *testing.T) {
 }
 
 func TestDnsmasqManager_generateConfig(t *testing.T) {
-	p := &platform.Platform{Type: platform.Linux}
-	m := NewDnsmasqManager(p)
-
-	config := m.generateConfig()
-
-	// Check for essential config lines
-	expectedLines := []string{
-		"address=/test/127.0.0.1",
-		"listen-address=127.0.0.1",
-		"bind-interfaces",
-		"MageBox",
+	tests := []struct {
+		name          string
+		platformType  platform.Type
+		expectedLines []string
+	}{
+		{
+			name:         "Linux",
+			platformType: platform.Linux,
+			expectedLines: []string{
+				"address=/test/127.0.0.1",
+				"listen-address=127.0.0.2", // Linux uses 127.0.0.2 to avoid systemd-resolved conflict
+				"bind-interfaces",
+				"MageBox",
+			},
+		},
+		{
+			name:         "macOS",
+			platformType: platform.Darwin,
+			expectedLines: []string{
+				"address=/test/127.0.0.1",
+				"listen-address=127.0.0.1", // macOS uses 127.0.0.1
+				"bind-interfaces",
+				"MageBox",
+			},
+		},
 	}
 
-	for _, line := range expectedLines {
-		if !strings.Contains(config, line) {
-			t.Errorf("Config should contain %q", line)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &platform.Platform{Type: tt.platformType}
+			m := NewDnsmasqManager(p)
+
+			config := m.generateConfig()
+
+			for _, line := range tt.expectedLines {
+				if !strings.Contains(config, line) {
+					t.Errorf("Config should contain %q", line)
+				}
+			}
+		})
 	}
 }
 

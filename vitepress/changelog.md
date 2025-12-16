@@ -2,6 +2,38 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.15.2] - 2025-12-16
+
+### DNS Improvements
+
+**Fixed systemd-resolved port conflict:**
+- dnsmasq now listens on `127.0.0.2:53` on Linux to avoid conflicts with systemd-resolved
+- Fixes issue on EndeavourOS and other Arch-based distros where dnsmasq and systemd-resolved competed for port 53
+- macOS continues to use `127.0.0.1:53` (no change)
+
+**Auto-configure dns_mode in bootstrap:**
+- Bootstrap now automatically sets `dns_mode: dnsmasq` when dnsmasq is successfully configured
+- Eliminates need to manually run `magebox config set dns_mode dnsmasq`
+- `magebox start` no longer asks for sudo password when dnsmasq is working
+
+---
+
+## [0.15.1] - 2025-12-16
+
+### macOS Fixes
+
+**Port forwarding fix:**
+- Fixed pf (packet filter) rules not working properly on macOS
+- Now properly integrates with `/etc/pf.conf` using anchors
+- LaunchDaemon loads main pf.conf instead of just the anchor file
+
+**Docker Compose detection:**
+- Fixed "unknown shorthand flag: 'f'" error with OrbStack/Colima
+- Better detection using `docker compose ls` verification
+- Proper fallback to standalone `docker-compose` when needed
+
+---
+
 ## [0.15.0] - 2025-12-16
 
 ### Verbose Logging

@@ -9,6 +9,7 @@ import (
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/dns"
+	"github.com/qoliber/magebox/internal/platform"
 )
 
 var dnsCmd = &cobra.Command{
@@ -87,7 +88,13 @@ func runDnsSetup(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintInfo("All *.test domains now resolve to 127.0.0.1")
 	fmt.Println(cli.Bullet("No need to edit /etc/hosts for new projects"))
-	fmt.Println(cli.Bullet("Test with: " + cli.Command("dig test.test @127.0.0.1")))
+
+	// Show test command with correct DNS server address
+	dnsServer := "127.0.0.1"
+	if p.Type == platform.Linux {
+		dnsServer = "127.0.0.2"
+	}
+	fmt.Println(cli.Bullet("Test with: " + cli.Command("dig test.test @"+dnsServer)))
 
 	return nil
 }
