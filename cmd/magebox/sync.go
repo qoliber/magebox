@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/qoliber/magebox/internal/cli"
+	"github.com/qoliber/magebox/internal/progress"
 	"github.com/qoliber/magebox/internal/team"
 )
 
@@ -160,15 +161,34 @@ func runSync(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("failed to create media directory: %w", err)
 			}
 
-			// Use tar command for extraction (faster than Go implementation for large files)
-			tarCmd := exec.Command("tar", "-xzf", localPath, "-C", mediaDir)
-			tarCmd.Stdout = os.Stdout
+			// Get file size for progress tracking
+			fileInfo, err := os.Stat(localPath)
+			if err != nil {
+				return fmt.Errorf("failed to stat media archive: %w", err)
+			}
+
+			// Open file for reading with progress
+			file, err := os.Open(localPath)
+			if err != nil {
+				return fmt.Errorf("failed to open media archive: %w", err)
+			}
+			defer file.Close()
+
+			// Create progress bar
+			bar := progress.NewBar("Extracting:")
+			progressReader := progress.NewReader(file, fileInfo.Size(), bar.Update)
+
+			// Use tar command reading from stdin (faster than Go implementation for large files)
+			tarCmd := exec.Command("tar", "-xz", "-C", mediaDir)
+			tarCmd.Stdin = progressReader
 			tarCmd.Stderr = os.Stderr
 
 			if err := tarCmd.Run(); err != nil {
+				bar.Finish()
 				return fmt.Errorf("failed to extract media: %w", err)
 			}
 
+			bar.Finish()
 			fmt.Println(cli.Success("Media synced!"))
 		}
 	}

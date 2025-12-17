@@ -252,16 +252,26 @@ Connects to the project's database with correct credentials.
 
 ### `magebox db import [file]`
 
-Import SQL dump.
+Import SQL dump with progress tracking.
 
 ```bash
 magebox db import dump.sql
 magebox db import dump.sql.gz
-cat dump.sql | magebox db import
 ```
 
 **Arguments:**
-- `file` - SQL file to import (optional, reads from stdin if omitted)
+- `file` - SQL file to import
+
+**Features:**
+- Real-time progress bar showing percentage, speed, and ETA
+- Supports both plain SQL and gzipped files
+- Tracks compressed file size for accurate progress on `.sql.gz` files
+
+**Example output:**
+```
+Importing dump.sql.gz into database 'mystore' (magebox-mysql-8.0)
+  Importing: ████████████████████░░░░░░░░░░░░░░░░░░░░ 52.3% (156.2 MB/298.5 MB) 24.5 MB/s ETA: 6s
+```
 
 ---
 
@@ -1170,7 +1180,7 @@ magebox fetch myproject              # If only one team
 
 ### `magebox sync`
 
-Sync database and media for existing project.
+Sync database and media for existing project with progress tracking.
 
 ```bash
 magebox sync
@@ -1183,6 +1193,10 @@ magebox sync --media
 - `--media` - Only sync media
 - `--backup` - Backup current database before import
 - `--dry-run` - Show what would happen
+
+**Features:**
+- Progress bar for database import (see `db import`)
+- Progress bar for media extraction showing percentage, speed, and ETA
 
 ::: tip
 Run from within a project directory. Auto-detects team from git remote.

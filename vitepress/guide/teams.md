@@ -64,8 +64,10 @@ magebox fetch myteam/myproject
 This will:
 1. Clone the repository
 2. Download the database dump
-3. Import to MySQL
-4. Download and extract media files
+3. Import to MySQL (with progress bar)
+4. Download and extract media files (with progress bar)
+
+All long-running operations display real-time progress bars showing percentage, speed, and ETA.
 
 ## Commands Reference
 

@@ -105,9 +105,17 @@ magebox db import dump.sql
 
 # From gzipped file
 magebox db import dump.sql.gz
+```
 
-# From stdin
-cat dump.sql | magebox db import
+Import includes a real-time progress bar showing:
+- Percentage complete
+- Bytes imported / total size
+- Transfer speed (MB/s)
+- Estimated time remaining (ETA)
+
+```
+Importing dump.sql.gz into database 'mystore' (magebox-mysql-8.0)
+  Importing: ████████████████████░░░░░░░░░░░░░░░░░░░░ 52.3% (156.2 MB/298.5 MB) 24.5 MB/s ETA: 6s
 ```
 
 ### Export Database

@@ -3,6 +3,7 @@ package main
 import (
 	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/docker"
+	"github.com/qoliber/magebox/internal/progress"
 )
 
 var dbCmd = &cobra.Command{
@@ -201,7 +203,7 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 	}
 
 	sqlFile := args[0]
-	fmt.Printf("Importing %s into database '%s' (%s)...\n", sqlFile, cfg.Name, db.ContainerName)
+	fmt.Printf("Importing %s into database '%s' (%s)\n", filepath.Base(sqlFile), cfg.Name, db.ContainerName)
 
 	// Create database if it doesn't exist
 	createCmd := exec.Command("docker", "exec", db.ContainerName,
@@ -212,43 +214,59 @@ func runDbImport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create database: %w", err)
 	}
 
-	// Use docker exec directly with container name
-	importCmd := exec.Command("docker", "exec", "-i", db.ContainerName,
-		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, cfg.Name)
+	// Get file info for progress tracking
+	fileInfo, err := os.Stat(sqlFile)
+	if err != nil {
+		return fmt.Errorf("failed to stat SQL file: %w", err)
+	}
+	fileSize := fileInfo.Size()
 
+	// Open file
 	file, err := os.Open(sqlFile)
 	if err != nil {
 		return fmt.Errorf("failed to open SQL file: %w", err)
 	}
 	defer file.Close()
 
+	// Create progress bar
+	bar := progress.NewBar("Importing:")
+
+	// Use docker exec directly with container name
+	importCmd := exec.Command("docker", "exec", "-i", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, cfg.Name)
+
 	// Handle gzip compressed files
 	if strings.HasSuffix(sqlFile, ".gz") {
-		// Use zcat to decompress on the fly
-		zcatCmd := exec.Command("zcat", sqlFile)
-		importCmd.Stdin, _ = zcatCmd.StdoutPipe()
-		importCmd.Stdout = os.Stdout
-		importCmd.Stderr = os.Stderr
+		// For gzip, track compressed bytes read
+		progressReader := progress.NewReader(file, fileSize, bar.Update)
 
-		if err := zcatCmd.Start(); err != nil {
-			return fmt.Errorf("failed to start decompression: %w", err)
+		gzReader, err := gzip.NewReader(progressReader)
+		if err != nil {
+			return fmt.Errorf("failed to create gzip reader: %w", err)
 		}
+		defer gzReader.Close()
+
+		importCmd.Stdin = gzReader
+		importCmd.Stderr = io.Discard // Suppress mysql warnings
+
 		if err := importCmd.Run(); err != nil {
+			bar.Finish()
 			return fmt.Errorf("import failed: %w", err)
 		}
-		if err := zcatCmd.Wait(); err != nil {
-			return fmt.Errorf("decompression failed: %w", err)
-		}
 	} else {
-		importCmd.Stdin = file
-		importCmd.Stdout = os.Stdout
-		importCmd.Stderr = os.Stderr
+		// For plain SQL, track bytes directly
+		progressReader := progress.NewReader(file, fileSize, bar.Update)
+
+		importCmd.Stdin = progressReader
+		importCmd.Stderr = io.Discard // Suppress mysql warnings
 
 		if err := importCmd.Run(); err != nil {
+			bar.Finish()
 			return fmt.Errorf("import failed: %w", err)
 		}
 	}
 
+	bar.Finish()
 	cli.PrintSuccess("Import completed successfully!")
 	return nil
 }

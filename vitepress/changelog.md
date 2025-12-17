@@ -2,7 +2,48 @@
 
 All notable changes to MageBox will be documented here.
 
-## [0.16.12] - 2025-12-17
+## [0.17.0] - 2025-12-17
+
+### Progress Bars for Import Operations
+
+Database import and media extraction now display real-time progress bars:
+
+```
+Importing dump.sql.gz into database 'mystore' (magebox-mysql-8.0)
+  Importing: ████████████████████░░░░░░░░░░░░░░░░░░░░ 52.3% (156.2 MB/298.5 MB) 24.5 MB/s ETA: 6s
+```
+
+**Features:**
+- **Percentage complete** - Visual progress bar with Unicode blocks
+- **Bytes transferred** - Shows current/total size (e.g., 156.2 MB/298.5 MB)
+- **Transfer speed** - Real-time speed in MB/s
+- **ETA** - Estimated time remaining
+- **Gzip support** - Tracks compressed file size for accurate progress
+
+**Affected commands:**
+- `magebox db import` - Progress bar during SQL import
+- `magebox sync --media` - Progress bar during media extraction
+- `magebox fetch` - Progress bars for both database and media operations
+
+### Integration Testing Infrastructure
+
+New testing infrastructure for development and CI:
+
+```bash
+# Generate test SQL files (configurable size)
+./test/fixtures/generate-test-sql.sh 100 test-100mb.sql
+
+# Run DB import integration tests
+./test/integration/db_import_test.sh --size 10
+
+# Run media extraction tests
+./test/integration/media_extract_test.sh --size 10
+```
+
+**New packages:**
+- `internal/progress/` - Reusable progress tracking with unit tests
+- `test/fixtures/` - SQL generator script for creating test data
+- `test/integration/` - Integration tests for db import and media extraction
 
 ### Docker Provider Management (macOS)
 
