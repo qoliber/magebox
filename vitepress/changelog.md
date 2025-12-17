@@ -2,6 +2,34 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.11] - 2025-12-17
+
+### Enhanced Uninstall Command
+
+The `magebox uninstall` command now performs complete cleanup:
+
+- **Docker containers** - Stops and removes all MageBox Docker containers
+- **Port forwarding** - Removes macOS pf rules and LaunchDaemon
+- **DNS cleanup** - Stops dnsmasq and removes MageBox configuration
+- **Better progress** - Step-by-step output shows exactly what's being removed
+
+```bash
+magebox uninstall
+# Step 1: Stopping all projects
+# Step 2: Stopping Docker containers
+# Step 3: Removing CLI wrappers
+# Step 4: Removing nginx vhosts
+# Step 5: Removing port forwarding (macOS)
+# Step 6: Stopping dnsmasq
+```
+
+**Flags:**
+- `--force` - Skip confirmation prompt
+- `--keep-vhosts` - Keep nginx vhost configurations
+- `--dry-run` - Preview what would be removed
+
+---
+
 ## [0.16.10] - 2025-12-17
 
 ### macOS Port Forwarding Fix
