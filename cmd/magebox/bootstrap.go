@@ -784,6 +784,34 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
+	// Docker provider detection (macOS only)
+	if p.Type == platform.Darwin {
+		providerMgr := docker.NewProviderManager()
+		runningProviders := providerMgr.GetRunningProviders()
+
+		if len(runningProviders) > 1 {
+			fmt.Println(cli.Header("Docker Providers"))
+			cli.PrintWarning("Multiple Docker providers detected:")
+			for _, prov := range runningProviders {
+				marker := "  "
+				if prov.IsActive {
+					marker = "● "
+				} else {
+					marker = "○ "
+				}
+				fmt.Printf("  %s%s (%s)\n", marker, prov.Name, prov.SocketPath)
+			}
+			fmt.Println()
+			activeProvider := providerMgr.GetActiveProvider()
+			if activeProvider != nil {
+				fmt.Printf("  Active: %s\n", cli.Highlight(activeProvider.Name))
+			}
+			fmt.Println()
+			cli.PrintInfo("Run %s to view or switch providers", cli.Command("magebox docker"))
+			fmt.Println()
+		}
+	}
+
 	// Summary
 	cli.PrintTitle("Bootstrap Complete!")
 	fmt.Println()

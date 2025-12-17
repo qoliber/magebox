@@ -31,6 +31,9 @@ type GlobalConfig struct {
 	// AutoStart enables automatic service startup
 	AutoStart bool `yaml:"auto_start,omitempty"`
 
+	// DockerProvider specifies which Docker provider to use: "auto", "desktop", "colima", "orbstack", "rancher", "lima"
+	DockerProvider string `yaml:"docker_provider,omitempty"`
+
 	// Profiling contains credentials for profiling tools (Blackfire, Tideways)
 	Profiling ProfilingConfig `yaml:"profiling,omitempty"`
 }
