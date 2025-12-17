@@ -266,6 +266,91 @@ The `run_test` function takes:
 2. Command to run (should return 0 on success)
 3. Optional: `true` if the command is expected to fail
 
+## DB Import & Media Extraction Tests
+
+MageBox includes integration tests specifically for database import and media extraction with progress tracking.
+
+### Generate Test Data
+
+```bash
+# Generate test SQL files (configurable size in MB)
+./test/fixtures/generate-test-sql.sh 10 test-10mb.sql    # 10 MB
+./test/fixtures/generate-test-sql.sh 100 test-100mb.sql  # 100 MB
+```
+
+The generator creates:
+- Realistic SQL with `CREATE DATABASE`, `CREATE TABLE`, and `INSERT` statements
+- Multiple data types (VARCHAR, TEXT, JSON, DECIMAL, etc.)
+- Indexes for realistic import performance
+- Both plain `.sql` and compressed `.sql.gz` versions
+
+### Database Import Tests
+
+```bash
+# Run with default 5MB test data
+./test/integration/db_import_test.sh
+
+# Run with larger test data
+./test/integration/db_import_test.sh --size 50
+
+# Keep container running after tests (for debugging)
+./test/integration/db_import_test.sh --keep-container
+```
+
+**What gets tested:**
+- Plain SQL import with progress tracking
+- Gzipped SQL import with progress tracking
+- Row count verification after import
+- Import timing and performance metrics
+
+### Media Extraction Tests
+
+```bash
+# Run with default 10MB test archive
+./test/integration/media_extract_test.sh
+
+# Run with larger test archive
+./test/integration/media_extract_test.sh --size 50
+
+# Keep files after tests (for debugging)
+./test/integration/media_extract_test.sh --keep-files
+```
+
+**What gets tested:**
+- Standard tar extraction
+- Piped extraction (how `magebox sync` works with progress)
+- File count and integrity verification
+- Extraction timing and performance metrics
+
+### Example Output
+
+```
+=========================================
+  MageBox DB Import Integration Tests
+=========================================
+
+[INFO] Checking prerequisites...
+[INFO] Prerequisites OK
+[INFO] Starting MySQL container...
+[INFO] Waiting for MySQL to be ready...
+[INFO] MySQL is ready
+[INFO] Generating 10MB test SQL file...
+[INFO] Test data generated
+
+[INFO] Running tests...
+
+[INFO] Testing plain SQL import...
+[INFO] Plain SQL import: 50000 rows in 3s
+[INFO] Testing gzipped SQL import...
+[INFO] Gzipped SQL import: 50000 rows in 4s
+[INFO] Testing magebox db import command...
+[INFO] magebox binary works
+
+=========================================
+  Results: 3 passed, 0 failed
+=========================================
+```
+
 ## Command Compatibility Reference
 
 This section lists all MageBox commands and their compatibility with test mode.
