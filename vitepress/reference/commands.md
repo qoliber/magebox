@@ -165,17 +165,24 @@ Opens a new shell where:
 
 ---
 
-### `magebox cli [args...]`
+### Running Magento CLI
 
-Run Magento CLI command.
+Use the MageBox PHP wrapper or project shell to run Magento commands:
 
 ```bash
-magebox cli cache:flush
-magebox cli indexer:reindex
-magebox cli setup:upgrade
+# Using the shell (recommended)
+magebox shell
+php bin/magento cache:flush
+
+# Or directly with the wrapper
+~/.magebox/bin/php bin/magento cache:flush
 ```
 
-Executes `php bin/magento` with correct PHP version and environment.
+The PHP wrapper automatically uses the correct PHP version for your project.
+
+::: tip
+See [CLI Wrappers](/guide/php-wrapper) for more details on using `php`, `composer`, and other CLI tools.
+:::
 
 ## Mode Commands
 
@@ -563,6 +570,52 @@ magebox varnish disable
 ```
 
 Restores direct Nginx → PHP-FPM routing.
+
+## Docker Commands (macOS)
+
+Commands for managing Docker providers on macOS. On Linux, the default Docker installation is used.
+
+### `magebox docker`
+
+Show Docker provider status.
+
+```bash
+magebox docker
+```
+
+Displays:
+- Current active Docker provider
+- Docker socket path
+- Available providers (Docker Desktop, Colima, OrbStack, etc.)
+- Running status for each provider
+
+---
+
+### `magebox docker use <provider>`
+
+Switch to a different Docker provider.
+
+```bash
+magebox docker use colima
+magebox docker use orbstack
+magebox docker use desktop
+```
+
+**Arguments:**
+- `provider` - Docker provider to use
+
+**Available providers:**
+- `desktop` - Docker Desktop
+- `colima` - Colima
+- `orbstack` - OrbStack
+- `rancher` - Rancher Desktop
+- `lima` - Lima
+
+After switching, you'll need to set `DOCKER_HOST` in your shell profile.
+
+::: tip
+OrbStack and Colima are lightweight alternatives to Docker Desktop with better performance on Apple Silicon.
+:::
 
 ## Global Commands
 

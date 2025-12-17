@@ -1,35 +1,26 @@
 # What is MageBox?
 
-MageBox is a modern, fast development environment for Magento 2 and MageOS that prioritizes **native performance** over containerization.
+MageBox is a modern development environment for Magento 2 and MageOS that combines **native performance** with **Docker convenience**.
 
-## The Problem with Docker-based Solutions
+## The Hybrid Approach
 
-Traditional Docker-based development environments (Warden, DDEV, etc.) run everything in containers:
-
-- **File sync overhead**: Your code lives on your machine but runs in containers, requiring synchronization
-- **Resource intensive**: Multiple containers consume significant memory and CPU
-- **Slow startup**: Waiting 30+ seconds to start your environment
-- **PHP version changes**: Need to rebuild containers to switch PHP versions
-
-## The MageBox Approach
-
-MageBox takes a hybrid approach:
+MageBox runs PHP and Nginx natively on your machine while using Docker for supporting services:
 
 ```
 Your Machine
-├── Nginx (native)          ← Full native speed
-├── PHP-FPM (native)        ← No container overhead
+├── Nginx (native)          ← Direct file access
+├── PHP-FPM (native)        ← No sync overhead
 └── Docker Containers
-    ├── MySQL/MariaDB       ← Stateless, easy to manage
-    ├── Redis               ← Quick container startup
-    ├── OpenSearch          ← Isolated from system
-    ├── RabbitMQ            ← Standard ports
+    ├── MySQL/MariaDB       ← Easy version management
+    ├── Redis               ← Isolated cache
+    ├── OpenSearch          ← Search engine
+    ├── RabbitMQ            ← Message queue
     └── Mailpit             ← Email testing
 ```
 
 **Native where it matters**: PHP and Nginx run directly on your machine. File changes are instant because there's no synchronization layer.
 
-**Docker where it helps**: Database and cache services run in containers. They're stateless, easy to version, and don't pollute your system.
+**Docker where it helps**: Database and cache services run in containers. They're easy to version, isolated from your system, and simple to manage.
 
 ## Key Benefits
 
@@ -37,7 +28,7 @@ Your Machine
 No file sync means your changes are available immediately. Save a file, refresh the browser - it's that simple.
 
 ### Low Resource Usage
-Without PHP running in containers, you use significantly less memory. Great for machines running multiple projects.
+PHP runs natively and shares resources efficiently, using less memory than running everything in containers.
 
 ### Fast Startup
 Starting a project takes about 2 seconds. Stop waiting, start coding.
@@ -60,10 +51,10 @@ Run multiple Magento projects simultaneously, each with its own PHP version and 
 
 MageBox is ideal for:
 
-- Developers who want **maximum performance** during development
+- Developers who want **fast iteration** during development
 - Teams working on **multiple Magento projects** with different requirements
-- Anyone frustrated with **slow Docker-based** development environments
 - Developers on macOS, Linux, or Windows WSL2 who want a **native experience**
+- Anyone who prefers **simple, straightforward** tooling
 
 ## Requirements
 

@@ -66,13 +66,13 @@ magebox start
 
 ## Why MageBox?
 
-| Feature | MageBox | Docker-based (Warden/DDEV) |
-|---------|---------|---------------------------|
-| File sync speed | **Native** | Volume mounts / Mutagen |
-| PHP execution | **Native** | Containerized |
-| Memory usage | **Low** | High (multiple containers) |
-| Startup time | **~2 seconds** | 30+ seconds |
-| Multi-PHP | **Instant switch** | Rebuild required |
+| Feature | How It Works |
+|---------|--------------|
+| Native PHP/Nginx | Direct file access, no sync layer |
+| Docker services | MySQL, Redis, OpenSearch in containers |
+| Multi-PHP support | Instant switching between versions |
+| Fast startup | Projects start in ~2 seconds |
+| Low memory | Native PHP shares resources efficiently |
 
 ## Supported Services
 

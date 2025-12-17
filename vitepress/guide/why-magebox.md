@@ -1,135 +1,94 @@
 # Why MageBox?
 
-A detailed comparison of MageBox with other Magento development environments.
+MageBox takes a hybrid approach to Magento development: native PHP and Nginx for performance-critical operations, Docker for stateless services.
 
-## Performance Comparison
+## The MageBox Approach
 
-| Metric | MageBox | Warden | DDEV | Valet+ |
-|--------|---------|--------|------|--------|
-| Page load (uncached) | ~200ms | ~800ms | ~700ms | ~250ms |
-| File sync latency | 0ms | 50-200ms | 50-200ms | 0ms |
-| Cold start time | 2s | 30-60s | 20-40s | N/A |
-| Memory usage | ~500MB | ~2-4GB | ~2-3GB | ~400MB |
-| Multi-PHP switching | Instant | Rebuild | Rebuild | Manual |
+### Native Where It Matters
 
-## File System Performance
-
-The biggest difference between MageBox and Docker-based solutions is file system performance.
-
-### Docker Volume Issues
-
-Docker-based tools must synchronize files between your host machine and containers:
-
-```
-Host Machine               Container
-    │                          │
-    └── Your Code ──sync──→ Container Volume
-                    (latency)
-```
-
-This sync layer adds latency to every file operation. Magento performs thousands of file operations per request, making this overhead significant.
-
-### MageBox Native Approach
-
-MageBox accesses files directly:
+PHP-FPM and Nginx run directly on your machine:
 
 ```
 Host Machine
     │
     └── Your Code ←── PHP-FPM (native)
-         (zero latency)
+         (direct access)
 ```
 
-No sync. No overhead. Full native speed.
+This means:
+- **Zero file sync latency** - Code changes are instant
+- **Lower memory footprint** - No PHP container overhead
+- **Fast startup** - Projects start in seconds
+- **Easy debugging** - Standard tools like Xdebug work natively
 
-## Feature Comparison
+### Docker Where It Helps
 
-| Feature | MageBox | Warden | DDEV |
-|---------|---------|--------|------|
-| Native PHP/Nginx | ✅ | ❌ | ❌ |
-| Auto SSL certificates | ✅ | ✅ | ✅ |
-| Multi-domain support | ✅ | ✅ | ✅ |
-| Database import/export | ✅ | ✅ | ✅ |
-| Redis integration | ✅ | ✅ | ✅ |
-| OpenSearch support | ✅ | ✅ | ✅ |
-| Varnish support | ✅ | ✅ | ❌ |
-| RabbitMQ support | ✅ | ✅ | ✅ |
-| Email testing | ✅ | ✅ | ✅ |
-| Project discovery | ✅ | ❌ | ❌ |
-| Custom commands | ✅ | ❌ | ❌ |
-| Self-updating | ✅ | ❌ | ✅ |
-| Single binary | ✅ | ❌ | ❌ |
+Database and cache services run in containers:
+
+- **MySQL/MariaDB** - Easy version management
+- **Redis** - Isolated and consistent
+- **OpenSearch** - No system pollution
+- **RabbitMQ** - Standard ports, easy setup
+
+## Key Benefits
+
+### Instant Code Changes
+Save a file, refresh the browser. No sync delays, no waiting.
+
+### Easy PHP Switching
+Switch PHP versions with one command. Each project can use a different version simultaneously.
+
+```bash
+magebox php 8.3  # Switch to PHP 8.3
+```
+
+### Low Resource Usage
+Running multiple Magento projects uses less memory since PHP runs natively and shares resources efficiently.
+
+### Simple Architecture
+Fewer moving parts means fewer things that can break. Native services are straightforward to debug and maintain.
+
+### Better IDE Integration
+Xdebug, PHPStan, and other tools work without extra configuration for container networking.
+
+## Feature Overview
+
+| Feature | Description |
+|---------|-------------|
+| Native PHP/Nginx | Full native speed for PHP and web server |
+| Auto SSL certificates | HTTPS with mkcert, works out of the box |
+| Multi-domain support | Multiple domains per project with store codes |
+| Database management | Import, export, snapshots |
+| Redis integration | Session and cache storage |
+| OpenSearch/Elasticsearch | Full-text search support |
+| Varnish support | HTTP caching when needed |
+| RabbitMQ support | Message queue for async operations |
+| Email testing | Mailpit for local email capture |
+| Project discovery | See all projects with `magebox list` |
+| Custom commands | Define project-specific commands |
+| Team collaboration | Share configs, repos, and assets |
+| Self-updating | `magebox self-update` |
 
 ## When to Choose MageBox
 
-### Choose MageBox if:
+MageBox is a great fit if you:
 
-- **Performance is critical**: You want the fastest possible development experience
-- **Multiple projects**: You work on several Magento sites with different PHP requirements
-- **Limited resources**: Your machine has limited RAM or CPU
-- **Quick iteration**: You make frequent code changes and need instant feedback
-- **Local development**: You're developing on macOS, Linux, or Windows WSL2
+- Want fast iteration during development
+- Work on multiple Magento projects
+- Prefer native tools and simple debugging
+- Use macOS, Linux, or Windows WSL2
 
-### Consider alternatives if:
-- **Exact production parity**: You need containers identical to production
-- **Team standardization**: Your team requires identical Docker environments
-- **CI/CD integration**: You need the same environment in CI pipelines
+## Background
 
-## Migration from Other Tools
+MageBox grew out of an internal tool we maintained at [qoliber](https://qoliber.com) for years. After experiencing file sync frustrations on macOS (particularly with Mutagen), we decided to take a different approach: keep PHP and Nginx native, use Docker only for stateless services.
 
-### From Warden
+The result is a tool that's fast, simple, and gets out of your way so you can focus on building.
 
-```bash
-# Stop Warden
-warden env stop
+## Migration Guides
 
-# Initialize MageBox
-magebox init myproject
+If you're coming from another tool, check out our migration guides:
 
-# Update .magebox.yaml with your services
-# Start MageBox
-magebox start
-```
-
-### From DDEV
-
-```bash
-# Stop DDEV
-ddev stop
-
-# Initialize MageBox
-magebox init myproject
-
-# Start MageBox
-magebox start
-```
-
-### From Valet+
-
-```bash
-# Unlink from Valet
-valet unlink
-
-# Initialize MageBox
-magebox init myproject
-
-# Start MageBox
-magebox start
-```
-
-## Real-World Benefits
-
-### Developer Experience
-
-- **Faster feedback loops**: Code changes appear instantly
-- **Less context switching**: Spend time coding, not waiting
-- **Simpler debugging**: Native PHP means standard debugging tools work perfectly
-- **Better IDE integration**: Xdebug, PHPStan, and other tools work without container networking
-
-### Resource Efficiency
-
-Running 3 Magento projects with Docker-based tools might use 8-12GB of RAM. With MageBox, the same projects use 1-2GB because PHP runs natively and shares resources efficiently.
-
-### Reliability
-
-Native services are simpler. Fewer moving parts means fewer things that can break. No Docker networking issues, no volume permission problems, no sync conflicts.
+- [From Warden](/guide/migrating-from-warden)
+- [From DDEV](/guide/migrating-from-ddev)
+- [From Valet/Valet+](/guide/migrating-from-valet)
+- [From Herd](/guide/migrating-from-herd)

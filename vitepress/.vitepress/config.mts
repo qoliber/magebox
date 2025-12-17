@@ -31,7 +31,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.17.2',
+        text: 'v0.17.3',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -119,6 +119,7 @@ export default defineConfig({
           items: [
             { text: 'CLI Commands', link: '/reference/commands' },
             { text: 'Configuration Options', link: '/reference/config-options' },
+            { text: 'Compatibility Matrix', link: '/reference/compatibility' },
             { text: 'Service Ports', link: '/reference/ports' }
           ]
         },
@@ -135,6 +136,7 @@ export default defineConfig({
           items: [
             { text: 'CLI Commands', link: '/reference/commands' },
             { text: 'Configuration Options', link: '/reference/config-options' },
+            { text: 'Compatibility Matrix', link: '/reference/compatibility' },
             { text: 'Service Ports', link: '/reference/ports' },
             { text: 'Environment Variables', link: '/reference/environment' }
           ]
@@ -218,6 +220,7 @@ export default defineConfig({
           items: [
             { text: 'CLI Commands', link: '/reference/commands' },
             { text: 'Configuration Options', link: '/reference/config-options' },
+            { text: 'Compatibility Matrix', link: '/reference/compatibility' },
             { text: 'Service Ports', link: '/reference/ports' }
           ]
         },

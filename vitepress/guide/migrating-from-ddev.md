@@ -2,50 +2,14 @@
 
 This guide helps you migrate your Magento projects from [DDEV](https://ddev.com/) to MageBox.
 
-## Why Migrate from DDEV?
+## Architecture Overview
 
-### Performance Comparison
+DDEV runs all services in Docker containers. MageBox takes a hybrid approach:
 
-| Aspect | DDEV | MageBox |
-|--------|------|---------|
-| **PHP Execution** | Docker container | Native PHP-FPM |
-| **File Sync** | Mutagen (macOS) / bind mount | Native filesystem |
-| **Cold Start** | 15-45 seconds | 2-5 seconds |
-| **Memory Usage** | 1.5-3 GB | 500 MB - 1 GB |
-| **Page Load** | 1.5-4 seconds | 0.5-1.5 seconds |
-
-### Key Benefits of MageBox
-
-1. **Native Performance** - No Docker filesystem overhead for PHP/Nginx
-2. **Simpler Setup** - No Mutagen configuration or sync issues
-3. **Instant Switching** - Jump between projects without container management
-4. **Resource Efficient** - Only database services run in Docker
-5. **Better Debugging** - Native Xdebug without Docker network complexity
-
-## Architecture Differences
-
-### DDEV Architecture
 ```
+MageBox Architecture
 ┌─────────────────────────────────────────┐
-│           DDEV Docker Network           │
-│  ┌─────────────────────────────────┐   │
-│  │    ddev-webserver Container     │   │
-│  │    (Nginx + PHP-FPM + Node)     │   │
-│  └─────────────────────────────────┘   │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │   DB    │ │ ddev-   │ │ Mailhog │   │
-│  │Container│ │ router  │ │Container│   │
-│  └─────────┘ └─────────┘ └─────────┘   │
-└─────────────────────────────────────────┘
-        │ Mutagen Sync / Bind Mount
-        ▼
-   [Your Code]
-```
-
-### MageBox Architecture
-```
-┌─────────────────────────────────────────┐
-│           Native (No Sync Needed)       │
+│           Native Services               │
 │  ┌─────────────────────────────────┐   │
 │  │  Nginx + PHP-FPM (per project)  │   │
 │  └─────────────────────────────────┘   │
@@ -163,7 +127,7 @@ curl -I https://your-project.test
 
 ## Configuration Mapping
 
-### DDEV → MageBox
+### DDEV to MageBox
 
 | DDEV (`.ddev/config.yaml`) | MageBox (`.magebox.yaml`) |
 |---------------------------|---------------------------|
@@ -174,7 +138,7 @@ curl -I https://your-project.test
 | `database.type: mariadb` | `services.mariadb` |
 | `database.version` | `services.mysql: "X.X"` |
 
-### DDEV Database Versions → MageBox
+### DDEV Database Versions to MageBox
 
 | DDEV Database | MageBox Config |
 |---------------|----------------|
@@ -223,46 +187,27 @@ Run with: `magebox run flush`
 |------|------|---------|
 | Start project | `ddev start` | `magebox start` |
 | Stop project | `ddev stop` | `magebox stop` |
-| SSH into web | `ddev ssh` | N/A (native) |
 | Run Magento CLI | `ddev magento ...` | `bin/magento ...` |
 | Import DB | `ddev import-db` | `magebox db import` |
 | Export DB | `ddev export-db` | `magebox db export` |
 | MySQL shell | `ddev mysql` | `magebox db shell` |
 
-### No SSH Needed
+### Running Commands
 
-With DDEV, you often need `ddev ssh` to run commands. With MageBox, everything runs natively:
+With MageBox, everything runs natively:
 
 ```bash
-# DDEV
-ddev ssh
-cd /var/www/html
+# MageBox - run commands directly
 bin/magento cache:flush
-
-# MageBox - just run directly
-bin/magento cache:flush
+composer install
 ```
 
 ### Composer
 
 ```bash
-# DDEV
-ddev composer install
-
-# MageBox - uses the magebox composer wrapper
+# MageBox uses the composer wrapper
 composer install  # Automatically uses correct PHP version
 ```
-
-## Mutagen Issues? No More!
-
-One of DDEV's pain points on macOS is Mutagen file synchronization. Common issues:
-
-- Sync conflicts
-- Slow initial sync
-- Files not appearing
-- Memory usage
-
-**MageBox eliminates all of this** by using native filesystem access.
 
 ## Common Migration Issues
 
@@ -313,17 +258,6 @@ ddev delete
 # Optionally uninstall DDEV globally
 brew uninstall ddev  # macOS
 ```
-
-## Performance Comparison
-
-Real-world Magento 2 homepage load times:
-
-| Environment | First Load | Cached Load |
-|-------------|------------|-------------|
-| DDEV (macOS, Mutagen) | 3.2s | 1.8s |
-| DDEV (Linux) | 2.1s | 1.2s |
-| **MageBox (macOS)** | **1.1s** | **0.6s** |
-| **MageBox (Linux)** | **0.9s** | **0.5s** |
 
 ## Need Help?
 

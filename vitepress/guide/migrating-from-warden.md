@@ -2,50 +2,14 @@
 
 This guide helps you migrate your Magento projects from [Warden](https://docs.warden.dev/) to MageBox.
 
-## Why Migrate from Warden?
+## Architecture Overview
 
-### Performance Comparison
+Warden runs all services in Docker containers. MageBox takes a hybrid approach:
 
-| Aspect | Warden | MageBox |
-|--------|--------|---------|
-| **PHP Execution** | Docker container | Native PHP-FPM |
-| **File I/O** | Docker volumes (slow on macOS) | Native filesystem |
-| **Cold Start** | 30-60 seconds | 2-5 seconds |
-| **Memory Usage** | 2-4 GB (full stack) | 500 MB - 1 GB |
-| **Page Load** | 2-5 seconds | 0.5-1.5 seconds |
-
-### Key Benefits of MageBox
-
-1. **3-5x Faster Page Loads** - Native PHP-FPM eliminates Docker's filesystem overhead
-2. **Instant Project Switching** - No container startup/shutdown delays
-3. **Lower Resource Usage** - Only services that need isolation run in Docker
-4. **Simpler Architecture** - Less moving parts means fewer issues
-5. **Better IDE Integration** - Native PHP means better Xdebug performance
-
-## Architecture Differences
-
-### Warden Architecture
 ```
+MageBox Architecture
 ┌─────────────────────────────────────────┐
-│              Docker Network             │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │  Nginx  │ │ PHP-FPM │ │  MySQL  │   │
-│  │Container│ │Container│ │Container│   │
-│  └─────────┘ └─────────┘ └─────────┘   │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐   │
-│  │  Redis  │ │OpenSearch│ │ Varnish │   │
-│  │Container│ │Container│ │Container│   │
-│  └─────────┘ └─────────┘ └─────────┘   │
-└─────────────────────────────────────────┘
-        │ Volume Mount (slow)
-        ▼
-   [Your Code]
-```
-
-### MageBox Architecture
-```
-┌─────────────────────────────────────────┐
-│           Native (Fast I/O)             │
+│           Native Services               │
 │  ┌─────────────────────────────────┐   │
 │  │  Nginx + PHP-FPM (per project)  │   │
 │  └─────────────────────────────────┘   │
@@ -158,7 +122,7 @@ bin/magento indexer:reindex
 
 ## Configuration Mapping
 
-### Warden → MageBox
+### Warden to MageBox
 
 | Warden (`.warden-env.yml`) | MageBox (`.magebox.yaml`) |
 |---------------------------|---------------------------|
@@ -183,7 +147,17 @@ env:
   MAGE_RUN_TYPE: store
 ```
 
-## Common Issues
+## Common Differences
+
+### Database Ports
+
+MageBox uses different ports than Warden:
+
+| Service | Warden Port | MageBox Port |
+|---------|-------------|--------------|
+| MySQL 8.0 | 3306 | 33080 |
+| Redis | 6379 | 6379 |
+| OpenSearch | 9200 | 9200 |
 
 ### SSL Certificates
 
@@ -196,19 +170,9 @@ magebox stop
 magebox start
 ```
 
-### Database Connection
-
-MageBox uses different ports than Warden:
-
-| Service | Warden Port | MageBox Port |
-|---------|-------------|--------------|
-| MySQL 8.0 | 3306 | 33080 |
-| Redis | 6379 | 6379 |
-| OpenSearch | 9200 | 9200 |
-
 ### File Permissions
 
-Unlike Docker-based solutions, MageBox runs as your user:
+MageBox runs as your user:
 
 ```bash
 # Fix permissions if needed
