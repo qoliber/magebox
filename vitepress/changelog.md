@@ -2,6 +2,66 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.10] - 2025-12-17
+
+### macOS Port Forwarding Fix
+
+Fixed pf.conf syntax error on macOS:
+
+- **Trailing newline** - Added missing trailing newline to pf.conf
+- **Fixes syntax error** - Missing newline caused "syntax error" when loading pf rules
+- **Reliable port forwarding** - Ports 80/443 now correctly forward to 8080/8443
+
+---
+
+## [0.16.9] - 2025-12-17
+
+### Port Forwarding Reliability
+
+Improved macOS port forwarding setup in bootstrap:
+
+- **Always verify rules** - Bootstrap now always checks if pf rules are actually active
+- **Auto-reload** - If rules exist but aren't loaded, they're automatically reloaded
+- **No more skipping** - Previously bootstrap skipped setup if plist existed, even if rules weren't working
+- **Better error messages** - Provides manual fix command if setup fails
+
+---
+
+## [0.16.8] - 2025-12-16
+
+### DNS Resolution Test
+
+Added DNS verification to bootstrap:
+
+- **Automatic testing** - Bootstrap tests DNS resolution after configuring dnsmasq
+- **Immediate feedback** - Shows whether `*.test` domains resolve to 127.0.0.1
+- **Troubleshooting help** - If DNS isn't resolving yet, provides a dig command to manually test
+
+```bash
+magebox bootstrap
+# ...
+# Configuring DNS...
+#   Installing dnsmasq... done
+#   Configuring dnsmasq for *.test domains... done
+#   Starting dnsmasq service... done
+#   Testing DNS resolution for test.test... ✓ resolves to 127.0.0.1
+```
+
+---
+
+## [0.16.7] - 2025-12-16
+
+### Dnsmasq Bootstrap Improvements
+
+Improved dnsmasq configuration during bootstrap:
+
+- **Proper configuration** - Uses `dnsManager.Configure()` for complete dnsmasq setup
+- **Service startup** - Explicitly starts dnsmasq service after configuration
+- **macOS resolver** - Creates `/etc/resolver/test` for wildcard DNS on macOS
+- **Wildcard config** - Creates `dnsmasq.d/magebox.conf` with `address=/test/127.0.0.1`
+
+---
+
 ## [0.16.6] - 2025-12-16
 
 ### Dnsmasq as Default DNS Mode
