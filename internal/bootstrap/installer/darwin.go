@@ -147,6 +147,29 @@ func (d *DarwinInstaller) InstallXdebug(version string) error {
 	return d.RunCommandSilent(fmt.Sprintf("%s install xdebug 2>/dev/null || true", peclBin))
 }
 
+// InstallImagick installs ImageMagick PHP extension for a specific PHP version via PECL
+func (d *DarwinInstaller) InstallImagick(version string) error {
+	base := "/usr/local"
+	if d.BaseInstaller.Platform.IsAppleSilicon {
+		base = "/opt/homebrew"
+	}
+
+	// Check if imagick is already loaded in this PHP version
+	phpBin := fmt.Sprintf("%s/opt/php@%s/bin/php", base, version)
+	cmd := exec.Command(phpBin, "-m")
+	output, err := cmd.Output()
+	if err == nil && strings.Contains(strings.ToLower(string(output)), "imagick") {
+		return nil // Already installed
+	}
+
+	// Ensure ImageMagick is installed via Homebrew
+	_ = d.RunCommandSilent("brew install imagemagick 2>/dev/null || true")
+
+	// Install via pecl (suppress output)
+	peclBin := fmt.Sprintf("%s/opt/php@%s/bin/pecl", base, version)
+	return d.RunCommandSilent(fmt.Sprintf("%s install imagick 2>/dev/null || true", peclBin))
+}
+
 // ConfigurePHPFPM configures PHP-FPM on macOS
 // On macOS, PHP-FPM is typically started via brew services
 func (d *DarwinInstaller) ConfigurePHPFPM(versions []string) error {

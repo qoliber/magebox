@@ -159,6 +159,13 @@ func (u *UbuntuInstaller) InstallXdebug(version string) error {
 	return u.RunSudo("apt", "install", "-y", fmt.Sprintf("php%s-xdebug", version))
 }
 
+// InstallImagick installs ImageMagick PHP extension for a specific PHP version
+// On Ubuntu, imagick is already installed with PHP packages (php*-imagick)
+func (u *UbuntuInstaller) InstallImagick(version string) error {
+	// Already installed in InstallPHP, this is a no-op
+	return nil
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
 func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
 	for _, v := range versions {

@@ -382,6 +382,23 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Install Imagick for all installed PHP versions
+	if len(installedPHPVersions) > 0 {
+		fmt.Println()
+		fmt.Print("  Installing Imagick for all PHP versions... ")
+		imagickErrors := 0
+		for _, ver := range installedPHPVersions {
+			if err := bootstrapper.InstallImagick(ver.Version); err != nil {
+				imagickErrors++
+			}
+		}
+		if imagickErrors > 0 {
+			fmt.Println(cli.Warning("done with warnings"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
 	// Configure PHP INI settings for Magento (memory_limit, max_execution_time)
 	if len(installedPHPVersions) > 0 {
 		fmt.Println()

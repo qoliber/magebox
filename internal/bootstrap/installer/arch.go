@@ -133,6 +133,12 @@ func (a *ArchInstaller) InstallXdebug(version string) error {
 	return a.RunSudo("pacman", "-S", "--noconfirm", "xdebug")
 }
 
+// InstallImagick installs ImageMagick PHP extension for a specific PHP version
+func (a *ArchInstaller) InstallImagick(version string) error {
+	// On Arch, imagick is available from community repo
+	return a.RunSudo("pacman", "-S", "--noconfirm", "php-imagick")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Arch Linux
 func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
 	// On Arch, PHP-FPM service is just "php-fpm"

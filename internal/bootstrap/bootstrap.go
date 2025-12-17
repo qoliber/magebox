@@ -101,6 +101,11 @@ func (b *Bootstrapper) InstallXdebug(version string) error {
 	return b.installer.InstallXdebug(version)
 }
 
+// InstallImagick installs ImageMagick PHP extension for a specific PHP version
+func (b *Bootstrapper) InstallImagick(version string) error {
+	return b.installer.InstallImagick(version)
+}
+
 // ConfigurePHPFPM configures PHP-FPM for installed versions
 func (b *Bootstrapper) ConfigurePHPFPM(versions []string) error {
 	return b.installer.ConfigurePHPFPM(versions)

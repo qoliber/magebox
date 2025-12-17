@@ -160,6 +160,13 @@ func (f *FedoraInstaller) InstallXdebug(version string) error {
 	return f.RunSudo("dnf", "install", "-y", fmt.Sprintf("php%s-php-xdebug", remiVersion))
 }
 
+// InstallImagick installs ImageMagick PHP extension for a specific PHP version
+// On Fedora, imagick is already installed with PHP packages (php*-php-pecl-imagick-im7)
+func (f *FedoraInstaller) InstallImagick(version string) error {
+	// Already installed in InstallPHP, this is a no-op
+	return nil
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Fedora
 func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 	for _, v := range versions {

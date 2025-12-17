@@ -2,6 +2,17 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.17.3] - 2025-12-17
+
+### PHP Imagick Extension (macOS)
+
+Added `php-imagick` installation to bootstrap on macOS:
+
+- **macOS** - Installs `imagemagick` via Homebrew, then `imagick` via PECL for each PHP version
+- **Arch Linux** - Installs `php-imagick` package
+
+---
+
 ## [0.17.2] - 2025-12-17
 
 ### PHP Imagick Extension
