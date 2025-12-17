@@ -2,6 +2,66 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.18.0] - 2025-12-17
+
+### Remote Environment Management
+
+New `magebox env` command to manage SSH connections to remote servers:
+
+```bash
+# List configured environments
+magebox env
+
+# Add a new environment
+magebox env add staging --user deploy --host staging.example.com
+magebox env add production --user deploy --host prod.example.com --port 2222
+magebox env add cloud --user magento --host 10.0.0.1 --key ~/.ssh/cloud_key
+
+# SSH into an environment
+magebox env ssh staging
+
+# Show environment details
+magebox env show production
+
+# Remove an environment
+magebox env remove staging
+```
+
+**Features:**
+- **Named environments** - Store SSH configurations with friendly names
+- **Custom SSH keys** - Specify path to private key with `--key`
+- **Custom ports** - Support non-standard SSH ports with `--port`
+- **Jump hosts/tunnels** - Use `--ssh-command` for complex SSH setups
+- **Global storage** - Environments stored in `~/.magebox/config.yaml`
+
+**Jump Host Example:**
+
+```bash
+# Add environment using jump host/bastion
+magebox env add internal --ssh-command "ssh -J jump@bastion.example.com deploy@internal.example.com"
+
+# SSH through the tunnel
+magebox env ssh internal
+```
+
+**Configuration:**
+
+```yaml
+# ~/.magebox/config.yaml
+environments:
+  - name: staging
+    user: deploy
+    host: staging.example.com
+    port: 22
+  - name: production
+    user: deploy
+    host: prod.example.com
+    port: 2222
+    ssh_key_path: /home/user/.ssh/prod_key
+```
+
+---
+
 ## [0.17.3] - 2025-12-17
 
 ### PHP Imagick Extension (macOS)
