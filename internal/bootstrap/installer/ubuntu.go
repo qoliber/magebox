@@ -122,6 +122,7 @@ func (u *UbuntuInstaller) InstallPHP(version string) error {
 		fmt.Sprintf("php%s-intl", version),
 		fmt.Sprintf("php%s-mysql", version),
 		fmt.Sprintf("php%s-soap", version),
+		fmt.Sprintf("php%s-imagick", version),
 	}
 
 	args := append([]string{"apt", "install", "-y"}, packages...)

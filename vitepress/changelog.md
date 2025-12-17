@@ -2,6 +2,17 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.17.2] - 2025-12-17
+
+### PHP Imagick Extension
+
+Added `php-imagick` to bootstrap installation on Fedora and Ubuntu:
+
+- **Fedora** - Installs `php*-php-pecl-imagick-im7` (ImageMagick 7)
+- **Ubuntu** - Installs `php*-imagick`
+
+---
+
 ## [0.17.1] - 2025-12-17
 
 ### macOS Port Forwarding Fix

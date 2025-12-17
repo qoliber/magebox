@@ -122,6 +122,7 @@ func (f *FedoraInstaller) InstallPHP(version string) error {
 		fmt.Sprintf("php%s-php-soap", remiVersion),
 		fmt.Sprintf("php%s-php-opcache", remiVersion),
 		fmt.Sprintf("php%s-php-sodium", remiVersion),
+		fmt.Sprintf("php%s-php-pecl-imagick-im7", remiVersion), // ImageMagick 7 on Fedora
 	}
 
 	args := append([]string{"dnf", "install", "-y"}, packages...)
