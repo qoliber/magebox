@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/qoliber/magebox/internal/remote"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,6 +37,9 @@ type GlobalConfig struct {
 
 	// Profiling contains credentials for profiling tools (Blackfire, Tideways)
 	Profiling ProfilingConfig `yaml:"profiling,omitempty"`
+
+	// Environments stores remote server configurations
+	Environments []remote.Environment `yaml:"environments,omitempty"`
 }
 
 // ProfilingConfig contains credentials for profiling tools
@@ -237,4 +241,48 @@ func GlobalConfigExists(homeDir string) bool {
 	configPath := GlobalConfigPath(homeDir)
 	_, err := os.Stat(configPath)
 	return err == nil
+}
+
+// GetEnvironmentManager returns an environment manager for the configured environments
+func (c *GlobalConfig) GetEnvironmentManager() *remote.Manager {
+	return remote.NewManager(c.Environments)
+}
+
+// AddEnvironment adds a new environment to the configuration
+func (c *GlobalConfig) AddEnvironment(env remote.Environment) error {
+	// Check for duplicate
+	for _, e := range c.Environments {
+		if e.Name == env.Name {
+			return fmt.Errorf("environment '%s' already exists", env.Name)
+		}
+	}
+
+	// Validate
+	if err := env.Validate(); err != nil {
+		return err
+	}
+
+	c.Environments = append(c.Environments, env)
+	return nil
+}
+
+// RemoveEnvironment removes an environment by name
+func (c *GlobalConfig) RemoveEnvironment(name string) error {
+	for i, e := range c.Environments {
+		if e.Name == name {
+			c.Environments = append(c.Environments[:i], c.Environments[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("environment '%s' not found", name)
+}
+
+// GetEnvironment returns an environment by name
+func (c *GlobalConfig) GetEnvironment(name string) (*remote.Environment, error) {
+	for i := range c.Environments {
+		if c.Environments[i].Name == name {
+			return &c.Environments[i], nil
+		}
+	}
+	return nil, fmt.Errorf("environment '%s' not found", name)
 }
