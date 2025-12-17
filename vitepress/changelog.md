@@ -2,6 +2,48 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.16.12] - 2025-12-17
+
+### Docker Provider Management (macOS)
+
+New commands to manage Docker providers on macOS:
+
+```bash
+# View current Docker provider status
+magebox docker
+
+# Switch to a different provider
+magebox docker use colima
+magebox docker use orbstack
+magebox docker use desktop
+```
+
+**Supported providers:**
+- **Docker Desktop** - The official Docker application
+- **Colima** - Lightweight container runtime (`brew install colima`)
+- **OrbStack** - Fast, lightweight Docker & Linux on macOS
+- **Rancher Desktop** - Kubernetes and container management
+- **Lima** - Linux virtual machines
+
+**Features:**
+- **Auto-detection** - Detects installed Docker providers and their status
+- **Active socket detection** - Shows which provider is currently in use
+- **Multi-provider warning** - Bootstrap warns if multiple providers are running
+- **Easy switching** - Provides exact commands to switch providers
+
+**Configuration:**
+
+```yaml
+# ~/.magebox/config.yaml
+docker_provider: colima  # auto, desktop, colima, orbstack, rancher, lima
+```
+
+::: tip macOS Only
+Docker provider management is only available on macOS. On Linux, the default Docker installation is used automatically.
+:::
+
+---
+
 ## [0.16.11] - 2025-12-17
 
 ### Enhanced Uninstall Command
