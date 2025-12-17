@@ -9,7 +9,7 @@ MageBox runs PHP and Nginx natively on your machine while using Docker for suppo
 ```
 Your Machine
 ├── Nginx (native)          ← Direct file access
-├── PHP-FPM (native)        ← No sync overhead
+├── PHP-FPM (native)        ← Native performance
 └── Docker Containers
     ├── MySQL/MariaDB       ← Easy version management
     ├── Redis               ← Isolated cache
@@ -25,16 +25,16 @@ Your Machine
 ## Key Benefits
 
 ### Instant Code Changes
-No file sync means your changes are available immediately. Save a file, refresh the browser - it's that simple.
+Your changes are available immediately. Save a file, refresh the browser - it's that simple.
 
 ### Low Resource Usage
-PHP runs natively and shares resources efficiently, using less memory than running everything in containers.
+PHP runs natively and shares system resources efficiently.
 
 ### Fast Startup
-Starting a project takes about 2 seconds. Stop waiting, start coding.
+Starting a project takes about 2 seconds.
 
 ### Easy PHP Switching
-Switch PHP versions with one command. No rebuilding, no waiting.
+Switch PHP versions with one command.
 
 ```bash
 # Switch to PHP 8.3

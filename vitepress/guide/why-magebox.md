@@ -16,8 +16,8 @@ Host Machine
 ```
 
 This means:
-- **Zero file sync latency** - Code changes are instant
-- **Lower memory footprint** - No PHP container overhead
+- **Instant code changes** - Direct file access
+- **Efficient memory usage** - PHP shares system resources
 - **Fast startup** - Projects start in seconds
 - **Easy debugging** - Standard tools like Xdebug work natively
 
@@ -33,7 +33,7 @@ Database and cache services run in containers:
 ## Key Benefits
 
 ### Instant Code Changes
-Save a file, refresh the browser. No sync delays, no waiting.
+Save a file, refresh the browser. It's that simple.
 
 ### Easy PHP Switching
 Switch PHP versions with one command. Each project can use a different version simultaneously.
@@ -80,9 +80,9 @@ MageBox is a great fit if you:
 
 ## Background
 
-MageBox grew out of an internal tool we maintained at [qoliber](https://qoliber.com) for years. After experiencing file sync frustrations on macOS (particularly with Mutagen), we decided to take a different approach: keep PHP and Nginx native, use Docker only for stateless services.
+MageBox grew out of an internal tool we maintained at [qoliber](https://qoliber.com) for years. We wanted a simple approach: keep PHP and Nginx native for direct file access, use Docker for stateless services like databases and caches.
 
-The result is a tool that's fast, simple, and gets out of your way so you can focus on building.
+The result is a tool that's straightforward and gets out of your way so you can focus on building.
 
 ## Migration Guides
 

@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "MageBox"
   text: "Native Magento Development"
-  tagline: For individuals and teams. Full native speed. Zero container overhead.
+  tagline: For individuals and teams. Native PHP and Nginx with Docker services.
   image:
     src: /logo.svg
     alt: MageBox
@@ -19,15 +19,15 @@ hero:
 features:
   - icon: 🚀
     title: Native Performance
-    details: PHP-FPM and Nginx run natively on your machine. No file sync overhead, no container layers. Your code changes are instant.
+    details: PHP-FPM and Nginx run natively on your machine. Your code changes are instant with direct file access.
 
   - icon: 🐳
     title: Smart Docker Usage
-    details: Docker only for stateless services - MySQL, Redis, OpenSearch, RabbitMQ. The best of both worlds without the downsides.
+    details: Docker for stateless services - MySQL, Redis, OpenSearch, RabbitMQ. Easy version management and isolation.
 
   - icon: 🔄
     title: Multi-PHP Support
-    details: Switch PHP versions per project instantly. Run PHP 8.1 on one project, 8.4 on another. No rebuilding containers.
+    details: Switch PHP versions per project instantly. Run PHP 8.1 on one project, 8.4 on another.
 
   - icon: 🔒
     title: Auto SSL
@@ -39,7 +39,7 @@ features:
 
   - icon: ⚡
     title: One Command Setup
-    details: Run `magebox bootstrap` once, then `magebox start` in any project. That's it. No complex configuration needed.
+    details: Run `magebox bootstrap` once, then `magebox start` in any project. Simple and straightforward.
 
   - icon: 👥
     title: Team Collaboration
