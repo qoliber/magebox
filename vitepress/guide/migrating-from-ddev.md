@@ -2,34 +2,7 @@
 
 This guide helps you migrate your Magento projects from [DDEV](https://ddev.com/) to MageBox.
 
-## Architecture Overview
-
-DDEV runs all services in Docker containers. MageBox takes a hybrid approach:
-
-```
-MageBox Architecture
-┌─────────────────────────────────────────┐
-│           Native Services               │
-│  ┌─────────────────────────────────┐   │
-│  │  Nginx + PHP-FPM (per project)  │   │
-│  └─────────────────────────────────┘   │
-│              │ Direct Access            │
-│              ▼                          │
-│         [Your Code]                     │
-└─────────────────────────────────────────┘
-┌─────────────────────────────────────────┐
-│         Docker (Services Only)          │
-│  ┌───────┐ ┌───────┐ ┌──────────┐      │
-│  │ MySQL │ │ Redis │ │ Mailpit  │      │
-│  └───────┘ └───────┘ └──────────┘      │
-└─────────────────────────────────────────┘
-```
-
-## Migration Steps
-
-### Step 1: Export Your Database
-
-In your DDEV project:
+## Step 1: Export Your Database
 
 ```bash
 # Start DDEV if not running
@@ -37,230 +10,101 @@ ddev start
 
 # Export database
 ddev export-db --file=database-backup.sql.gz
-
-# Or without compression
-ddev export-db --gzip=false --file=database-backup.sql
 ```
 
-### Step 2: Note Your Configuration
+## Step 2: Note Your Configuration
 
-Check your `.ddev/config.yaml`:
+Check your `.ddev/config.yaml` for `php_version`, `database`, and `additional_hostnames`.
 
-```bash
-cat .ddev/config.yaml
-```
-
-Key settings to note:
-- `php_version`
-- `database` (type and version)
-- `webserver_type`
-- `additional_hostnames`
-
-### Step 3: Stop DDEV
+## Step 3: Stop DDEV
 
 ```bash
 ddev stop
 ```
 
-### Step 4: Install MageBox
-
-If you haven't already:
+## Step 4: Install MageBox
 
 ```bash
 # macOS
-brew tap qoliber/magebox
-brew install magebox
+brew install qoliber/magebox/magebox
 magebox bootstrap
 
-# Linux (Ubuntu)
-curl -fsSL https://raw.githubusercontent.com/qoliber/magebox/main/install.sh | bash
+# Linux
+curl -fsSL https://get.magebox.dev | bash
 magebox bootstrap
 ```
 
-### Step 5: Create MageBox Configuration
+## Step 5: Create MageBox Configuration
 
 Create `.magebox.yaml` in your project root:
 
 ```yaml
 name: your-project-name
-php: "8.2"  # Match your DDEV PHP version
+php: "8.2"
 
 domains:
   - host: your-project.test
     root: pub
 
 services:
-  mysql: "8.0"      # Map from DDEV database config
+  mysql: "8.0"
   redis: true
-  opensearch: "2.19.4"
+  opensearch: "2.19"
   mailpit: true
 ```
 
-### Step 6: Start MageBox
+## Step 6: Start and Import
 
 ```bash
 magebox start
-```
 
-### Step 7: Import Your Database
-
-```bash
-# If gzipped
+# Decompress if needed
 gunzip database-backup.sql.gz
 
-# Import
 magebox db import database-backup.sql
 ```
 
-### Step 8: Verify Magento
+## Step 7: Verify
 
 ```bash
-# Check database connection
 bin/magento setup:db:status
-
-# Clear cache
 bin/magento cache:flush
-
-# Test the site
-curl -I https://your-project.test
 ```
 
 ## Configuration Mapping
 
-### DDEV to MageBox
-
-| DDEV (`.ddev/config.yaml`) | MageBox (`.magebox.yaml`) |
-|---------------------------|---------------------------|
+| DDEV | MageBox |
+|------|---------|
 | `name` | `name` |
 | `php_version` | `php` |
 | `additional_hostnames` | `domains[].host` |
 | `database.type: mysql` | `services.mysql` |
 | `database.type: mariadb` | `services.mariadb` |
-| `database.version` | `services.mysql: "X.X"` |
 
-### DDEV Database Versions to MageBox
-
-| DDEV Database | MageBox Config |
-|---------------|----------------|
-| `mysql:8.0` | `mysql: "8.0"` |
-| `mysql:5.7` | `mysql: "5.7"` |
-| `mariadb:10.6` | `mariadb: "10.6"` |
-| `mariadb:10.11` | `mariadb: "10.11"` |
-
-### Hooks Migration
-
-DDEV hooks in `.ddev/config.yaml`:
-
-```yaml
-# DDEV
-hooks:
-  post-start:
-    - exec: "bin/magento cache:flush"
-```
-
-MageBox custom commands in `.magebox.yaml`:
-
-```yaml
-# MageBox
-commands:
-  flush:
-    description: "Flush Magento cache"
-    run: "bin/magento cache:flush"
-```
-
-Run with: `magebox run flush`
-
-## Common Differences
-
-### Database Access
-
-| | DDEV | MageBox |
-|--|------|---------|
-| Host (from Magento) | `db` | `127.0.0.1` |
-| Host (from host machine) | `127.0.0.1` | `127.0.0.1` |
-| MySQL 8.0 Port | `3306` (internal) | `33080` |
-| Root Password | `root` | `magebox` |
-
-### CLI Commands
+## Command Mapping
 
 | Task | DDEV | MageBox |
 |------|------|---------|
-| Start project | `ddev start` | `magebox start` |
-| Stop project | `ddev stop` | `magebox stop` |
-| Run Magento CLI | `ddev magento ...` | `bin/magento ...` |
+| Start | `ddev start` | `magebox start` |
+| Stop | `ddev stop` | `magebox stop` |
+| Magento CLI | `ddev magento ...` | `bin/magento ...` |
 | Import DB | `ddev import-db` | `magebox db import` |
 | Export DB | `ddev export-db` | `magebox db export` |
 | MySQL shell | `ddev mysql` | `magebox db shell` |
+| Composer | `ddev composer` | `composer` |
 
-### Running Commands
+## Database Differences
 
-With MageBox, everything runs natively:
-
-```bash
-# MageBox - run commands directly
-bin/magento cache:flush
-composer install
-```
-
-### Composer
-
-```bash
-# MageBox uses the composer wrapper
-composer install  # Automatically uses correct PHP version
-```
-
-## Common Migration Issues
-
-### SSL Certificates
-
-DDEV and MageBox use different certificate authorities:
-
-```bash
-# Trust MageBox certificates
-mkcert -install
-
-# Restart browser to pick up new CA
-```
-
-### Redis Connection
-
-DDEV uses container networking. MageBox uses localhost:
-
-```php
-// DDEV env.php
-'host' => 'redis'
-
-// MageBox env.php (auto-generated)
-'host' => '127.0.0.1'
-```
-
-### Elasticsearch/OpenSearch
-
-```php
-// DDEV
-'hostname' => 'elasticsearch'
-
-// MageBox
-'hostname' => '127.0.0.1'
-```
+| | DDEV | MageBox |
+|--|------|---------|
+| Host (in Magento) | `db` | `127.0.0.1` |
+| MySQL 8.0 Port | 3306 | 33080 |
+| Root Password | `root` | `magebox` |
 
 ## Removing DDEV
 
-Once MageBox is working:
+Once verified:
 
 ```bash
-# Remove DDEV containers for this project
 ddev delete --omit-snapshot
-
-# Or keep the database snapshot
-ddev delete
-
-# Optionally uninstall DDEV globally
-brew uninstall ddev  # macOS
 ```
-
-## Need Help?
-
-- [MageBox Documentation](/)
-- [GitHub Issues](https://github.com/qoliber/magebox/issues)
-- [Troubleshooting Guide](/guide/troubleshooting)

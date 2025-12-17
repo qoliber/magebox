@@ -1,67 +1,56 @@
 # What is MageBox?
 
-MageBox is a modern development environment for Magento 2 and MageOS that combines **native performance** with **Docker convenience**.
+MageBox is a development environment for Magento 2 and MageOS. It runs PHP and Nginx natively on your machine while using Docker for supporting services like databases and caches.
 
-## The Hybrid Approach
-
-MageBox runs PHP and Nginx natively on your machine while using Docker for supporting services:
+## How It Works
 
 ```
 Your Machine
-├── Nginx (native)          ← Direct file access
-├── PHP-FPM (native)        ← Native performance
-└── Docker Containers
-    ├── MySQL/MariaDB       ← Easy version management
-    ├── Redis               ← Isolated cache
-    ├── OpenSearch          ← Search engine
-    ├── RabbitMQ            ← Message queue
-    └── Mailpit             ← Email testing
+├── Nginx (native)
+├── PHP-FPM (native)
+└── Docker
+    ├── MySQL/MariaDB
+    ├── Redis
+    ├── OpenSearch
+    ├── RabbitMQ
+    └── Mailpit
 ```
 
-**Native where it matters**: PHP and Nginx run directly on your machine. File changes are instant because there's no synchronization layer.
+PHP and Nginx run directly on your machine for direct file access. Database and cache services run in Docker for easy version management.
 
-**Docker where it helps**: Database and cache services run in containers. They're easy to version, isolated from your system, and simple to manage.
-
-## Key Benefits
-
-### Instant Code Changes
-Your changes are available immediately. Save a file, refresh the browser - it's that simple.
-
-### Low Resource Usage
-PHP runs natively and shares system resources efficiently.
-
-### Fast Startup
-Starting a project takes about 2 seconds.
-
-### Easy PHP Switching
-Switch PHP versions with one command.
+## Getting Started
 
 ```bash
-# Switch to PHP 8.3
-magebox php 8.3
+# Install
+brew install qoliber/magebox/magebox
 
-# Check current version
-magebox php
+# First-time setup
+magebox bootstrap
+
+# Create a new project
+magebox new mystore
+
+# Or use an existing project
+cd /path/to/magento
+magebox init
+magebox start
 ```
-
-### Multiple Projects
-Run multiple Magento projects simultaneously, each with its own PHP version and services.
-
-## Who Should Use MageBox?
-
-MageBox is ideal for:
-
-- Developers who want **fast iteration** during development
-- Teams working on **multiple Magento projects** with different requirements
-- Developers on macOS, Linux, or Windows WSL2 who want a **native experience**
-- Anyone who prefers **simple, straightforward** tooling
 
 ## Requirements
 
 - macOS, Linux, or Windows WSL2
-- Docker (for services)
-- PHP 8.1+ (installed via Homebrew or apt)
+- Docker
+- PHP 8.1+
 - Nginx
-- Composer
 
-MageBox helps you install and configure all dependencies with the `magebox bootstrap` command.
+The `magebox bootstrap` command helps install and configure all dependencies.
+
+## Background
+
+MageBox started as an internal tool at [qoliber](https://qoliber.com). We wanted something simple: native PHP for direct file access, Docker for databases. After using it for years, we open-sourced it.
+
+## Next Steps
+
+- [Installation](/guide/installation) - Detailed installation options
+- [Quick Start](/guide/quick-start) - Get a project running
+- [Architecture](/guide/architecture) - Technical deep dive

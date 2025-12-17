@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "MageBox"
   text: "Native Magento Development"
-  tagline: For individuals and teams. Native PHP and Nginx with Docker services.
+  tagline: Native PHP and Nginx with Docker services.
   image:
     src: /logo.svg
     alt: MageBox
@@ -18,61 +18,42 @@ hero:
 
 features:
   - icon: 🚀
-    title: Native Performance
-    details: PHP-FPM and Nginx run natively on your machine. Your code changes are instant with direct file access.
+    title: Native PHP/Nginx
+    details: PHP-FPM and Nginx run on your machine. Direct file access.
 
   - icon: 🐳
-    title: Smart Docker Usage
-    details: Docker for stateless services - MySQL, Redis, OpenSearch, RabbitMQ. Easy version management and isolation.
+    title: Docker Services
+    details: MySQL, Redis, OpenSearch, RabbitMQ in containers.
 
   - icon: 🔄
-    title: Multi-PHP Support
-    details: Switch PHP versions per project instantly. Run PHP 8.1 on one project, 8.4 on another.
+    title: Multi-PHP
+    details: Switch PHP versions per project. Run 8.1 and 8.4 simultaneously.
 
   - icon: 🔒
     title: Auto SSL
-    details: HTTPS works out of the box with mkcert. All your .test domains get valid local SSL certificates automatically.
+    details: HTTPS with mkcert for all .test domains.
 
   - icon: 📦
     title: Project Discovery
-    details: MageBox automatically discovers all your projects. Run `magebox list` to see everything at a glance.
-
-  - icon: ⚡
-    title: One Command Setup
-    details: Run `magebox bootstrap` once, then `magebox start` in any project. Simple and straightforward.
+    details: See all projects with `magebox list`.
 
   - icon: 👥
     title: Team Collaboration
-    details: Share project configs, Git repos (GitHub/GitLab/Bitbucket), and asset storage. New team member? Run `magebox fetch` and start coding.
+    details: Share configs, repos, and assets with `magebox fetch`.
 ---
 
 ## Quick Start
 
 ```bash
-# Install MageBox (choose one)
-brew install qoliber/magebox/magebox    # Homebrew
-curl -fsSL https://get.magebox.dev | bash # or install script
+# Install
+brew install qoliber/magebox/magebox
 
 # First-time setup
 magebox bootstrap
 
-# Initialize a project
-cd /path/to/magento
-magebox init mystore
-
-# Start development
-magebox start
+# Create a new project
+magebox new mystore
 ```
-
-## Why MageBox?
-
-| Feature | How It Works |
-|---------|--------------|
-| Native PHP/Nginx | Direct file access, no sync layer |
-| Docker services | MySQL, Redis, OpenSearch in containers |
-| Multi-PHP support | Instant switching between versions |
-| Fast startup | Projects start in ~2 seconds |
-| Low memory | Native PHP shares resources efficiently |
 
 ## Supported Services
 
@@ -86,5 +67,5 @@ magebox start
 ## Platform Support
 
 - macOS (Intel & Apple Silicon)
-- Linux (Ubuntu, Debian, Fedora)
-- Windows WSL2 (Ubuntu, Fedora)
+- Linux (Ubuntu, Debian, Fedora, Arch)
+- Windows WSL2

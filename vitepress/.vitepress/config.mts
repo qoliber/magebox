@@ -46,7 +46,6 @@ export default defineConfig({
           text: 'Introduction',
           items: [
             { text: 'What is MageBox?', link: '/guide/what-is-magebox' },
-            { text: 'Why MageBox?', link: '/guide/why-magebox' },
             { text: 'Architecture', link: '/guide/architecture' }
           ]
         },
@@ -147,7 +146,6 @@ export default defineConfig({
           text: 'Introduction',
           items: [
             { text: 'What is MageBox?', link: '/guide/what-is-magebox' },
-            { text: 'Why MageBox?', link: '/guide/why-magebox' },
             { text: 'Architecture', link: '/guide/architecture' }
           ]
         },
