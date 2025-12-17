@@ -2,6 +2,18 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.17.1] - 2025-12-17
+
+### macOS Port Forwarding Fix
+
+Fixed pf (packet filter) setup on macOS when pf is already enabled:
+
+- **Check pf status first** - Now checks if pf is already enabled before trying to enable it
+- **Fixes "pf already enabled" error** - No longer fails on clean macOS installs where pf was already running
+- **Updated LaunchDaemon** - Boot-time script also checks pf status before enabling
+
+---
+
 ## [0.17.0] - 2025-12-17
 
 ### Progress Bars for Import Operations

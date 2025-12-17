@@ -170,7 +170,7 @@ func (m *Manager) createLaunchDaemon() error {
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>pfctl -ef /etc/pf.conf 2&gt;&amp;1</string>
+        <string>pfctl -s info | grep -q "Status: Enabled" &amp;&amp; pfctl -f /etc/pf.conf || pfctl -ef /etc/pf.conf</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -391,15 +391,39 @@ func (m *Manager) addAnchorToPfConf() error {
 	return nil
 }
 
+// isPfEnabled checks if pf is currently enabled
+func (m *Manager) isPfEnabled() bool {
+	cmd := exec.Command("sudo", "pfctl", "-s", "info")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(output), "Status: Enabled")
+}
+
 // reloadPfRules reloads the pf configuration
 func (m *Manager) reloadPfRules() error {
 	verbose.Debug("Reloading pf rules...")
 
-	cmd := exec.Command("sudo", "pfctl", "-ef", pfConfFile)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		verbose.Debug("pfctl output: %s", string(output))
-		return fmt.Errorf("pfctl failed: %w", err)
+	// Check if pf is already enabled
+	if m.isPfEnabled() {
+		verbose.Debug("pf is already enabled, just reloading rules...")
+		// Just reload rules without trying to enable
+		cmd := exec.Command("sudo", "pfctl", "-f", pfConfFile)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			verbose.Debug("pfctl output: %s", string(output))
+			return fmt.Errorf("pfctl failed: %w", err)
+		}
+	} else {
+		verbose.Debug("pf is not enabled, enabling and loading rules...")
+		// Enable pf and load rules
+		cmd := exec.Command("sudo", "pfctl", "-ef", pfConfFile)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			verbose.Debug("pfctl output: %s", string(output))
+			return fmt.Errorf("pfctl failed: %w", err)
+		}
 	}
 
 	verbose.Debug("PF rules reloaded successfully")
