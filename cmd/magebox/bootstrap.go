@@ -482,18 +482,15 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		pfMgr := portforward.NewManager()
-		if pfMgr.IsInstalled() {
-			fmt.Println("  Port forwarding already configured " + cli.Success("✓"))
+		// Always call Setup() - it will verify rules are active and reload if needed
+		fmt.Print("  Configuring pf rules and LaunchDaemon... ")
+		if err := pfMgr.Setup(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("Port forwarding setup failed: %v", err)
+			cli.PrintWarning("You may need to manually run: sudo pfctl -ef /etc/pf.conf")
+			errors = append(errors, "Port forwarding setup failed")
 		} else {
-			fmt.Print("  Installing pf rules and LaunchDaemon... ")
-			if err := pfMgr.Setup(); err != nil {
-				fmt.Println(cli.Error("failed"))
-				cli.PrintWarning("Port forwarding setup failed: %v", err)
-				cli.PrintWarning("You may need to manually configure port forwarding")
-				errors = append(errors, "Port forwarding setup failed")
-			} else {
-				fmt.Println(cli.Success("done"))
-			}
+			fmt.Println(cli.Success("done"))
 		}
 		fmt.Println()
 	}

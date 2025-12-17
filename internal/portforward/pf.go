@@ -41,20 +41,20 @@ func (m *Manager) Setup() error {
 
 	verbose.Debug("Setting up macOS port forwarding...")
 
-	// Check if already installed
+	// Check if already installed and active
 	if m.IsInstalled() {
 		verbose.Debug("Port forwarding plist exists, checking if rules are active...")
 		// Even if installed, verify rules are active
 		if m.areRulesActive() {
-			fmt.Println("[INFO] Port forwarding already configured and active")
+			verbose.Debug("Port forwarding already configured and active")
 			return nil
 		}
 		verbose.Debug("Rules not active, reloading...")
+		// Just reload pf rules if plist exists but rules not active
+		return m.reloadPfRules()
 	}
 
-	fmt.Println("[INFO] Setting up port forwarding (requires sudo)...")
-	fmt.Println("       This allows Nginx to run on ports 8080/8443 as your user")
-	fmt.Println("       while being accessible on standard ports 80/443")
+	verbose.Debug("Installing port forwarding (requires sudo)...")
 
 	// Create pf rules file (anchor)
 	if err := m.createPfRules(); err != nil {
@@ -78,12 +78,10 @@ func (m *Manager) Setup() error {
 
 	// Reload pf rules immediately
 	if err := m.reloadPfRules(); err != nil {
-		verbose.Debug("Warning: failed to reload pf rules: %v", err)
+		return fmt.Errorf("failed to reload pf rules: %w", err)
 	}
 
-	fmt.Println("[OK] Port forwarding configured successfully")
-	fmt.Println("     80 → 8080, 443 → 8443")
-
+	verbose.Debug("Port forwarding configured: 80 → 8080, 443 → 8443")
 	return nil
 }
 
