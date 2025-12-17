@@ -793,11 +793,9 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println(cli.Header("Docker Providers"))
 			cli.PrintWarning("Multiple Docker providers detected:")
 			for _, prov := range runningProviders {
-				marker := "  "
+				marker := "○ "
 				if prov.IsActive {
 					marker = "● "
-				} else {
-					marker = "○ "
 				}
 				fmt.Printf("  %s%s (%s)\n", marker, prov.Name, prov.SocketPath)
 			}
