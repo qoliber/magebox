@@ -361,8 +361,9 @@ func (m *Manager) addAnchorToPfConf() error {
 		}
 	}
 
-	// Add load anchor at the end
+	// Add load anchor at the end with trailing newline
 	newLines = append(newLines, `load anchor "com.magebox" from "/etc/pf.anchors/com.magebox"`)
+	newLines = append(newLines, "") // Ensure trailing newline
 
 	newContent := strings.Join(newLines, "\n")
 
