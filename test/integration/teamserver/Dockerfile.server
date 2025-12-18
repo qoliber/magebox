@@ -1,0 +1,37 @@
+# Dockerfile for MageBox Team Server (Integration Testing)
+FROM golang:1.23-alpine AS builder
+
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+WORKDIR /app
+
+# Copy go mod files first for caching
+COPY go.mod go.sum ./
+
+# Allow toolchain auto-download for newer Go versions
+ENV GOTOOLCHAIN=auto
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the server binary
+RUN CGO_ENABLED=1 go build -o /magebox ./cmd/magebox
+
+# Runtime image
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates curl sqlite
+
+COPY --from=builder /magebox /usr/local/bin/magebox
+
+# Create data directory
+RUN mkdir -p /var/lib/magebox/teamserver
+
+# Startup script
+COPY test/integration/teamserver/start-server.sh /start-server.sh
+RUN chmod +x /start-server.sh
+
+EXPOSE 7443
+
+CMD ["/start-server.sh"]

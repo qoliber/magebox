@@ -2,6 +2,60 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.19.0] - 2025-12-18
+
+### Team Server
+
+Centralized team access management system for secure SSH key distribution with ISO 27001 compliance support.
+
+```bash
+# Initialize and start the team server
+magebox server init --data-dir /var/lib/magebox/teamserver
+magebox server start --port 7443
+
+# Create a project and add environments
+magebox server project add myproject --description "My Application"
+magebox server env add staging --project myproject \
+    --host staging.example.com --deploy-user deploy --deploy-key ~/.ssh/deploy_key
+
+# Invite team members and grant project access
+magebox server user add alice --email alice@example.com --role dev
+magebox server user grant alice --project myproject
+
+# User joins and registers their SSH key
+magebox server join https://teamserver.example.com --token INVITE_TOKEN --key ~/.ssh/id_ed25519.pub
+```
+
+**Key Features:**
+
+- **Project-Based Access Control** - Users granted access to projects containing environments
+- **Centralized User Management** - Invite/revoke team members with admin approval
+- **Automatic SSH Key Deployment** - Keys deployed to all environments in granted projects
+- **Multi-Factor Authentication** - TOTP support (Google Authenticator compatible)
+- **Tamper-Evident Audit Logs** - Hash chain verification for compliance
+- **Email Notifications** - Invitations, security alerts via SMTP
+- **Security Features** - AES-256-GCM encryption, Argon2id hashing, IP lockout
+- **ISO 27001 Compliance** - Control mapping and recommended procedures
+
+**New Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `magebox server init` | Initialize team server with master key |
+| `magebox server start` | Start team server |
+| `magebox server stop` | Stop team server |
+| `magebox server status` | Show team server status |
+| `magebox server project add/list/show/remove` | Project management |
+| `magebox server user add/list/show/remove` | User management |
+| `magebox server user grant/revoke` | Project access management |
+| `magebox server env add/list/show/remove/sync` | Environment management |
+| `magebox server audit` | View and export audit logs |
+| `magebox server join` | Accept invitation and register SSH key |
+
+See the full [Team Server documentation](/guide/team-server) for details.
+
+---
+
 ## [0.18.0] - 2025-12-17
 
 ### Remote Environment Management

@@ -1,0 +1,84 @@
+# Docker Compose for MageBox Team Server Integration Tests
+#
+# This creates a 4-container test environment:
+# - server: Runs the MageBox team server
+# - env-staging: Simulates a staging environment with SSH
+# - env-production: Simulates a production environment with SSH
+# - mailpit: Email testing server (SMTP on 1025, Web UI on 8025)
+#
+# Usage:
+#   docker-compose up -d
+#   go test -v ./test/integration/teamserver/...
+#   docker-compose down
+
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "18025:8025"   # Web UI (external 18025 -> internal 8025)
+      - "11025:1025"   # SMTP (external 11025 -> internal 1025)
+    environment:
+      - MP_MAX_MESSAGES=500
+      - MP_SMTP_AUTH_ACCEPT_ANY=1
+      - MP_SMTP_AUTH_ALLOW_INSECURE=1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8025/api/v1/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - teamserver-test
+
+  server:
+    build:
+      context: ../../..
+      dockerfile: test/integration/teamserver/Dockerfile.server
+    ports:
+      - "17443:7443"   # External 17443 -> internal 7443
+    volumes:
+      - server-data:/var/lib/magebox/teamserver
+    environment:
+      - MAGEBOX_ADMIN_TOKEN=integration-test-admin-token-12345
+      - MAGEBOX_MASTER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - MAGEBOX_SMTP_HOST=mailpit
+      - MAGEBOX_SMTP_PORT=1025
+      - MAGEBOX_SMTP_FROM=noreply@magebox.test
+    depends_on:
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7443/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - teamserver-test
+
+  env-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile.sshd
+    hostname: staging.test
+    environment:
+      - ENV_NAME=staging
+      - DEPLOY_USER=deploy
+    networks:
+      - teamserver-test
+
+  env-production:
+    build:
+      context: .
+      dockerfile: Dockerfile.sshd
+    hostname: production.test
+    environment:
+      - ENV_NAME=production
+      - DEPLOY_USER=deploy
+    networks:
+      - teamserver-test
+
+volumes:
+  server-data:
+
+networks:
+  teamserver-test:
+    driver: bridge

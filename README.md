@@ -527,6 +527,38 @@ See the full [Team Collaboration Guide](docs/teamwork.md) for detailed setup ins
 
 ---
 
+## Team Server (Enterprise)
+
+For enterprise teams needing centralized SSH key management with audit trails and ISO 27001 compliance:
+
+```bash
+# Initialize and start the team server
+magebox server init --data-dir /var/lib/magebox/teamserver
+magebox server start --port 7443
+
+# Create a project and add environments
+magebox server project add myproject --description "My Application"
+magebox server env add staging --project myproject --host staging.example.com --deploy-user deploy --deploy-key ~/.ssh/deploy_key
+
+# Invite team members and grant project access
+magebox server user add alice --email alice@example.com --role dev
+magebox server user grant alice --project myproject
+```
+
+Features include:
+- **Project-Based Access Control** - Users granted access to projects containing environments
+- **Centralized User Management** - Invite/revoke team members with admin approval
+- **Automatic SSH Key Deployment** - Keys deployed to all environments in granted projects
+- **Role-Based Permissions** - Admin, Dev, Readonly roles
+- **Multi-Factor Authentication** - TOTP support (Google Authenticator compatible)
+- **Tamper-Evident Audit Logs** - Hash chain verification for ISO 27001 compliance
+- **Email Notifications** - Invitations, security alerts via SMTP
+- **Security Features** - AES-256-GCM encryption, Argon2id hashing, IP lockout
+
+See the full [Team Server Guide](docs/TEAMSERVER.md) for detailed documentation including ISO 27001 compliance.
+
+---
+
 ## Configuration Reference
 
 ### .magebox.yaml File
@@ -683,6 +715,28 @@ magebox config set portainer true
 | `magebox test phpmd` | Run PHP Mess Detector |
 | `magebox test all` | Run all tests except integration |
 | `magebox test status` | Show testing tools status |
+| `magebox server init` | Initialize team server |
+| `magebox server start` | Start team server |
+| `magebox server stop` | Stop team server |
+| `magebox server status` | Show team server status |
+| `magebox server project add <name>` | Create a project |
+| `magebox server project list` | List all projects |
+| `magebox server project show <name>` | Show project details |
+| `magebox server project remove <name>` | Remove project |
+| `magebox server user add <name>` | Create user invitation |
+| `magebox server user list` | List team users |
+| `magebox server user show <name>` | Show user details |
+| `magebox server user remove <name>` | Remove user from team |
+| `magebox server user grant <name>` | Grant project access to user |
+| `magebox server user revoke <name>` | Revoke project access from user |
+| `magebox server env add <name>` | Add environment to a project |
+| `magebox server env list` | List team environments |
+| `magebox server env show <name>` | Show environment details |
+| `magebox server env remove <name>` | Remove environment |
+| `magebox server env sync` | Sync SSH keys to environments |
+| `magebox server audit` | View audit log |
+| `magebox server join <url>` | Join a team server |
+| `magebox server whoami` | Show current session info |
 
 ---
 
@@ -1368,6 +1422,7 @@ magebox/
 │   ├── dns/               # /etc/hosts, dnsmasq
 │   ├── varnish/           # Varnish VCL generation
 │   ├── project/           # Lifecycle management
+│   ├── teamserver/        # Team server (users, projects, environments, audit)
 │   └── updater/           # Self-update functionality
 └── .github/workflows/     # CI/CD pipelines
 ```
@@ -1379,12 +1434,12 @@ magebox/
 See the full [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent highlights:**
+- **v0.19.0** - Team Server with project-based access control, SSH key distribution, MFA, audit logging, ISO 27001 compliance
+- **v0.16.0** - Configurable TLD support
 - **v0.14.0** - Testing & code quality commands (PHPUnit, PHPStan, PHPCS, PHPMD)
-- **v0.13.3** - Fixed test containers with missing Magento-required PHP extensions
-- **v0.13.0** - Multi-project management (`start --all`, `stop --all`, `restart`), uninstall command, integration test suite
-- **v0.12.x** - Blackfire/Tideways profilers, CLI wrappers, multi-domain store codes, Xdebug improvements
+- **v0.13.0** - Multi-project management (`start --all`, `stop --all`, `restart`), uninstall command
+- **v0.12.x** - Blackfire/Tideways profilers, CLI wrappers, multi-domain store codes
 - **v0.10.x** - Varnish integration, log viewer, error reports, database management
-- **v0.9.0** - Elasticsearch support alongside OpenSearch
 
 ---
 

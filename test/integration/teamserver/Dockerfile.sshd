@@ -1,0 +1,33 @@
+# Dockerfile for SSH test environments
+FROM alpine:3.19
+
+# Install OpenSSH server
+RUN apk add --no-cache openssh openssh-server bash
+
+# Create deploy user
+RUN adduser -D -s /bin/bash deploy && \
+    echo "deploy:testpassword" | chpasswd && \
+    mkdir -p /home/deploy/.ssh && \
+    chmod 700 /home/deploy/.ssh && \
+    chown -R deploy:deploy /home/deploy/.ssh
+
+# Generate host keys
+RUN ssh-keygen -A
+
+# Configure SSH
+RUN echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
+    echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
+    echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config
+
+# Create directory for authorized_keys management
+RUN mkdir -p /etc/magebox && \
+    touch /etc/magebox/env-info
+
+# Startup script
+COPY start-sshd.sh /start-sshd.sh
+RUN chmod +x /start-sshd.sh
+
+EXPOSE 22
+
+CMD ["/start-sshd.sh"]

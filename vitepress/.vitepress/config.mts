@@ -28,10 +28,11 @@ export default defineConfig({
       { text: 'Services', link: '/services/nginx' },
       { text: 'Testing', link: '/guide/testing-tools' },
       { text: 'Teams', link: '/guide/teams' },
+      { text: 'Team Server', link: '/guide/team-server' },
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.18.0',
+        text: 'v0.19.0',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -94,6 +95,13 @@ export default defineConfig({
           text: 'Team Collaboration',
           items: [
             { text: 'Overview', link: '/guide/teams' }
+          ]
+        },
+        {
+          text: 'Team Server',
+          items: [
+            { text: 'Overview', link: '/guide/team-server' },
+            { text: 'ISO 27001 Compliance', link: '/guide/team-server-compliance' }
           ]
         },
         {
@@ -194,6 +202,13 @@ export default defineConfig({
           text: 'Team Collaboration',
           items: [
             { text: 'Overview', link: '/guide/teams' }
+          ]
+        },
+        {
+          text: 'Team Server',
+          items: [
+            { text: 'Overview', link: '/guide/team-server' },
+            { text: 'ISO 27001 Compliance', link: '/guide/team-server-compliance' }
           ]
         },
         {

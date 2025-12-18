@@ -5,6 +5,38 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2025-12-18
+
+### Added
+- **Team Server** - Centralized team access management system for secure SSH key distribution:
+  - **Project-Based Access Control** - Users granted access to projects containing multiple environments
+  - **User Management** - Invite flow with admin approval, role-based permissions (admin, dev, readonly)
+  - **SSH Key Distribution** - Automatic deployment/removal of SSH keys to environments
+  - **Multi-Factor Authentication** - TOTP support (Google Authenticator compatible)
+  - **Tamper-Evident Audit Logging** - Hash chain verification for compliance
+  - **Email Notifications** - SMTP support for invites, security alerts
+  - **Security Features** - AES-256-GCM encryption, Argon2id token hashing, IP lockout
+  - **ISO 27001 Compliance** - Documentation with control mapping and recommended procedures
+
+### New Commands
+- `magebox server init` - Initialize team server with master key and admin token
+- `magebox server start` - Start team server with TLS, SMTP, and security options
+- `magebox server stop` - Stop running team server
+- `magebox server status` - Check team server status
+- `magebox server user add/list/show/remove` - User management
+- `magebox server user grant/revoke` - Project access management
+- `magebox server project add/list/show/remove` - Project management
+- `magebox server env add/list/show/remove/sync` - Environment management
+- `magebox server audit` - View and export audit logs with filtering
+- `magebox server join` - Accept invitation and register SSH key
+
+### Documentation
+- New `docs/TEAMSERVER.md` with comprehensive documentation
+- ISO 27001 compliance section with control mapping
+- Recommended procedures for access review, onboarding/offboarding
+- Docker deployment examples
+- Integration testing guide
+
 ## [0.14.5] - 2025-12-16
 
 ### Added
