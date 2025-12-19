@@ -441,12 +441,14 @@ func newMockServer() *mockServer {
 		case r.URL.Path == "/api/join" && r.Method == "POST":
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"session_token": "session_token_12345",
+				"private_key":   "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-mock-key\n-----END OPENSSH PRIVATE KEY-----",
+				"server_host":   r.Host,
 				"user": map[string]string{
 					"name": "newuser",
 					"role": "dev",
 				},
-				"environments": []map[string]string{
-					{"name": "staging", "host": "staging.example.com"},
+				"environments": []map[string]interface{}{
+					{"name": "staging", "project": "test", "host": "staging.example.com", "port": 22, "deploy_user": "deploy"},
 				},
 			})
 
@@ -575,18 +577,10 @@ func TestMockServerJoinFlow(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
 
-	// Create a temp SSH public key
-	sshDir := filepath.Join(tmpDir, ".ssh")
-	os.MkdirAll(sshDir, 0700)
-	pubKeyPath := filepath.Join(sshDir, "id_ed25519.pub")
-	os.WriteFile(pubKeyPath, []byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest test@example.com"), 0600)
-
-	// Set join parameters
+	// Set join parameters (no public key needed - server generates it)
 	inviteToken = "test-invite-token"
-	userPublicKey = pubKeyPath
 	defer func() {
 		inviteToken = ""
-		userPublicKey = ""
 	}()
 
 	// Run join command
@@ -606,6 +600,19 @@ func TestMockServerJoinFlow(t *testing.T) {
 	}
 	if config.UserName != "newuser" {
 		t.Errorf("UserName mismatch: got %s", config.UserName)
+	}
+	if config.KeyPath == "" {
+		t.Error("KeyPath should be set after join")
+	}
+
+	// Verify key file was created
+	if _, err := os.Stat(config.KeyPath); os.IsNotExist(err) {
+		t.Errorf("SSH key file not created at %s", config.KeyPath)
+	}
+
+	// Verify environments were stored
+	if len(config.Environments) == 0 {
+		t.Error("Environments should be populated after join")
 	}
 }
 

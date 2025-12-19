@@ -29,7 +29,6 @@ var (
 	userEmail      string
 	userRole       string
 	userExpiryDays int
-	userPublicKey  string
 	serverURL      string
 	inviteToken    string
 	userProject    string
@@ -137,12 +136,12 @@ var serverJoinCmd = &cobra.Command{
 	Short: "Join a team server",
 	Long: `Join a MageBox team server using an invite token.
 
-This registers your SSH public key with the server and saves
-the session token for future API calls.
+The server generates a unique SSH key pair for you. The private key is
+downloaded and saved locally. You can then use 'magebox ssh <env>' to
+connect to environments you have access to.
 
 Examples:
-  magebox server join https://teamserver.example.com --token <invite-token>
-  magebox server join https://teamserver.example.com --token <token> --key ~/.ssh/id_ed25519.pub`,
+  magebox server join https://teamserver.example.com --token <invite-token>`,
 	Args: cobra.ExactArgs(1),
 	RunE: runServerJoin,
 }
@@ -172,7 +171,6 @@ func init() {
 
 	// Join flags
 	serverJoinCmd.Flags().StringVar(&inviteToken, "token", "", "Invite token (required)")
-	serverJoinCmd.Flags().StringVar(&userPublicKey, "key", "", "Path to SSH public key (default: ~/.ssh/id_ed25519.pub)")
 	serverJoinCmd.MarkFlagRequired("token")
 
 	serverUserCmd.AddCommand(serverUserAddCmd)
@@ -190,11 +188,22 @@ func init() {
 
 // Client configuration for connecting to team server
 type clientConfig struct {
-	ServerURL    string `json:"server_url"`
-	SessionToken string `json:"session_token"`
-	UserName     string `json:"user_name"`
-	Role         string `json:"role"`
-	JoinedAt     string `json:"joined_at"`
+	ServerURL    string                    `json:"server_url"`
+	SessionToken string                    `json:"session_token"`
+	UserName     string                    `json:"user_name"`
+	Role         string                    `json:"role"`
+	JoinedAt     string                    `json:"joined_at"`
+	KeyPath      string                    `json:"key_path"`     // Path to private SSH key
+	Environments []clientEnvironmentConfig `json:"environments"` // Accessible environments
+}
+
+// clientEnvironmentConfig stores environment info for SSH connections
+type clientEnvironmentConfig struct {
+	Name       string `json:"name"` // Full name: project/env
+	Project    string `json:"project"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	DeployUser string `json:"deploy_user"`
 }
 
 func getClientConfigPath() (string, error) {
@@ -594,41 +603,12 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 	}
 	serverURLArg = strings.TrimSuffix(serverURLArg, "/")
 
-	// Get public key
-	publicKey := userPublicKey
-	if publicKey == "" {
-		homeDir, _ := os.UserHomeDir()
-		// Try common key locations
-		keyPaths := []string{
-			filepath.Join(homeDir, ".ssh", "id_ed25519.pub"),
-			filepath.Join(homeDir, ".ssh", "id_rsa.pub"),
-		}
-		for _, p := range keyPaths {
-			if _, err := os.Stat(p); err == nil {
-				publicKey = p
-				break
-			}
-		}
-		if publicKey == "" {
-			return fmt.Errorf("SSH public key not found. Specify with --key or generate with: ssh-keygen -t ed25519")
-		}
-	}
-
-	// Read public key content
-	keyData, err := os.ReadFile(publicKey)
-	if err != nil {
-		return fmt.Errorf("failed to read public key: %w", err)
-	}
-	keyContent := strings.TrimSpace(string(keyData))
-
 	cli.PrintInfo("Joining team server: %s", serverURLArg)
-	cli.PrintInfo("Using public key: %s", publicKey)
 	fmt.Println()
 
-	// Make join request
+	// Make join request (server will generate SSH key pair)
 	reqBody := map[string]string{
 		"invite_token": inviteToken,
-		"public_key":   keyContent,
 	}
 
 	jsonData, _ := json.Marshal(reqBody)
@@ -653,18 +633,52 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 
 	var result struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
+		ServerHost   string `json:"server_host"`
 		User         struct {
 			Name string `json:"name"`
 			Role string `json:"role"`
 		} `json:"user"`
 		Environments []struct {
-			Name string `json:"name"`
-			Host string `json:"host"`
+			Name       string `json:"name"`
+			Project    string `json:"project"`
+			Host       string `json:"host"`
+			Port       int    `json:"port"`
+			DeployUser string `json:"deploy_user"`
 		} `json:"environments"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Save SSH private key
+	homeDir, _ := os.UserHomeDir()
+	keysDir := filepath.Join(homeDir, ".magebox", "keys")
+	if err := os.MkdirAll(keysDir, 0700); err != nil {
+		return fmt.Errorf("failed to create keys directory: %w", err)
+	}
+
+	// Create safe filename from server host
+	safeHost := strings.ReplaceAll(result.ServerHost, ":", "_")
+	safeHost = strings.ReplaceAll(safeHost, "/", "_")
+	keyFileName := fmt.Sprintf("%s_%s.key", safeHost, result.User.Name)
+	keyPath := filepath.Join(keysDir, keyFileName)
+
+	if err := os.WriteFile(keyPath, []byte(result.PrivateKey), 0600); err != nil {
+		return fmt.Errorf("failed to save SSH private key: %w", err)
+	}
+
+	// Convert environments to client config format
+	envConfigs := make([]clientEnvironmentConfig, len(result.Environments))
+	for i, env := range result.Environments {
+		envConfigs[i] = clientEnvironmentConfig{
+			Name:       env.Name,
+			Project:    env.Project,
+			Host:       env.Host,
+			Port:       env.Port,
+			DeployUser: env.DeployUser,
+		}
 	}
 
 	// Save client config
@@ -674,6 +688,8 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 		UserName:     result.User.Name,
 		Role:         result.User.Role,
 		JoinedAt:     time.Now().Format(time.RFC3339),
+		KeyPath:      keyPath,
+		Environments: envConfigs,
 	}
 
 	if err := saveClientConfig(config); err != nil {
@@ -684,13 +700,16 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintInfo("User: %s", result.User.Name)
 	cli.PrintInfo("Role: %s", result.User.Role)
+	cli.PrintInfo("SSH Key: %s", keyPath)
 
 	if len(result.Environments) > 0 {
 		fmt.Println()
 		cli.PrintInfo("Accessible environments:")
 		for _, env := range result.Environments {
-			fmt.Printf("  - %s (%s)\n", env.Name, env.Host)
+			fmt.Printf("  - %s (%s@%s)\n", env.Name, env.DeployUser, env.Host)
 		}
+		fmt.Println()
+		cli.PrintInfo("Connect with: magebox ssh <environment-name>")
 	}
 
 	fmt.Println()

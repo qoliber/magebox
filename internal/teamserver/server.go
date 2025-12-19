@@ -421,8 +421,8 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.InviteToken == "" || req.PublicKey == "" {
-		s.writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "invite_token and public_key are required")
+	if req.InviteToken == "" {
+		s.writeError(w, http.StatusBadRequest, "MISSING_FIELDS", "invite_token is required")
 		return
 	}
 
@@ -431,6 +431,14 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logAudit(AuditAuthFailed, "", "Invalid invite token", getClientIP(r))
 		s.writeError(w, http.StatusUnauthorized, "INVALID_INVITE", err.Error())
+		return
+	}
+
+	// Generate SSH key pair for the user
+	keyComment := fmt.Sprintf("magebox-%s@%s", invites.UserName, r.Host)
+	keyPair, err := GenerateSSHKeyPair(keyComment)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "KEY_GEN_ERROR", "Failed to generate SSH key pair")
 		return
 	}
 
@@ -458,7 +466,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		Name:      invites.UserName,
 		Email:     invites.Email,
 		Role:      invites.Role,
-		PublicKey: req.PublicKey,
+		PublicKey: keyPair.PublicKey,
 		TokenHash: tokenHash,
 		ExpiresAt: expiresAt,
 		CreatedBy: "invite",
@@ -475,13 +483,25 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	// Get accessible environments (based on user's projects)
 	envs, _ := s.storage.ListEnvironmentsForUser(user.Name)
 
-	s.logAudit(AuditUserJoin, user.Name, fmt.Sprintf("User joined: %s", user.Email), getClientIP(r))
+	// Convert to user-friendly format
+	envsForUser := make([]EnvironmentForUser, len(envs))
+	for i, e := range envs {
+		envsForUser[i] = EnvironmentForUser{
+			Name:       e.FullName(),
+			Project:    e.Project,
+			Host:       e.Host,
+			Port:       e.GetPort(),
+			DeployUser: e.DeployUser,
+		}
+	}
+
+	s.logAudit(AuditUserJoin, user.Name, fmt.Sprintf("User joined: %s (SSH key generated)", user.Email), getClientIP(r))
 
 	// Send welcome email (async, non-blocking)
 	go func() {
 		envNames := make([]string, len(envs))
 		for i, e := range envs {
-			envNames[i] = e.Name
+			envNames[i] = e.FullName()
 		}
 		if err := s.notifier.SendUserJoined(user.Email, user.Name, string(user.Role), envNames); err != nil {
 			s.logger.Printf("Failed to send welcome email to %s: %v", user.Email, err)
@@ -491,10 +511,18 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	// Deploy key to accessible environments (async, non-blocking)
 	go s.deployUserKey(user)
 
+	// Get server host for key storage naming
+	serverHost := r.Host
+	if serverHost == "" {
+		serverHost = "teamserver"
+	}
+
 	json.NewEncoder(w).Encode(JoinResponse{
 		SessionToken: sessionToken,
+		PrivateKey:   keyPair.PrivateKey,
 		User:         user,
-		Environments: envs,
+		Environments: envsForUser,
+		ServerHost:   serverHost,
 	})
 }
 
@@ -620,7 +648,19 @@ func (s *Server) handleUserEnvironments(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	json.NewEncoder(w).Encode(envs)
+	// Convert to user-friendly format (hide sensitive deploy key info)
+	envsForUser := make([]EnvironmentForUser, len(envs))
+	for i, e := range envs {
+		envsForUser[i] = EnvironmentForUser{
+			Name:       e.FullName(),
+			Project:    e.Project,
+			Host:       e.Host,
+			Port:       e.GetPort(),
+			DeployUser: e.DeployUser,
+		}
+	}
+
+	json.NewEncoder(w).Encode(envsForUser)
 }
 
 // MFASetupRequest is the request to initiate MFA setup

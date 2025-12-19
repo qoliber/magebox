@@ -83,12 +83,26 @@ magebox server user grant alice --project myproject
 ### 7. User Joins
 
 ```bash
-magebox server join https://teamserver.example.com \
-    --token INVITE_TOKEN \
-    --key ~/.ssh/id_ed25519.pub
+magebox server join https://teamserver.example.com --token INVITE_TOKEN
 ```
 
-Alice's SSH key is now automatically deployed to all environments she has access to.
+The server automatically generates an Ed25519 SSH key pair for Alice. The private key is stored locally at `~/.magebox/keys/`.
+
+### 8. Sync Environments
+
+```bash
+magebox env sync
+```
+
+Alice can sync her accessible environments from the server at any time.
+
+### 9. SSH into Environments
+
+```bash
+magebox ssh myproject/staging
+```
+
+This uses Alice's generated SSH key to connect to the staging environment.
 
 ## Architecture
 

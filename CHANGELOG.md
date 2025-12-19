@@ -5,6 +5,30 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] - 2025-12-19
+
+### Added
+- **Server-Side SSH Key Generation** - Team Server now generates Ed25519 SSH key pairs for users:
+  - Keys are generated server-side when users join (no need to provide public key)
+  - Private key is securely returned to client and stored in `~/.magebox/keys/`
+  - Public key is automatically stored on the server for deployment
+  - Each user gets a unique key pair per Team Server
+
+- **New CLI Commands**:
+  - `magebox ssh <environment>` - SSH into team server environments using stored keys
+  - `magebox env sync` - Sync accessible environments from team server
+
+- **Environment Sync API** - New `/api/environments` endpoint for clients to fetch accessible environments
+
+### Changed
+- `magebox server join` no longer requires `--key` flag - server generates the key
+- Join response now includes `private_key`, `server_host`, and `environments` list
+
+### Testing
+- Added comprehensive unit tests for SSH key generation (`crypto_test.go`)
+- Added E2E integration tests with Docker containers for actual SSH connections
+- Tests cover key uniqueness, access grant/revoke, and environment sync
+
 ## [0.19.0] - 2025-12-18
 
 ### Added

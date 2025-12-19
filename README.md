@@ -1434,6 +1434,7 @@ magebox/
 See the full [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent highlights:**
+- **v0.19.1** - Server-side SSH key generation, `magebox ssh` command, environment sync
 - **v0.19.0** - Team Server with project-based access control, SSH key distribution, MFA, audit logging, ISO 27001 compliance
 - **v0.16.0** - Configurable TLD support
 - **v0.14.0** - Testing & code quality commands (PHPUnit, PHPStan, PHPCS, PHPMD)

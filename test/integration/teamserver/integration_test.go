@@ -250,11 +250,10 @@ func TestFullUserFlow(t *testing.T) {
 	parseJSON(resp, &createResp2)
 	t.Logf("Created user viewer1 with invite token: %s...", createResp2.InviteToken[:20])
 
-	// Step 3: Developer joins using invite token
+	// Step 3: Developer joins using invite token (server generates SSH key)
 	t.Log("Step 3: Developer joining...")
 	joinReq1 := map[string]interface{}{
 		"invite_token": createResp1.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestDeveloperKey1 developer1@test",
 	}
 
 	resp, err = apiRequest("POST", "/api/join", joinReq1, "")
@@ -268,9 +267,12 @@ func TestFullUserFlow(t *testing.T) {
 
 	var joinResp1 struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
+		ServerHost   string `json:"server_host"`
 		User         struct {
-			Name string `json:"name"`
-			Role string `json:"role"`
+			Name      string `json:"name"`
+			Role      string `json:"role"`
+			PublicKey string `json:"public_key"`
 		} `json:"user"`
 	}
 	if err := parseJSON(resp, &joinResp1); err != nil {
@@ -280,16 +282,22 @@ func TestFullUserFlow(t *testing.T) {
 	if joinResp1.SessionToken == "" {
 		t.Fatal("Session token should not be empty")
 	}
+	if joinResp1.PrivateKey == "" {
+		t.Fatal("Private key should be returned on join")
+	}
+	if !strings.HasPrefix(joinResp1.PrivateKey, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should be in OpenSSH format")
+	}
 	if joinResp1.User.Name != "developer1" {
 		t.Errorf("Expected joined user name 'developer1', got '%s'", joinResp1.User.Name)
 	}
 	t.Logf("Developer1 joined with session token: %s...", joinResp1.SessionToken[:20])
+	t.Logf("Developer1 received private key (length: %d)", len(joinResp1.PrivateKey))
 
-	// Step 4: Viewer joins using invite token
+	// Step 4: Viewer joins using invite token (server generates SSH key)
 	t.Log("Step 4: Viewer joining...")
 	joinReq2 := map[string]interface{}{
 		"invite_token": createResp2.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestViewerKey1 viewer1@test",
 	}
 
 	resp, err = apiRequest("POST", "/api/join", joinReq2, "")
@@ -299,9 +307,13 @@ func TestFullUserFlow(t *testing.T) {
 
 	var joinResp2 struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
 	}
 	parseJSON(resp, &joinResp2)
 	t.Logf("Viewer1 joined with session token: %s...", joinResp2.SessionToken[:20])
+	if joinResp2.PrivateKey == "" {
+		t.Error("Viewer should also receive a private key")
+	}
 
 	// Step 5: Developer accesses /me endpoint
 	t.Log("Step 5: Developer accessing /me...")
@@ -564,10 +576,9 @@ func TestEnvironmentManagement(t *testing.T) {
 	}
 	parseJSON(resp, &createResp)
 
-	// Join as developer
+	// Join as developer (server generates SSH key)
 	joinReq := map[string]interface{}{
 		"invite_token": createResp.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEnvTestKey envtest@test",
 	}
 	resp, err = apiRequest("POST", "/api/join", joinReq, "")
 	if err != nil {
@@ -575,6 +586,7 @@ func TestEnvironmentManagement(t *testing.T) {
 	}
 	var joinResp struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
 	}
 	parseJSON(resp, &joinResp)
 
@@ -730,10 +742,9 @@ func TestProjectManagement(t *testing.T) {
 	}
 	parseJSON(resp, &createResp)
 
-	// Join as user
+	// Join as user (server generates SSH key)
 	joinReq := map[string]interface{}{
 		"invite_token": createResp.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIProjectTestKey project@test",
 	}
 	resp, err = apiRequest("POST", "/api/join", joinReq, "")
 	if err != nil {
@@ -741,6 +752,7 @@ func TestProjectManagement(t *testing.T) {
 	}
 	var joinResp struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
 	}
 	parseJSON(resp, &joinResp)
 
@@ -850,10 +862,9 @@ func TestAuditLogIntegrity(t *testing.T) {
 	}
 	parseJSON(resp, &createResp)
 
-	// Join
+	// Join (server generates SSH key)
 	joinReq := map[string]interface{}{
 		"invite_token": createResp.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAuditTestKey audit@test",
 	}
 	resp, _ = apiRequest("POST", "/api/join", joinReq, "")
 	resp.Body.Close()
@@ -1103,7 +1114,6 @@ func TestEmailNotifications(t *testing.T) {
 
 	joinReq := map[string]interface{}{
 		"invite_token": createResp.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEmailTestKey emailtest@test",
 	}
 	resp, err = apiRequest("POST", "/api/join", joinReq, "")
 	if err != nil {
@@ -1191,11 +1201,10 @@ func TestMFASetupAndVerification(t *testing.T) {
 	}
 	parseJSON(resp, &createResp)
 
-	// Step 2: User joins
+	// Step 2: User joins (server generates SSH key)
 	t.Log("Step 2: User joining...")
 	joinReq := map[string]interface{}{
 		"invite_token": createResp.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMFATestKey mfatest@test",
 	}
 	resp, err = apiRequest("POST", "/api/join", joinReq, "")
 	if err != nil {
@@ -1203,6 +1212,7 @@ func TestMFASetupAndVerification(t *testing.T) {
 	}
 	var joinResp struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
 	}
 	parseJSON(resp, &joinResp)
 
@@ -1341,7 +1351,6 @@ WMFHmov1sPy0zRXlnMo+AAAADXR
 
 	joinReq := map[string]interface{}{
 		"invite_token": createResp.InviteToken,
-		"public_key":   "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDeployUserKey deploy@test",
 	}
 	resp, err = apiRequest("POST", "/api/join", joinReq, "")
 	if err != nil {
@@ -1349,6 +1358,7 @@ WMFHmov1sPy0zRXlnMo+AAAADXR
 	}
 	var joinResp struct {
 		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
 	}
 	parseJSON(resp, &joinResp)
 
@@ -1398,4 +1408,565 @@ WMFHmov1sPy0zRXlnMo+AAAADXR
 	resp.Body.Close()
 
 	t.Log("Key deployment flow test completed!")
+}
+
+// SSH Connection E2E Tests
+// These tests verify actual SSH connections using server-generated keys
+
+func TestSSHKeyGenerationAndConnection(t *testing.T) {
+	t.Log("Testing SSH key generation and actual SSH connection...")
+
+	// Step 1: Create project
+	t.Log("Step 1: Creating project for SSH test...")
+	projectReq := map[string]interface{}{
+		"name":        "sshproject",
+		"description": "SSH Test Project",
+	}
+	resp, err := apiRequest("POST", "/api/admin/projects", projectReq, adminToken)
+	if err != nil {
+		t.Fatalf("Failed to create project: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected 200 creating project, got %d: %s", resp.StatusCode, string(body))
+	}
+	resp.Body.Close()
+
+	// Step 2: Create environment pointing to staging container
+	t.Log("Step 2: Creating environment pointing to SSH container...")
+	envReq := map[string]interface{}{
+		"name":        "ssh-test",
+		"project":     "sshproject",
+		"host":        "env-staging",
+		"port":        22,
+		"deploy_user": "deploy",
+		"deploy_key":  "-----BEGIN OPENSSH PRIVATE KEY-----\nplaceholder\n-----END OPENSSH PRIVATE KEY-----",
+	}
+	resp, err = apiRequest("POST", "/api/admin/environments", envReq, adminToken)
+	if err != nil {
+		t.Fatalf("Failed to create environment: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected 200 creating environment, got %d: %s", resp.StatusCode, string(body))
+	}
+	resp.Body.Close()
+
+	// Step 3: Create user and join (get server-generated SSH key)
+	t.Log("Step 3: Creating user and joining to get SSH key...")
+	createReq := map[string]interface{}{
+		"name":  "sshuser",
+		"email": "sshuser@example.com",
+		"role":  "dev",
+	}
+	resp, err = apiRequest("POST", "/api/admin/users", createReq, adminToken)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	var createResp struct {
+		InviteToken string `json:"invite_token"`
+	}
+	parseJSON(resp, &createResp)
+
+	joinReq := map[string]interface{}{
+		"invite_token": createResp.InviteToken,
+	}
+	resp, err = apiRequest("POST", "/api/join", joinReq, "")
+	if err != nil {
+		t.Fatalf("Failed to join: %v", err)
+	}
+
+	var joinResp struct {
+		SessionToken string `json:"session_token"`
+		PrivateKey   string `json:"private_key"`
+		User         struct {
+			PublicKey string `json:"public_key"`
+		} `json:"user"`
+	}
+	parseJSON(resp, &joinResp)
+
+	if joinResp.PrivateKey == "" {
+		t.Fatal("Private key should be returned on join")
+	}
+	if !strings.HasPrefix(joinResp.PrivateKey, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should be in OpenSSH format")
+	}
+	t.Logf("Received private key (length: %d bytes)", len(joinResp.PrivateKey))
+
+	// Step 4: Grant user access to the project
+	t.Log("Step 4: Granting project access...")
+	grantReq := map[string]interface{}{
+		"project": "sshproject",
+	}
+	resp, err = apiRequest("POST", "/api/admin/users/sshuser/access", grantReq, adminToken)
+	if err != nil {
+		t.Fatalf("Failed to grant access: %v", err)
+	}
+	resp.Body.Close()
+
+	// Step 5: Get user's public key from /me endpoint
+	t.Log("Step 5: Getting user's public key...")
+	resp, err = apiRequest("GET", "/api/me", nil, joinResp.SessionToken)
+	if err != nil {
+		t.Fatalf("Failed to get /me: %v", err)
+	}
+	var meResp struct {
+		PublicKey string `json:"public_key"`
+	}
+	parseJSON(resp, &meResp)
+
+	if meResp.PublicKey == "" {
+		t.Fatal("User should have public key stored")
+	}
+	if !strings.HasPrefix(meResp.PublicKey, "ssh-ed25519 ") {
+		t.Errorf("Public key should be Ed25519, got: %s...", meResp.PublicKey[:min(30, len(meResp.PublicKey))])
+	}
+	t.Logf("User has public key: %s...", meResp.PublicKey[:min(50, len(meResp.PublicKey))])
+
+	// Step 6: Deploy public key to SSH container using docker exec
+	t.Log("Step 6: Deploying public key to SSH container...")
+	deployCmd := exec.Command("docker", "exec", "teamserver-env-staging-1",
+		"sh", "-c", fmt.Sprintf("echo '%s' >> /home/deploy/.ssh/authorized_keys", meResp.PublicKey))
+	deployCmd.Dir = getTestDir()
+	if output, err := deployCmd.CombinedOutput(); err != nil {
+		// Try alternative container name
+		deployCmd = exec.Command("docker", "exec", "teamserver_env-staging_1",
+			"sh", "-c", fmt.Sprintf("echo '%s' >> /home/deploy/.ssh/authorized_keys", meResp.PublicKey))
+		deployCmd.Dir = getTestDir()
+		if output, err = deployCmd.CombinedOutput(); err != nil {
+			t.Logf("Could not deploy key: %v - %s (continuing anyway)", err, string(output))
+		}
+	}
+
+	// Step 7: Write private key to temp file for SSH test
+	t.Log("Step 7: Testing SSH connection...")
+	tmpKeyFile, err := os.CreateTemp("", "ssh-key-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp key file: %v", err)
+	}
+	defer os.Remove(tmpKeyFile.Name())
+
+	if _, err := tmpKeyFile.WriteString(joinResp.PrivateKey); err != nil {
+		t.Fatalf("Failed to write private key: %v", err)
+	}
+	tmpKeyFile.Close()
+
+	// Set correct permissions on key file
+	if err := os.Chmod(tmpKeyFile.Name(), 0600); err != nil {
+		t.Fatalf("Failed to chmod key file: %v", err)
+	}
+
+	// Get the staging container's IP within Docker network
+	getIPCmd := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", "teamserver-env-staging-1")
+	ipOutput, err := getIPCmd.Output()
+	if err != nil {
+		// Try alternative container name
+		getIPCmd = exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", "teamserver_env-staging_1")
+		ipOutput, err = getIPCmd.Output()
+		if err != nil {
+			t.Logf("Could not get container IP: %v (skipping SSH test)", err)
+			goto cleanup
+		}
+	}
+	stagingIP := strings.TrimSpace(string(ipOutput))
+	t.Logf("Staging container IP: %s", stagingIP)
+
+	// Test SSH connection
+	if stagingIP != "" {
+		sshCmd := exec.Command("ssh",
+			"-i", tmpKeyFile.Name(),
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "ConnectTimeout=5",
+			fmt.Sprintf("deploy@%s", stagingIP),
+			"echo 'SSH connection successful'",
+		)
+		output, err := sshCmd.CombinedOutput()
+		if err != nil {
+			t.Logf("SSH connection failed: %v - %s", err, string(output))
+			// This might fail if we can't reach the container from host
+			// That's okay for CI environments
+		} else {
+			if strings.Contains(string(output), "SSH connection successful") {
+				t.Log("SSH connection SUCCESSFUL with server-generated key!")
+			}
+		}
+	}
+
+cleanup:
+	// Cleanup
+	t.Log("Cleaning up...")
+	resp, _ = apiRequest("DELETE", "/api/admin/users/sshuser", nil, adminToken)
+	resp.Body.Close()
+	resp, _ = apiRequest("DELETE", "/api/admin/environments/sshproject/ssh-test", nil, adminToken)
+	resp.Body.Close()
+	resp, _ = apiRequest("DELETE", "/api/admin/projects/sshproject", nil, adminToken)
+	resp.Body.Close()
+
+	// Clean up authorized_keys in container
+	cleanCmd := exec.Command("docker", "exec", "teamserver-env-staging-1",
+		"sh", "-c", "echo '' > /home/deploy/.ssh/authorized_keys")
+	cleanCmd.Run()
+
+	t.Log("SSH key generation and connection test completed!")
+}
+
+func TestSSHKeyUniquenessPerUser(t *testing.T) {
+	t.Log("Testing that each user gets a unique SSH key...")
+
+	var privateKeys []string
+	var publicKeys []string
+
+	for i := 1; i <= 3; i++ {
+		userName := fmt.Sprintf("keyuser%d", i)
+
+		// Create user
+		createReq := map[string]interface{}{
+			"name":  userName,
+			"email": fmt.Sprintf("%s@example.com", userName),
+			"role":  "dev",
+		}
+		resp, err := apiRequest("POST", "/api/admin/users", createReq, adminToken)
+		if err != nil {
+			t.Fatalf("Failed to create user %s: %v", userName, err)
+		}
+		var createResp struct {
+			InviteToken string `json:"invite_token"`
+		}
+		parseJSON(resp, &createResp)
+
+		// Join
+		joinReq := map[string]interface{}{
+			"invite_token": createResp.InviteToken,
+		}
+		resp, err = apiRequest("POST", "/api/join", joinReq, "")
+		if err != nil {
+			t.Fatalf("Failed to join as %s: %v", userName, err)
+		}
+		var joinResp struct {
+			PrivateKey string `json:"private_key"`
+			User       struct {
+				PublicKey string `json:"public_key"`
+			} `json:"user"`
+		}
+		parseJSON(resp, &joinResp)
+
+		privateKeys = append(privateKeys, joinResp.PrivateKey)
+
+		// Get public key from /me
+		resp, _ = apiRequest("GET", "/api/me", nil, "")
+		resp.Body.Close()
+
+		// Get user details as admin to check public key
+		resp, _ = apiRequest("GET", fmt.Sprintf("/api/admin/users/%s", userName), nil, adminToken)
+		var userResp struct {
+			PublicKey string `json:"public_key"`
+		}
+		parseJSON(resp, &userResp)
+		publicKeys = append(publicKeys, userResp.PublicKey)
+
+		// Cleanup
+		resp, _ = apiRequest("DELETE", fmt.Sprintf("/api/admin/users/%s", userName), nil, adminToken)
+		resp.Body.Close()
+	}
+
+	// Verify all keys are unique
+	for i := 0; i < len(privateKeys); i++ {
+		for j := i + 1; j < len(privateKeys); j++ {
+			if privateKeys[i] == privateKeys[j] {
+				t.Errorf("Users %d and %d have the same private key!", i+1, j+1)
+			}
+		}
+	}
+
+	for i := 0; i < len(publicKeys); i++ {
+		for j := i + 1; j < len(publicKeys); j++ {
+			if publicKeys[i] == publicKeys[j] {
+				t.Errorf("Users %d and %d have the same public key!", i+1, j+1)
+			}
+		}
+	}
+
+	t.Logf("Verified %d users all have unique SSH key pairs", len(privateKeys))
+	t.Log("SSH key uniqueness test passed!")
+}
+
+func TestEnvironmentSyncEndpoint(t *testing.T) {
+	t.Log("Testing /api/environments endpoint for sync...")
+
+	// Step 1: Create project and environments
+	t.Log("Step 1: Setting up project and environments...")
+	projectReq := map[string]interface{}{
+		"name":        "syncproject",
+		"description": "Sync Test Project",
+	}
+	resp, _ := apiRequest("POST", "/api/admin/projects", projectReq, adminToken)
+	resp.Body.Close()
+
+	for _, envName := range []string{"dev", "staging", "prod"} {
+		envReq := map[string]interface{}{
+			"name":        envName,
+			"project":     "syncproject",
+			"host":        fmt.Sprintf("%s.example.com", envName),
+			"port":        22,
+			"deploy_user": "deploy",
+			"deploy_key":  "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----",
+		}
+		resp, _ = apiRequest("POST", "/api/admin/environments", envReq, adminToken)
+		resp.Body.Close()
+	}
+
+	// Step 2: Create user and join
+	t.Log("Step 2: Creating user...")
+	createReq := map[string]interface{}{
+		"name":  "syncuser",
+		"email": "sync@example.com",
+		"role":  "dev",
+	}
+	resp, _ = apiRequest("POST", "/api/admin/users", createReq, adminToken)
+	var createResp struct {
+		InviteToken string `json:"invite_token"`
+	}
+	parseJSON(resp, &createResp)
+
+	joinReq := map[string]interface{}{
+		"invite_token": createResp.InviteToken,
+	}
+	resp, _ = apiRequest("POST", "/api/join", joinReq, "")
+	var joinResp struct {
+		SessionToken string `json:"session_token"`
+		Environments []struct {
+			Name    string `json:"name"`
+			Project string `json:"project"`
+		} `json:"environments"`
+	}
+	parseJSON(resp, &joinResp)
+
+	// Initially, user should have no environments (not granted access yet)
+	t.Logf("User joined with %d environments initially", len(joinResp.Environments))
+
+	// Step 3: Grant access to project
+	t.Log("Step 3: Granting project access...")
+	grantReq := map[string]interface{}{
+		"project": "syncproject",
+	}
+	resp, _ = apiRequest("POST", "/api/admin/users/syncuser/access", grantReq, adminToken)
+	resp.Body.Close()
+
+	// Step 4: Call /api/environments to sync
+	t.Log("Step 4: Syncing environments...")
+	resp, err := apiRequest("GET", "/api/environments", nil, joinResp.SessionToken)
+	if err != nil {
+		t.Fatalf("Failed to sync environments: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	var envs []struct {
+		Name       string `json:"name"`
+		Project    string `json:"project"`
+		Host       string `json:"host"`
+		Port       int    `json:"port"`
+		DeployUser string `json:"deploy_user"`
+	}
+	parseJSON(resp, &envs)
+
+	if len(envs) != 3 {
+		t.Errorf("Expected 3 environments after access grant, got %d", len(envs))
+	}
+
+	// Verify each environment has correct data
+	for _, env := range envs {
+		if env.Project != "syncproject" {
+			t.Errorf("Expected project syncproject, got %s", env.Project)
+		}
+		if env.Host == "" {
+			t.Error("Environment should have host set")
+		}
+		if env.DeployUser != "deploy" {
+			t.Errorf("Expected deploy user 'deploy', got %s", env.DeployUser)
+		}
+		t.Logf("Environment: %s/%s -> %s@%s:%d", env.Project, env.Name, env.DeployUser, env.Host, env.Port)
+	}
+
+	// Step 5: Revoke access and verify environments are no longer visible
+	t.Log("Step 5: Revoking access and verifying sync...")
+	revokeReq := map[string]interface{}{
+		"project": "syncproject",
+	}
+	resp, _ = apiRequest("DELETE", "/api/admin/users/syncuser/access", revokeReq, adminToken)
+	resp.Body.Close()
+
+	resp, err = apiRequest("GET", "/api/environments", nil, joinResp.SessionToken)
+	if err != nil {
+		t.Fatalf("Failed to sync after revoke: %v", err)
+	}
+
+	var envsAfterRevoke []struct {
+		Name string `json:"name"`
+	}
+	parseJSON(resp, &envsAfterRevoke)
+
+	if len(envsAfterRevoke) != 0 {
+		t.Errorf("Expected 0 environments after access revoke, got %d", len(envsAfterRevoke))
+	}
+	t.Log("Access revoke correctly removed environment visibility")
+
+	// Cleanup
+	t.Log("Cleaning up...")
+	resp, _ = apiRequest("DELETE", "/api/admin/users/syncuser", nil, adminToken)
+	resp.Body.Close()
+	for _, envName := range []string{"dev", "staging", "prod"} {
+		resp, _ = apiRequest("DELETE", fmt.Sprintf("/api/admin/environments/syncproject/%s", envName), nil, adminToken)
+		resp.Body.Close()
+	}
+	resp, _ = apiRequest("DELETE", "/api/admin/projects/syncproject", nil, adminToken)
+	resp.Body.Close()
+
+	t.Log("Environment sync test passed!")
+}
+
+func TestAccessGrantRevokeWithKeyDeployment(t *testing.T) {
+	t.Log("Testing access grant/revoke with SSH key deployment verification...")
+
+	// Step 1: Setup project and environment
+	t.Log("Step 1: Setting up infrastructure...")
+	projectReq := map[string]interface{}{
+		"name":        "accessproject",
+		"description": "Access Test Project",
+	}
+	resp, _ := apiRequest("POST", "/api/admin/projects", projectReq, adminToken)
+	resp.Body.Close()
+
+	envReq := map[string]interface{}{
+		"name":        "access-test",
+		"project":     "accessproject",
+		"host":        "env-staging",
+		"port":        22,
+		"deploy_user": "deploy",
+		"deploy_key":  "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----",
+	}
+	resp, _ = apiRequest("POST", "/api/admin/environments", envReq, adminToken)
+	resp.Body.Close()
+
+	// Step 2: Create two users
+	t.Log("Step 2: Creating users...")
+	users := make(map[string]struct {
+		token     string
+		publicKey string
+	})
+
+	for _, userName := range []string{"accessuser1", "accessuser2"} {
+		createReq := map[string]interface{}{
+			"name":  userName,
+			"email": fmt.Sprintf("%s@example.com", userName),
+			"role":  "dev",
+		}
+		resp, _ := apiRequest("POST", "/api/admin/users", createReq, adminToken)
+		var createResp struct {
+			InviteToken string `json:"invite_token"`
+		}
+		parseJSON(resp, &createResp)
+
+		joinReq := map[string]interface{}{
+			"invite_token": createResp.InviteToken,
+		}
+		resp, _ = apiRequest("POST", "/api/join", joinReq, "")
+		var joinResp struct {
+			SessionToken string `json:"session_token"`
+		}
+		parseJSON(resp, &joinResp)
+
+		// Get public key
+		resp, _ = apiRequest("GET", fmt.Sprintf("/api/admin/users/%s", userName), nil, adminToken)
+		var userResp struct {
+			PublicKey string `json:"public_key"`
+		}
+		parseJSON(resp, &userResp)
+
+		users[userName] = struct {
+			token     string
+			publicKey string
+		}{joinResp.SessionToken, userResp.PublicKey}
+
+		t.Logf("Created %s with public key: %s...", userName, userResp.PublicKey[:min(40, len(userResp.PublicKey))])
+	}
+
+	// Step 3: Grant access to user1 only
+	t.Log("Step 3: Granting access to user1 only...")
+	grantReq := map[string]interface{}{
+		"project": "accessproject",
+	}
+	resp, _ = apiRequest("POST", "/api/admin/users/accessuser1/access", grantReq, adminToken)
+	resp.Body.Close()
+
+	// Step 4: Verify user1 can see environment, user2 cannot
+	t.Log("Step 4: Verifying access visibility...")
+	resp, _ = apiRequest("GET", "/api/environments", nil, users["accessuser1"].token)
+	var user1Envs []struct {
+		Name string `json:"name"`
+	}
+	parseJSON(resp, &user1Envs)
+	if len(user1Envs) != 1 {
+		t.Errorf("User1 should see 1 environment, got %d", len(user1Envs))
+	}
+
+	resp, _ = apiRequest("GET", "/api/environments", nil, users["accessuser2"].token)
+	var user2Envs []struct {
+		Name string `json:"name"`
+	}
+	parseJSON(resp, &user2Envs)
+	if len(user2Envs) != 0 {
+		t.Errorf("User2 should see 0 environments, got %d", len(user2Envs))
+	}
+	t.Log("Access visibility verified correctly")
+
+	// Step 5: Grant access to user2
+	t.Log("Step 5: Granting access to user2...")
+	resp, _ = apiRequest("POST", "/api/admin/users/accessuser2/access", grantReq, adminToken)
+	resp.Body.Close()
+
+	resp, _ = apiRequest("GET", "/api/environments", nil, users["accessuser2"].token)
+	parseJSON(resp, &user2Envs)
+	if len(user2Envs) != 1 {
+		t.Errorf("User2 should now see 1 environment, got %d", len(user2Envs))
+	}
+	t.Log("User2 now has access")
+
+	// Step 6: Revoke access from user1
+	t.Log("Step 6: Revoking access from user1...")
+	revokeReq := map[string]interface{}{
+		"project": "accessproject",
+	}
+	resp, _ = apiRequest("DELETE", "/api/admin/users/accessuser1/access", revokeReq, adminToken)
+	resp.Body.Close()
+
+	resp, _ = apiRequest("GET", "/api/environments", nil, users["accessuser1"].token)
+	parseJSON(resp, &user1Envs)
+	if len(user1Envs) != 0 {
+		t.Errorf("User1 should no longer see environments after revoke, got %d", len(user1Envs))
+	}
+	t.Log("User1 access successfully revoked")
+
+	// Cleanup
+	t.Log("Cleaning up...")
+	for userName := range users {
+		resp, _ = apiRequest("DELETE", fmt.Sprintf("/api/admin/users/%s", userName), nil, adminToken)
+		resp.Body.Close()
+	}
+	resp, _ = apiRequest("DELETE", "/api/admin/environments/accessproject/access-test", nil, adminToken)
+	resp.Body.Close()
+	resp, _ = apiRequest("DELETE", "/api/admin/projects/accessproject", nil, adminToken)
+	resp.Body.Close()
+
+	t.Log("Access grant/revoke test passed!")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

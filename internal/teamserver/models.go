@@ -312,14 +312,24 @@ type CreateUserResponse struct {
 // JoinRequest represents user join request
 type JoinRequest struct {
 	InviteToken string `json:"invite_token"`
-	PublicKey   string `json:"public_key"`
 }
 
 // JoinResponse represents user join response
 type JoinResponse struct {
-	SessionToken string        `json:"session_token"`
-	User         *User         `json:"user"`
-	Environments []Environment `json:"environments"`
+	SessionToken string               `json:"session_token"`
+	PrivateKey   string               `json:"private_key"` // PEM-encoded private key for user to save
+	User         *User                `json:"user"`
+	Environments []EnvironmentForUser `json:"environments"`
+	ServerHost   string               `json:"server_host"` // Team server hostname for key storage
+}
+
+// EnvironmentForUser represents environment info returned to users (for SSH connection)
+type EnvironmentForUser struct {
+	Name       string `json:"name"` // Full name: project/env
+	Project    string `json:"project"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	DeployUser string `json:"deploy_user"` // Username to SSH as
 }
 
 // CreateEnvironmentRequest represents environment creation request

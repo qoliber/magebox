@@ -2,6 +2,36 @@
 
 All notable changes to MageBox will be documented here.
 
+## [0.19.1] - 2025-12-19
+
+### Server-Side SSH Key Generation
+
+The Team Server now generates SSH key pairs for users automatically - no need to provide your own public key.
+
+```bash
+# User joins team server (key is generated automatically)
+magebox server join https://teamserver.example.com --token INVITE_TOKEN
+
+# Sync available environments from server
+magebox env sync
+
+# SSH into an environment using the generated key
+magebox ssh myproject/staging
+```
+
+**New Features:**
+
+- **Automatic Key Generation** - Ed25519 SSH key pairs generated server-side when users join
+- **Secure Key Storage** - Private key stored locally in `~/.magebox/keys/`
+- **Simple SSH Access** - `magebox ssh <environment>` connects using the stored key
+- **Environment Sync** - `magebox env sync` fetches accessible environments from server
+
+**API Changes:**
+
+- `POST /api/join` no longer requires `public_key` field
+- Join response includes `private_key`, `server_host`, and `environments` list
+- New `GET /api/environments` endpoint for syncing accessible environments
+
 ## [0.19.0] - 2025-12-18
 
 ### Team Server
@@ -22,8 +52,8 @@ magebox server env add staging --project myproject \
 magebox server user add alice --email alice@example.com --role dev
 magebox server user grant alice --project myproject
 
-# User joins and registers their SSH key
-magebox server join https://teamserver.example.com --token INVITE_TOKEN --key ~/.ssh/id_ed25519.pub
+# User joins (server generates SSH key automatically)
+magebox server join https://teamserver.example.com --token INVITE_TOKEN
 ```
 
 **Key Features:**

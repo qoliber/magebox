@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -150,7 +151,7 @@ func TestJoinEndpointWithoutToken(t *testing.T) {
 	server, cleanup := setupTestServer(t)
 	defer cleanup()
 
-	body := `{"invite_token": "invalid", "public_key": "ssh-rsa AAAA..."}`
+	body := `{"invite_token": "invalid"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
 
@@ -277,15 +278,15 @@ func TestFullJoinFlow(t *testing.T) {
 	var createResponse CreateUserResponse
 	json.NewDecoder(createW.Body).Decode(&createResponse)
 
-	// Step 2: Join with invite
+	// Step 2: Join with invite (server generates SSH key)
 	joinBody := map[string]string{
 		"invite_token": createResponse.InviteToken,
-		"public_key":   "ssh-rsa AAAA... test@example.com",
 	}
 	joinBodyJSON, _ := json.Marshal(joinBody)
 
 	joinReq := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewReader(joinBodyJSON))
 	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Host = "teamserver.example.com"
 	joinW := httptest.NewRecorder()
 
 	server.mux.ServeHTTP(joinW, joinReq)
@@ -304,7 +305,15 @@ func TestFullJoinFlow(t *testing.T) {
 		t.Errorf("Expected user name newdev, got %s", joinResponse.User.Name)
 	}
 
-	// Step 3: Use session token to access /me
+	// Step 3: Verify private key is returned
+	if joinResponse.PrivateKey == "" {
+		t.Error("Private key should be returned on join")
+	}
+	if !strings.HasPrefix(joinResponse.PrivateKey, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Errorf("Private key should be in OpenSSH format, got: %s...", joinResponse.PrivateKey[:50])
+	}
+
+	// Step 4: Use session token to access /me
 	meReq := httptest.NewRequest(http.MethodGet, "/api/me", nil)
 	meReq.Header.Set("Authorization", "Bearer "+joinResponse.SessionToken)
 	meW := httptest.NewRecorder()
@@ -320,6 +329,12 @@ func TestFullJoinFlow(t *testing.T) {
 
 	if user.Name != "newdev" {
 		t.Errorf("Expected user name newdev, got %s", user.Name)
+	}
+	if user.PublicKey == "" {
+		t.Error("User should have a public key stored")
+	}
+	if !strings.HasPrefix(user.PublicKey, "ssh-ed25519 ") {
+		t.Errorf("Public key should be Ed25519, got: %s", user.PublicKey)
 	}
 }
 
@@ -989,5 +1004,296 @@ func TestMFARequirementForAdmin(t *testing.T) {
 
 	if w2.Code != http.StatusOK {
 		t.Errorf("Expected status 200 after MFA enabled, got %d. Body: %s", w2.Code, w2.Body.String())
+	}
+}
+
+// SSH Key Generation Integration Tests
+
+func TestJoinFlowWithSSHKeyGeneration(t *testing.T) {
+	server, adminToken, cleanup := setupTestServerWithAdmin(t)
+	defer cleanup()
+
+	// Create invite
+	createBody := `{"name": "sshuser", "email": "sshuser@example.com", "role": "dev"}`
+	createReq := httptest.NewRequest(http.MethodPost, "/api/admin/users", bytes.NewBufferString(createBody))
+	createReq.Header.Set("Authorization", "Bearer "+adminToken)
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(createW, createReq)
+
+	if createW.Code != http.StatusOK {
+		t.Fatalf("Failed to create invite: %s", createW.Body.String())
+	}
+
+	var createResponse CreateUserResponse
+	json.NewDecoder(createW.Body).Decode(&createResponse)
+
+	// Join with invite (no public_key - server generates)
+	joinBody := `{"invite_token": "` + createResponse.InviteToken + `"}`
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewBufferString(joinBody))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Host = "test.magebox.io"
+	joinW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(joinW, joinReq)
+
+	if joinW.Code != http.StatusOK {
+		t.Fatalf("Failed to join: %s", joinW.Body.String())
+	}
+
+	var joinResponse JoinResponse
+	json.NewDecoder(joinW.Body).Decode(&joinResponse)
+
+	// Verify private key is valid Ed25519
+	if !strings.HasPrefix(joinResponse.PrivateKey, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should be in OpenSSH format")
+	}
+	if !strings.HasSuffix(strings.TrimSpace(joinResponse.PrivateKey), "-----END OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should end with OpenSSH footer")
+	}
+
+	// Verify ServerHost is returned
+	if joinResponse.ServerHost == "" {
+		t.Error("ServerHost should be returned")
+	}
+
+	// Verify we can parse the public key that was stored
+	user, err := server.storage.GetUser("sshuser")
+	if err != nil {
+		t.Fatalf("Failed to get user: %v", err)
+	}
+
+	if user.PublicKey == "" {
+		t.Error("User should have public key stored")
+	}
+
+	keyType, fingerprint, err := ParseSSHPublicKey(user.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to parse stored public key: %v", err)
+	}
+
+	if keyType != "ssh-ed25519" {
+		t.Errorf("Expected key type ssh-ed25519, got %s", keyType)
+	}
+
+	if !strings.HasPrefix(fingerprint, "SHA256:") {
+		t.Errorf("Fingerprint should start with SHA256:, got %s", fingerprint)
+	}
+}
+
+func TestEnvironmentAccessForUser(t *testing.T) {
+	server, adminToken, cleanup := setupTestServerWithAdmin(t)
+	defer cleanup()
+
+	// Create a project
+	projectBody := `{"name": "myproject", "description": "Test project"}`
+	projectReq := httptest.NewRequest(http.MethodPost, "/api/admin/projects", bytes.NewBufferString(projectBody))
+	projectReq.Header.Set("Authorization", "Bearer "+adminToken)
+	projectReq.Header.Set("Content-Type", "application/json")
+	projectW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(projectW, projectReq)
+	if projectW.Code != http.StatusOK {
+		t.Fatalf("Failed to create project: %s", projectW.Body.String())
+	}
+
+	// Create an environment
+	envBody := `{
+		"name": "staging",
+		"project": "myproject",
+		"host": "staging.example.com",
+		"port": 22,
+		"deploy_user": "deploy",
+		"deploy_key": "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----"
+	}`
+	envReq := httptest.NewRequest(http.MethodPost, "/api/admin/environments", bytes.NewBufferString(envBody))
+	envReq.Header.Set("Authorization", "Bearer "+adminToken)
+	envReq.Header.Set("Content-Type", "application/json")
+	envW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(envW, envReq)
+	if envW.Code != http.StatusOK {
+		t.Fatalf("Failed to create environment: %s", envW.Body.String())
+	}
+
+	// Create a user invite
+	userBody := `{"name": "envuser", "email": "envuser@example.com", "role": "dev"}`
+	userReq := httptest.NewRequest(http.MethodPost, "/api/admin/users", bytes.NewBufferString(userBody))
+	userReq.Header.Set("Authorization", "Bearer "+adminToken)
+	userReq.Header.Set("Content-Type", "application/json")
+	userW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(userW, userReq)
+	if userW.Code != http.StatusOK {
+		t.Fatalf("Failed to create user invite: %s", userW.Body.String())
+	}
+
+	var userResponse CreateUserResponse
+	json.NewDecoder(userW.Body).Decode(&userResponse)
+
+	// User joins first
+	joinBody := `{"invite_token": "` + userResponse.InviteToken + `"}`
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewBufferString(joinBody))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Host = "teamserver.example.com"
+	joinW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(joinW, joinReq)
+	if joinW.Code != http.StatusOK {
+		t.Fatalf("Failed to join: %s", joinW.Body.String())
+	}
+
+	var joinResponse JoinResponse
+	json.NewDecoder(joinW.Body).Decode(&joinResponse)
+
+	// Grant access to project (after user has joined)
+	accessBody := `{"project": "myproject", "environments": ["staging"]}`
+	accessReq := httptest.NewRequest(http.MethodPost, "/api/admin/users/envuser/access", bytes.NewBufferString(accessBody))
+	accessReq.Header.Set("Authorization", "Bearer "+adminToken)
+	accessReq.Header.Set("Content-Type", "application/json")
+	accessW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(accessW, accessReq)
+	if accessW.Code != http.StatusOK {
+		t.Fatalf("Failed to grant access: %s", accessW.Body.String())
+	}
+
+	// Test /api/environments endpoint
+	envListReq := httptest.NewRequest(http.MethodGet, "/api/environments", nil)
+	envListReq.Header.Set("Authorization", "Bearer "+joinResponse.SessionToken)
+	envListW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(envListW, envListReq)
+
+	if envListW.Code != http.StatusOK {
+		t.Fatalf("Failed to list environments: %s (status: %d)", envListW.Body.String(), envListW.Code)
+	}
+
+	var envList []EnvironmentForUser
+	json.NewDecoder(envListW.Body).Decode(&envList)
+
+	if len(envList) == 0 {
+		t.Error("Environment list should not be empty")
+	}
+
+	// Verify environment details (should not contain deploy key)
+	found := false
+	for _, env := range envList {
+		if env.Name == "myproject/staging" || (env.Project == "myproject" && env.Name == "staging") {
+			found = true
+			if env.Host != "staging.example.com" {
+				t.Errorf("Expected host staging.example.com, got %s", env.Host)
+			}
+			if env.DeployUser != "deploy" {
+				t.Errorf("Expected deploy user deploy, got %s", env.DeployUser)
+			}
+			if env.Port != 22 {
+				t.Errorf("Expected port 22, got %d", env.Port)
+			}
+		}
+	}
+
+	if !found {
+		t.Errorf("Expected to find staging environment, got: %+v", envList)
+	}
+}
+
+func TestJoinFlowKeyUniqueness(t *testing.T) {
+	server, adminToken, cleanup := setupTestServerWithAdmin(t)
+	defer cleanup()
+
+	// Create two users
+	users := []string{"user1", "user2"}
+	var privateKeys []string
+
+	for _, userName := range users {
+		// Create invite
+		createBody := `{"name": "` + userName + `", "email": "` + userName + `@example.com", "role": "dev"}`
+		createReq := httptest.NewRequest(http.MethodPost, "/api/admin/users", bytes.NewBufferString(createBody))
+		createReq.Header.Set("Authorization", "Bearer "+adminToken)
+		createReq.Header.Set("Content-Type", "application/json")
+		createW := httptest.NewRecorder()
+
+		server.mux.ServeHTTP(createW, createReq)
+		if createW.Code != http.StatusOK {
+			t.Fatalf("Failed to create invite for %s: %s", userName, createW.Body.String())
+		}
+
+		var createResponse CreateUserResponse
+		json.NewDecoder(createW.Body).Decode(&createResponse)
+
+		// Join
+		joinBody := `{"invite_token": "` + createResponse.InviteToken + `"}`
+		joinReq := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewBufferString(joinBody))
+		joinReq.Header.Set("Content-Type", "application/json")
+		joinReq.Host = "teamserver.example.com"
+		joinW := httptest.NewRecorder()
+
+		server.mux.ServeHTTP(joinW, joinReq)
+		if joinW.Code != http.StatusOK {
+			t.Fatalf("Failed to join for %s: %s", userName, joinW.Body.String())
+		}
+
+		var joinResponse JoinResponse
+		json.NewDecoder(joinW.Body).Decode(&joinResponse)
+
+		privateKeys = append(privateKeys, joinResponse.PrivateKey)
+	}
+
+	// Verify keys are unique
+	if privateKeys[0] == privateKeys[1] {
+		t.Error("Each user should have a unique private key")
+	}
+
+	// Verify both users have different public keys stored
+	user1, _ := server.storage.GetUser("user1")
+	user2, _ := server.storage.GetUser("user2")
+
+	if user1.PublicKey == user2.PublicKey {
+		t.Error("Each user should have a unique public key")
+	}
+}
+
+func TestJoinInviteCanOnlyBeUsedOnce(t *testing.T) {
+	server, adminToken, cleanup := setupTestServerWithAdmin(t)
+	defer cleanup()
+
+	// Create invite
+	createBody := `{"name": "onceuser", "email": "once@example.com", "role": "dev"}`
+	createReq := httptest.NewRequest(http.MethodPost, "/api/admin/users", bytes.NewBufferString(createBody))
+	createReq.Header.Set("Authorization", "Bearer "+adminToken)
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(createW, createReq)
+	if createW.Code != http.StatusOK {
+		t.Fatalf("Failed to create invite: %s", createW.Body.String())
+	}
+
+	var createResponse CreateUserResponse
+	json.NewDecoder(createW.Body).Decode(&createResponse)
+
+	// First join should succeed
+	joinBody := `{"invite_token": "` + createResponse.InviteToken + `"}`
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewBufferString(joinBody))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Host = "teamserver.example.com"
+	joinW := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(joinW, joinReq)
+	if joinW.Code != http.StatusOK {
+		t.Fatalf("First join should succeed: %s", joinW.Body.String())
+	}
+
+	// Second join with same invite should fail
+	joinReq2 := httptest.NewRequest(http.MethodPost, "/api/join", bytes.NewBufferString(joinBody))
+	joinReq2.Header.Set("Content-Type", "application/json")
+	joinReq2.Host = "teamserver.example.com"
+	joinW2 := httptest.NewRecorder()
+
+	server.mux.ServeHTTP(joinW2, joinReq2)
+	if joinW2.Code == http.StatusOK {
+		t.Error("Second join with same invite should fail")
 	}
 }

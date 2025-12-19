@@ -11,16 +11,19 @@ package teamserver
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/ssh"
 )
 
 // Argon2 parameters (OWASP recommended)
@@ -241,4 +244,61 @@ func MasterKeyFromHex(hexKey string) ([]byte, error) {
 		return nil, fmt.Errorf("master key must be 32 bytes")
 	}
 	return key, nil
+}
+
+// SSHKeyPair represents a generated SSH key pair
+type SSHKeyPair struct {
+	PrivateKey    string // PEM-encoded private key
+	PublicKey     string // OpenSSH format public key (for authorized_keys)
+	PrivateKeyPEM []byte // Raw PEM bytes for saving to file
+}
+
+// GenerateSSHKeyPair generates a new Ed25519 SSH key pair
+func GenerateSSHKeyPair(comment string) (*SSHKeyPair, error) {
+	// Generate Ed25519 key pair
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate Ed25519 key: %w", err)
+	}
+
+	// Convert private key to OpenSSH format
+	privKeyPEM, err := ssh.MarshalPrivateKey(privKey, comment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	// Convert public key to OpenSSH authorized_keys format
+	sshPubKey, err := ssh.NewPublicKey(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SSH public key: %w", err)
+	}
+
+	authorizedKey := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshPubKey)))
+	if comment != "" {
+		authorizedKey = authorizedKey + " " + comment
+	}
+
+	return &SSHKeyPair{
+		PrivateKey:    string(pem.EncodeToMemory(privKeyPEM)),
+		PublicKey:     authorizedKey,
+		PrivateKeyPEM: pem.EncodeToMemory(privKeyPEM),
+	}, nil
+}
+
+// ParseSSHPublicKey parses an OpenSSH public key and returns the key type and fingerprint
+func ParseSSHPublicKey(publicKey string) (keyType string, fingerprint string, err error) {
+	pubKey, comment, _, _, err := ssh.ParseAuthorizedKey([]byte(publicKey))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse public key: %w", err)
+	}
+
+	keyType = pubKey.Type()
+	fingerprint = ssh.FingerprintSHA256(pubKey)
+
+	// Include comment in fingerprint display if present
+	if comment != "" {
+		fingerprint = fingerprint + " (" + comment + ")"
+	}
+
+	return keyType, fingerprint, nil
 }

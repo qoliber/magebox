@@ -416,3 +416,123 @@ func BenchmarkDecrypt(b *testing.B) {
 		crypto.DecryptString(encrypted)
 	}
 }
+
+// SSH Key Generation Tests
+
+func TestGenerateSSHKeyPair(t *testing.T) {
+	comment := "test@example.com"
+	keyPair, err := GenerateSSHKeyPair(comment)
+	if err != nil {
+		t.Fatalf("GenerateSSHKeyPair failed: %v", err)
+	}
+
+	// Check private key format
+	if !strings.HasPrefix(keyPair.PrivateKey, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should start with OpenSSH header")
+	}
+	if !strings.HasSuffix(strings.TrimSpace(keyPair.PrivateKey), "-----END OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should end with OpenSSH footer")
+	}
+
+	// Check public key format
+	if !strings.HasPrefix(keyPair.PublicKey, "ssh-ed25519 ") {
+		t.Errorf("Public key should start with 'ssh-ed25519 ', got: %s", keyPair.PublicKey[:min(20, len(keyPair.PublicKey))])
+	}
+
+	// Check comment is included
+	if !strings.HasSuffix(keyPair.PublicKey, comment) {
+		t.Errorf("Public key should end with comment '%s', got: %s", comment, keyPair.PublicKey)
+	}
+
+	// Check PrivateKeyPEM is set
+	if len(keyPair.PrivateKeyPEM) == 0 {
+		t.Error("PrivateKeyPEM should not be empty")
+	}
+}
+
+func TestGenerateSSHKeyPairUniqueness(t *testing.T) {
+	keyPair1, _ := GenerateSSHKeyPair("test1")
+	keyPair2, _ := GenerateSSHKeyPair("test2")
+
+	// Private keys should be different
+	if keyPair1.PrivateKey == keyPair2.PrivateKey {
+		t.Error("Generated private keys should be unique")
+	}
+
+	// Public keys should be different
+	// Compare just the key part, not the comment
+	parts1 := strings.Fields(keyPair1.PublicKey)
+	parts2 := strings.Fields(keyPair2.PublicKey)
+	if len(parts1) >= 2 && len(parts2) >= 2 && parts1[1] == parts2[1] {
+		t.Error("Generated public keys should be unique")
+	}
+}
+
+func TestGenerateSSHKeyPairEmptyComment(t *testing.T) {
+	keyPair, err := GenerateSSHKeyPair("")
+	if err != nil {
+		t.Fatalf("GenerateSSHKeyPair with empty comment failed: %v", err)
+	}
+
+	// Should still generate valid keys
+	if !strings.HasPrefix(keyPair.PublicKey, "ssh-ed25519 ") {
+		t.Error("Public key should be valid even with empty comment")
+	}
+}
+
+func TestParseSSHPublicKey(t *testing.T) {
+	// Generate a key pair first
+	keyPair, err := GenerateSSHKeyPair("test@example.com")
+	if err != nil {
+		t.Fatalf("GenerateSSHKeyPair failed: %v", err)
+	}
+
+	// Parse the public key
+	keyType, fingerprint, err := ParseSSHPublicKey(keyPair.PublicKey)
+	if err != nil {
+		t.Fatalf("ParseSSHPublicKey failed: %v", err)
+	}
+
+	// Check key type
+	if keyType != "ssh-ed25519" {
+		t.Errorf("Expected key type 'ssh-ed25519', got '%s'", keyType)
+	}
+
+	// Check fingerprint format (should start with SHA256:)
+	if !strings.HasPrefix(fingerprint, "SHA256:") {
+		t.Errorf("Fingerprint should start with 'SHA256:', got: %s", fingerprint)
+	}
+}
+
+func TestParseSSHPublicKeyInvalid(t *testing.T) {
+	tests := []struct {
+		name      string
+		publicKey string
+	}{
+		{"empty", ""},
+		{"invalid format", "not a valid key"},
+		{"incomplete", "ssh-ed25519"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := ParseSSHPublicKey(tt.publicKey)
+			if err == nil {
+				t.Error("ParseSSHPublicKey should fail for invalid key")
+			}
+		})
+	}
+}
+
+func BenchmarkGenerateSSHKeyPair(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		GenerateSSHKeyPair("benchmark@test.com")
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

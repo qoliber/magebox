@@ -4,13 +4,19 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/qoliber/magebox/internal/cli"
 	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/remote"
+	"github.com/qoliber/magebox/internal/teamserver"
 	"github.com/spf13/cobra"
 )
 
@@ -65,6 +71,19 @@ var envShowCmd = &cobra.Command{
 	RunE:  runEnvShow,
 }
 
+var envSyncCmd = &cobra.Command{
+	Use:   "sync",
+	Short: "Sync environments from team server",
+	Long: `Sync the list of accessible environments from the team server.
+
+This updates the local cache of environments you have access to.
+Run this after your access has been updated on the server.
+
+Example:
+  magebox env sync`,
+	RunE: runEnvSync,
+}
+
 // Flags for env add
 var (
 	envUser       string
@@ -80,6 +99,7 @@ func init() {
 	envCmd.AddCommand(envRemoveCmd)
 	envCmd.AddCommand(envSSHCmd)
 	envCmd.AddCommand(envShowCmd)
+	envCmd.AddCommand(envSyncCmd)
 
 	// Add flags to env add
 	envAddCmd.Flags().StringVarP(&envUser, "user", "u", "", "SSH username (required)")
@@ -325,4 +345,100 @@ func parsePort(s string, defaultVal int) int {
 		return defaultVal
 	}
 	return p
+}
+
+func runEnvSync(_ *cobra.Command, _ []string) error {
+	// Load client config
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	configPath := filepath.Join(homeDir, ".magebox", "teamserver", "client.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("not connected to a team server. Use 'magebox server join' first")
+		}
+		return err
+	}
+
+	var clientCfg clientConfig
+	if err := json.Unmarshal(data, &clientCfg); err != nil {
+		return err
+	}
+
+	cli.PrintInfo("Syncing environments from %s...", clientCfg.ServerURL)
+
+	// Fetch environments from server
+	req, err := http.NewRequest("GET", clientCfg.ServerURL+"/api/environments", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+clientCfg.SessionToken)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect to server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("session expired. Rejoin with: magebox server join")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		var errResp teamserver.ErrorResponse
+		json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("failed to fetch environments: %s", errResp.Error)
+	}
+
+	var envs []struct {
+		Name       string `json:"name"`
+		Project    string `json:"project"`
+		Host       string `json:"host"`
+		Port       int    `json:"port"`
+		DeployUser string `json:"deploy_user"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&envs); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Update client config with new environments
+	clientCfg.Environments = make([]clientEnvironmentConfig, len(envs))
+	for i, env := range envs {
+		clientCfg.Environments[i] = clientEnvironmentConfig{
+			Name:       env.Name,
+			Project:    env.Project,
+			Host:       env.Host,
+			Port:       env.Port,
+			DeployUser: env.DeployUser,
+		}
+	}
+
+	// Save updated config
+	updatedData, err := json.MarshalIndent(clientCfg, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(configPath, updatedData, 0600); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	cli.PrintSuccess("Synced %d environment(s)", len(envs))
+
+	if len(envs) > 0 {
+		fmt.Println()
+		cli.PrintInfo("Available environments:")
+		for _, env := range envs {
+			fmt.Printf("  - %s (%s@%s)\n", env.Name, env.DeployUser, env.Host)
+		}
+		fmt.Println()
+		cli.PrintInfo("Connect with: magebox ssh <environment-name>")
+	}
+
+	return nil
 }
