@@ -127,7 +127,7 @@ Examples:
   magebox server user remove developer
   magebox server user renew developer --expires 90`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -238,20 +238,20 @@ func init() {
 	serverUserAddCmd.Flags().StringVar(&userEmail, "email", "", "User email address (required)")
 	serverUserAddCmd.Flags().StringVar(&userRole, "role", "dev", "User role: admin, dev, readonly")
 	serverUserAddCmd.Flags().IntVar(&userExpiryDays, "expires", 0, "Access expiry in days (0 = use default)")
-	serverUserAddCmd.MarkFlagRequired("email")
+	_ = serverUserAddCmd.MarkFlagRequired("email")
 
 	// User renew flags
 	serverUserRenewCmd.Flags().IntVar(&userExpiryDays, "expires", 90, "New expiry in days from now")
 
 	// User grant/revoke flags
 	serverUserGrantCmd.Flags().StringVar(&userProject, "project", "", "Project to grant access to (required)")
-	serverUserGrantCmd.MarkFlagRequired("project")
+	_ = serverUserGrantCmd.MarkFlagRequired("project")
 	serverUserRevokeCmd.Flags().StringVar(&userProject, "project", "", "Project to revoke access from (required)")
-	serverUserRevokeCmd.MarkFlagRequired("project")
+	_ = serverUserRevokeCmd.MarkFlagRequired("project")
 
 	// Join flags
 	serverJoinCmd.Flags().StringVar(&inviteToken, "token", "", "Invite token (required)")
-	serverJoinCmd.MarkFlagRequired("token")
+	_ = serverJoinCmd.MarkFlagRequired("token")
 
 	serverUserCmd.AddCommand(serverUserAddCmd)
 	serverUserCmd.AddCommand(serverUserRemoveCmd)

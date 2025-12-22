@@ -37,7 +37,7 @@ Examples:
   magebox server project add myproject --description "My Project"
   magebox server project remove myproject`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 

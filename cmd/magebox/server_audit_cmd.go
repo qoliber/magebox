@@ -201,10 +201,10 @@ func outputAuditCSV(entries []auditEntryDisplay) error {
 	defer writer.Flush()
 
 	// Write header
-	writer.Write([]string{"ID", "Timestamp", "User", "Action", "Details", "IP Address"})
+	_ = writer.Write([]string{"ID", "Timestamp", "User", "Action", "Details", "IP Address"})
 
 	for _, entry := range entries {
-		writer.Write([]string{
+		_ = writer.Write([]string{
 			fmt.Sprintf("%d", entry.ID),
 			entry.Timestamp.Format(time.RFC3339),
 			entry.UserName,

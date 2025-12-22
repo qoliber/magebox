@@ -2,6 +2,61 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.0.0] - 2025-12-22
+
+### First Stable Release 🎉
+
+MageBox v1.0.0 marks the first production-ready release with comprehensive security hardening and the new SSH Certificate Authority (CA) for time-limited SSH certificates.
+
+### SSH Certificate Authority (SSH CA)
+
+The Team Server now supports SSH certificate-based authentication with automatic certificate renewal:
+
+```bash
+# Enable SSH CA on server (config.yaml)
+ca:
+  enabled: true
+  cert_validity: "24h"      # 1-168 hours
+  default_principals:
+    - deploy
+
+# Server generates CA key pair
+magebox server start
+
+# Users automatically get signed certificates when joining
+magebox server join https://teamserver.example.com --token INVITE_TOKEN
+
+# Certificate is valid for 24 hours, renew as needed
+magebox cert renew
+magebox cert show
+```
+
+**Features:**
+- **Ed25519 CA Keys** - Secure certificate signing with Ed25519
+- **Time-Limited Certificates** - Configurable validity (1-168 hours)
+- **Automatic Renewal** - `magebox cert renew` for seamless renewal
+- **Zero Key Management** - No need to distribute or rotate SSH keys
+
+See the full [SSH CA documentation](/guide/ssh-ca) for setup instructions.
+
+### Security Hardening
+
+Comprehensive security audit and fixes for production readiness:
+
+- **Shell Injection Prevention** - Base64 encoding for SSH key deployment
+- **IP Spoofing Protection** - TrustedProxies configuration for X-Forwarded-For headers
+- **SSH Host Key Verification** - TOFU (Trust On First Use) with fingerprint storage
+- **TOTP Replay Attack Prevention** - Used code tracking with 90-second expiry
+- **HMAC-SHA256 for MFA** - Upgraded from SHA-1 to SHA-256
+- **Security Headers** - HSTS, CSP, Referrer-Policy, Permissions-Policy, Cache-Control
+- **Input Validation** - SSH public key and username validation
+
+### Breaking Changes
+
+None - v1.0.0 is backward compatible with v0.19.x configurations.
+
+---
+
 ## [0.19.1] - 2025-12-19
 
 ### Server-Side SSH Key Generation

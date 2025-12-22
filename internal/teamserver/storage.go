@@ -930,7 +930,7 @@ func (s *Storage) Transaction(fn func(tx *sql.Tx) error) error {
 	}
 
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 

@@ -418,7 +418,7 @@ func (s *Server) authenticateRequest(r *http.Request) (*User, error) {
 			}
 
 			// Update last access time
-			s.storage.UpdateUserLastAccess(u.Name)
+			_ = s.storage.UpdateUserLastAccess(u.Name)
 
 			return &u, nil
 		}
@@ -439,7 +439,7 @@ func getCurrentUser(r *http.Request) *User {
 // Health check handler
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":  "healthy",
 		"version": "1.0.0",
 	})
@@ -515,7 +515,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark invite as used
-	s.storage.MarkInviteUsed(invites.ID)
+	_ = s.storage.MarkInviteUsed(invites.ID)
 
 	// Get accessible environments (based on user's projects)
 	envs, _ := s.storage.ListEnvironmentsForUser(user.Name)
@@ -588,7 +588,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		response.CAPublicKey = caPublicKey
 	}
 
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // deployUserKey deploys a user's public key to all accessible environments
@@ -691,7 +691,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 // handleUserEnvironments returns environments accessible by the current user
@@ -725,7 +725,7 @@ func (s *Server) handleUserEnvironments(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	json.NewEncoder(w).Encode(envsForUser)
+	_ = json.NewEncoder(w).Encode(envsForUser)
 }
 
 // MFASetupRequest is the request to initiate MFA setup
@@ -755,7 +755,7 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		// Check if MFA is already enabled
 		if user.MFAEnabled {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"mfa_enabled": true,
 				"message":     "MFA is already enabled",
 			})
@@ -783,7 +783,7 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		json.NewEncoder(w).Encode(setup)
+		_ = json.NewEncoder(w).Encode(setup)
 
 	case http.MethodPost:
 		// Confirm MFA setup with a code
@@ -833,7 +833,7 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 
 		s.logAudit(AuditMFASetup, user.Name, "MFA enabled successfully", s.getClientIP(r))
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":        true,
 			"message":        "MFA enabled successfully",
 			"recovery_codes": recoveryCodes,
@@ -855,7 +855,7 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 
 		s.logAudit(AuditMFASetup, user.Name, "MFA disabled", s.getClientIP(r))
 
-		json.NewEncoder(w).Encode(SuccessResponse{
+		_ = json.NewEncoder(w).Encode(SuccessResponse{
 			Success: true,
 			Message: "MFA disabled",
 		})
@@ -910,7 +910,7 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 
 	s.logAudit(AuditMFAVerify, user.Name, "MFA verification successful", s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(SuccessResponse{
+	_ = json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
 		Message: "MFA verification successful",
 	})
@@ -949,7 +949,7 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(users)
+	_ = json.NewEncoder(w).Encode(users)
 }
 
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
@@ -1007,7 +1007,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	json.NewEncoder(w).Encode(CreateUserResponse{
+	_ = json.NewEncoder(w).Encode(CreateUserResponse{
 		User: &User{
 			Name:  req.Name,
 			Email: req.Email,
@@ -1112,7 +1112,7 @@ func (s *Server) grantUserAccess(w http.ResponseWriter, r *http.Request, userNam
 	// Get updated user with projects
 	user, _ := s.storage.GetUser(userName)
 
-	json.NewEncoder(w).Encode(SuccessResponse{
+	_ = json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
 		Message: fmt.Sprintf("Granted %s access to project %s", userName, req.Project),
 	})
@@ -1143,7 +1143,7 @@ func (s *Server) revokeUserAccess(w http.ResponseWriter, r *http.Request, userNa
 
 	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Revoked project access: %s -> %s", userName, req.Project), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(SuccessResponse{
+	_ = json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
 		Message: fmt.Sprintf("Revoked %s access to project %s", userName, req.Project),
 	})
@@ -1158,7 +1158,7 @@ func (s *Server) getUser(w http.ResponseWriter, r *http.Request, name string) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, name string) {
@@ -1198,7 +1198,7 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, name string)
 	admin := getCurrentUser(r)
 	s.logAudit(AuditUserUpdate, admin.Name, fmt.Sprintf("Updated user: %s", name), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(user)
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, name string) {
@@ -1228,7 +1228,7 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, name string)
 		}
 	}()
 
-	json.NewEncoder(w).Encode(SuccessResponse{
+	_ = json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
 		Message: fmt.Sprintf("User %s removed", name),
 	})
@@ -1291,7 +1291,7 @@ func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(projects)
+	_ = json.NewEncoder(w).Encode(projects)
 }
 
 func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
@@ -1320,7 +1320,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 
 	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Created project: %s", req.Name), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(project)
+	_ = json.NewEncoder(w).Encode(project)
 }
 
 // handleAdminProject handles individual project operations
@@ -1360,7 +1360,7 @@ func (s *Server) getProject(w http.ResponseWriter, r *http.Request, name string)
 		return
 	}
 
-	json.NewEncoder(w).Encode(project)
+	_ = json.NewEncoder(w).Encode(project)
 }
 
 func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request, name string) {
@@ -1372,7 +1372,7 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request, name stri
 	admin := getCurrentUser(r)
 	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Deleted project: %s", name), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(SuccessResponse{
+	_ = json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
 		Message: fmt.Sprintf("Project %s removed", name),
 	})
@@ -1409,7 +1409,7 @@ func (s *Server) listEnvironments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(envs)
+	_ = json.NewEncoder(w).Encode(envs)
 }
 
 func (s *Server) createEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -1455,7 +1455,7 @@ func (s *Server) createEnvironment(w http.ResponseWriter, r *http.Request) {
 
 	// Don't return deploy key in response
 	env.DeployKey = ""
-	json.NewEncoder(w).Encode(env)
+	_ = json.NewEncoder(w).Encode(env)
 }
 
 // handleAdminEnvironment handles individual environment operations
@@ -1501,7 +1501,7 @@ func (s *Server) getEnvironment(w http.ResponseWriter, r *http.Request, project,
 
 	// Don't expose deploy key
 	env.DeployKey = ""
-	json.NewEncoder(w).Encode(env)
+	_ = json.NewEncoder(w).Encode(env)
 }
 
 func (s *Server) deleteEnvironment(w http.ResponseWriter, r *http.Request, project, name string) {
@@ -1513,7 +1513,7 @@ func (s *Server) deleteEnvironment(w http.ResponseWriter, r *http.Request, proje
 	admin := getCurrentUser(r)
 	s.logAudit(AuditEnvRemove, admin.Name, fmt.Sprintf("Removed environment: %s/%s", project, name), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(SuccessResponse{
+	_ = json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
 		Message: fmt.Sprintf("Environment %s/%s removed", project, name),
 	})
@@ -1561,7 +1561,7 @@ func (s *Server) handleAdminAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(entries)
+	_ = json.NewEncoder(w).Encode(entries)
 }
 
 // SyncRequest is the request body for key sync
@@ -1606,7 +1606,7 @@ func (s *Server) handleAdminSync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req SyncRequest
-	json.NewDecoder(r.Body).Decode(&req) // Optional body
+	_ = json.NewDecoder(r.Body).Decode(&req) // Optional body
 
 	results, err := s.syncKeys(req.Environment)
 	if err != nil {
@@ -1624,7 +1624,7 @@ func (s *Server) handleAdminSync(w http.ResponseWriter, r *http.Request) {
 
 	s.logAudit(AuditKeySync, user.Name, fmt.Sprintf("Synced keys to %d/%d environments", successCount, len(results)), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(SyncResponse{
+	_ = json.NewEncoder(w).Encode(SyncResponse{
 		Success: successCount == len(results),
 		Message: fmt.Sprintf("Synced %d/%d environments successfully", successCount, len(results)),
 		Results: results,
@@ -1758,7 +1758,7 @@ func (s *Server) sendSecurityAlertToAdmins(alertType, ip, details string) {
 // writeError writes a JSON error response
 func (s *Server) writeError(w http.ResponseWriter, status int, code, message string) {
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	_ = json.NewEncoder(w).Encode(ErrorResponse{
 		Error: message,
 		Code:  code,
 	})
@@ -1898,7 +1898,7 @@ func (s *Server) handleCertRenew(w http.ResponseWriter, r *http.Request) {
 	validUntil := time.Unix(int64(cert.ValidBefore), 0)
 	s.logAudit(AuditCertRenew, user.Name, fmt.Sprintf("Certificate renewed, valid until %s", validUntil.Format(time.RFC3339)), s.getClientIP(r))
 
-	json.NewEncoder(w).Encode(CertRenewResponse{
+	_ = json.NewEncoder(w).Encode(CertRenewResponse{
 		Certificate: cert.Certificate,
 		ValidUntil:  validUntil,
 		Principals:  principals,
@@ -1921,7 +1921,7 @@ func (s *Server) handleCertInfo(w http.ResponseWriter, r *http.Request) {
 
 	// Check if CA is enabled
 	if !s.config.CA.Enabled || s.caPrivateKey == nil {
-		json.NewEncoder(w).Encode(CertInfoResponse{
+		_ = json.NewEncoder(w).Encode(CertInfoResponse{
 			HasCertificate: false,
 			IsExpired:      true,
 		})
@@ -1931,7 +1931,7 @@ func (s *Server) handleCertInfo(w http.ResponseWriter, r *http.Request) {
 	// Return CA info and whether user can get a certificate
 	canGetCert := user.PublicKey != "" && len(user.Projects) > 0 && !user.IsExpired()
 
-	json.NewEncoder(w).Encode(CertInfoResponse{
+	_ = json.NewEncoder(w).Encode(CertInfoResponse{
 		HasCertificate: canGetCert,
 		IsExpired:      !canGetCert,
 		Principals:     s.config.CA.DefaultPrincipals,
@@ -1953,7 +1953,7 @@ func (s *Server) handleAdminCA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !s.config.CA.Enabled {
-		json.NewEncoder(w).Encode(CAInfoResponse{
+		_ = json.NewEncoder(w).Encode(CAInfoResponse{
 			Enabled: false,
 		})
 		return
@@ -1968,7 +1968,7 @@ func (s *Server) handleAdminCA(w http.ResponseWriter, r *http.Request) {
 	// Get fingerprint
 	_, fingerprint, _ := ParseSSHPublicKey(caPublicKey)
 
-	json.NewEncoder(w).Encode(CAInfoResponse{
+	_ = json.NewEncoder(w).Encode(CAInfoResponse{
 		Enabled:      true,
 		PublicKey:    caPublicKey,
 		CertValidity: s.config.CA.CertValidity,

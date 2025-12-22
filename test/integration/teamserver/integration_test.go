@@ -1,3 +1,5 @@
+//go:build integration
+
 /**
  * Created by Qoliber
  *
@@ -13,8 +15,6 @@
  * Or use the Makefile target:
  *   make test-integration-teamserver
  */
-
-//go:build integration
 
 package teamserver_integration
 

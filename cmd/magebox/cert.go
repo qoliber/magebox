@@ -41,7 +41,7 @@ Examples:
   magebox cert show               # Show certificate info
   magebox cert expiry             # Show when certificate expires`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 

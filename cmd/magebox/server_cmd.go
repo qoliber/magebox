@@ -57,7 +57,7 @@ Examples:
   magebox server status                        # Check server status
   magebox server stop                          # Stop the server`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -378,7 +378,7 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 	}
 	smtpPort := serverSMTPPort
 	if smtpPort == 587 && os.Getenv("MAGEBOX_SMTP_PORT") != "" {
-		fmt.Sscanf(os.Getenv("MAGEBOX_SMTP_PORT"), "%d", &smtpPort)
+		_, _ = fmt.Sscanf(os.Getenv("MAGEBOX_SMTP_PORT"), "%d", &smtpPort)
 	}
 	smtpUser := serverSMTPUser
 	if smtpUser == "" {
@@ -423,7 +423,7 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 		fmt.Println("\nShutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		server.Stop(ctx)
+		_ = server.Stop(ctx)
 		os.Remove(pidFile)
 		os.Exit(0)
 	}()

@@ -44,7 +44,7 @@ Examples:
   magebox server env add production --project myproject --host prod.example.com --deploy-user deploy --deploy-key ~/.ssh/deploy_prod
   magebox server env remove myproject/staging`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -116,9 +116,9 @@ func init() {
 	serverEnvAddCmd.Flags().IntVar(&serverEnvPort, "port", 22, "SSH port")
 	serverEnvAddCmd.Flags().StringVar(&serverEnvDeployUser, "deploy-user", "deploy", "Deploy username")
 	serverEnvAddCmd.Flags().StringVar(&serverEnvDeployKey, "deploy-key", "", "Path to deploy SSH private key (required)")
-	serverEnvAddCmd.MarkFlagRequired("project")
-	serverEnvAddCmd.MarkFlagRequired("host")
-	serverEnvAddCmd.MarkFlagRequired("deploy-key")
+	_ = serverEnvAddCmd.MarkFlagRequired("project")
+	_ = serverEnvAddCmd.MarkFlagRequired("host")
+	_ = serverEnvAddCmd.MarkFlagRequired("deploy-key")
 
 	serverEnvCmd.AddCommand(serverEnvAddCmd)
 	serverEnvCmd.AddCommand(serverEnvRemoveCmd)

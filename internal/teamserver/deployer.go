@@ -112,7 +112,7 @@ func (d *Deployer) GetHostKeyFingerprint(host string, port int) (string, error) 
 	}
 
 	// This will fail, but we capture the host key
-	ssh.Dial("tcp", addr, config)
+	_, _ = ssh.Dial("tcp", addr, config)
 
 	if fingerprint == "" {
 		return "", fmt.Errorf("failed to capture host key from %s", addr)
