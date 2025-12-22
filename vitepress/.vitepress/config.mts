@@ -32,7 +32,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v0.19.0',
+        text: 'v1.0.0',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -101,6 +101,7 @@ export default defineConfig({
           text: 'Team Server',
           items: [
             { text: 'Overview', link: '/guide/team-server' },
+            { text: 'SSH Certificate Authority', link: '/guide/ssh-ca' },
             { text: 'ISO 27001 Compliance', link: '/guide/team-server-compliance' }
           ]
         },
@@ -208,6 +209,7 @@ export default defineConfig({
           text: 'Team Server',
           items: [
             { text: 'Overview', link: '/guide/team-server' },
+            { text: 'SSH Certificate Authority', link: '/guide/ssh-ca' },
             { text: 'ISO 27001 Compliance', link: '/guide/team-server-compliance' }
           ]
         },

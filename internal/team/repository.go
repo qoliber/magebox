@@ -327,7 +327,7 @@ func (r *RepositoryClient) listBitbucketRepos(filter string) ([]Repository, erro
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Bitbucket API error: %s - %s", resp.Status, string(body))
+		return nil, fmt.Errorf("bitbucket API error: %s - %s", resp.Status, string(body))
 	}
 
 	// Handle self-hosted Bitbucket Server response

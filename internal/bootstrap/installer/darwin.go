@@ -90,7 +90,7 @@ func (d *DarwinInstaller) ValidateOSVersion() (OSVersionInfo, error) {
 func (d *DarwinInstaller) InstallPrerequisites() error {
 	// Check if Homebrew is installed
 	if !d.CommandExists("brew") {
-		return fmt.Errorf("Homebrew is not installed. Install from https://brew.sh")
+		return fmt.Errorf("homebrew is not installed, install from https://brew.sh")
 	}
 
 	// Update Homebrew

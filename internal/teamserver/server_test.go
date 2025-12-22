@@ -499,46 +499,98 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestGetClientIP(t *testing.T) {
-	tests := []struct {
-		name       string
-		headers    map[string]string
-		remoteAddr string
-		expected   string
-	}{
-		{
-			name:       "X-Forwarded-For",
-			headers:    map[string]string{"X-Forwarded-For": "10.0.0.1, 10.0.0.2"},
-			remoteAddr: "127.0.0.1:8080",
-			expected:   "10.0.0.1",
-		},
-		{
-			name:       "X-Real-IP",
-			headers:    map[string]string{"X-Real-IP": "10.0.0.1"},
-			remoteAddr: "127.0.0.1:8080",
-			expected:   "10.0.0.1",
-		},
-		{
-			name:       "RemoteAddr",
-			headers:    map[string]string{},
-			remoteAddr: "192.168.1.1:12345",
-			expected:   "192.168.1.1",
-		},
-	}
+	// Test without trusted proxies - should always use RemoteAddr
+	t.Run("NoTrustedProxies", func(t *testing.T) {
+		server := &Server{config: DefaultServerConfig()}
+		tests := []struct {
+			name       string
+			headers    map[string]string
+			remoteAddr string
+			expected   string
+		}{
+			{
+				name:       "X-Forwarded-For ignored without trusted proxy",
+				headers:    map[string]string{"X-Forwarded-For": "10.0.0.1, 10.0.0.2"},
+				remoteAddr: "127.0.0.1:8080",
+				expected:   "127.0.0.1", // Uses RemoteAddr, not X-Forwarded-For
+			},
+			{
+				name:       "X-Real-IP ignored without trusted proxy",
+				headers:    map[string]string{"X-Real-IP": "10.0.0.1"},
+				remoteAddr: "127.0.0.1:8080",
+				expected:   "127.0.0.1", // Uses RemoteAddr, not X-Real-IP
+			},
+			{
+				name:       "RemoteAddr used directly",
+				headers:    map[string]string{},
+				remoteAddr: "192.168.1.1:12345",
+				expected:   "192.168.1.1",
+			},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			req.RemoteAddr = tt.remoteAddr
-			for k, v := range tt.headers {
-				req.Header.Set(k, v)
-			}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				req.RemoteAddr = tt.remoteAddr
+				for k, v := range tt.headers {
+					req.Header.Set(k, v)
+				}
 
-			ip := getClientIP(req)
-			if ip != tt.expected {
-				t.Errorf("Expected IP %s, got %s", tt.expected, ip)
-			}
-		})
-	}
+				ip := server.getClientIP(req)
+				if ip != tt.expected {
+					t.Errorf("Expected IP %s, got %s", tt.expected, ip)
+				}
+			})
+		}
+	})
+
+	// Test with trusted proxies
+	t.Run("WithTrustedProxies", func(t *testing.T) {
+		config := DefaultServerConfig()
+		config.Security.TrustedProxies = []string{"127.0.0.1", "10.0.0.0/8"}
+		server := &Server{config: config}
+
+		tests := []struct {
+			name       string
+			headers    map[string]string
+			remoteAddr string
+			expected   string
+		}{
+			{
+				name:       "X-Forwarded-For from trusted proxy",
+				headers:    map[string]string{"X-Forwarded-For": "203.0.113.1, 10.0.0.2"},
+				remoteAddr: "127.0.0.1:8080",
+				expected:   "203.0.113.1", // Rightmost non-proxy IP
+			},
+			{
+				name:       "X-Real-IP from trusted proxy",
+				headers:    map[string]string{"X-Real-IP": "203.0.113.1"},
+				remoteAddr: "127.0.0.1:8080",
+				expected:   "203.0.113.1",
+			},
+			{
+				name:       "Untrusted proxy - ignore headers",
+				headers:    map[string]string{"X-Forwarded-For": "203.0.113.1"},
+				remoteAddr: "192.168.1.1:12345",
+				expected:   "192.168.1.1", // Untrusted, use RemoteAddr
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				req.RemoteAddr = tt.remoteAddr
+				for k, v := range tt.headers {
+					req.Header.Set(k, v)
+				}
+
+				ip := server.getClientIP(req)
+				if ip != tt.expected {
+					t.Errorf("Expected IP %s, got %s", tt.expected, ip)
+				}
+			})
+		}
+	})
 }
 
 func TestMatchCIDR(t *testing.T) {

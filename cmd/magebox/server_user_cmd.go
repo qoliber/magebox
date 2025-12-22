@@ -13,7 +13,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,11 +27,89 @@ import (
 	"github.com/qoliber/magebox/internal/teamserver"
 )
 
+// validateServerURL validates that the URL is safe to connect to
+// Returns the normalized URL or an error if the URL is invalid or unsafe
+func validateServerURL(serverURLArg string) (string, error) {
+	// Normalize URL
+	if !strings.HasPrefix(serverURLArg, "http://") && !strings.HasPrefix(serverURLArg, "https://") {
+		serverURLArg = "https://" + serverURLArg
+	}
+	serverURLArg = strings.TrimSuffix(serverURLArg, "/")
+
+	// Parse and validate URL structure
+	parsedURL, err := url.Parse(serverURLArg)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL format: %w", err)
+	}
+
+	// Ensure scheme is http or https
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("URL scheme must be http or https, got: %s", parsedURL.Scheme)
+	}
+
+	// Warn about http (but allow it for development)
+	if parsedURL.Scheme == "http" {
+		cli.PrintWarning("Using unencrypted HTTP connection - not recommended for production")
+	}
+
+	// Validate hostname is not empty
+	host := parsedURL.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("URL must include a hostname")
+	}
+
+	// Check for localhost/private IPs (warn but allow for development)
+	if isPrivateHost(host) {
+		cli.PrintWarning("Connecting to a private/local address - ensure this is intended")
+	}
+
+	return serverURLArg, nil
+}
+
+// isPrivateHost checks if a host is a private/local address
+func isPrivateHost(host string) bool {
+	// Check for localhost
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+
+	// Try to parse as IP
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// Not an IP, could be a hostname - we can't check without DNS resolution
+		// which could leak information, so we allow it
+		return false
+	}
+
+	// Check for private IP ranges
+	privateBlocks := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"fc00::/7",  // IPv6 private
+		"fe80::/10", // IPv6 link-local
+		"::1/128",   // IPv6 loopback
+	}
+
+	for _, block := range privateBlocks {
+		_, network, err := net.ParseCIDR(block)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
 var (
 	userEmail      string
 	userRole       string
 	userExpiryDays int
-	serverURL      string
 	inviteToken    string
 	userProject    string
 )
@@ -193,7 +273,9 @@ type clientConfig struct {
 	UserName     string                    `json:"user_name"`
 	Role         string                    `json:"role"`
 	JoinedAt     string                    `json:"joined_at"`
-	KeyPath      string                    `json:"key_path"`     // Path to private SSH key
+	KeyPath      string                    `json:"key_path"`     // Path to private SSH key (used by older config)
+	KeyFile      string                    `json:"key_file"`     // Path to private SSH key (for cert command)
+	CAEnabled    bool                      `json:"ca_enabled"`   // Whether SSH CA is enabled
 	Environments []clientEnvironmentConfig `json:"environments"` // Accessible environments
 }
 
@@ -595,13 +677,11 @@ func runServerUserRenew(cmd *cobra.Command, args []string) error {
 }
 
 func runServerJoin(cmd *cobra.Command, args []string) error {
-	serverURLArg := args[0]
-
-	// Normalize URL
-	if !strings.HasPrefix(serverURLArg, "http://") && !strings.HasPrefix(serverURLArg, "https://") {
-		serverURLArg = "https://" + serverURLArg
+	// Validate and normalize the server URL
+	serverURLArg, err := validateServerURL(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid server URL: %w", err)
 	}
-	serverURLArg = strings.TrimSuffix(serverURLArg, "/")
 
 	cli.PrintInfo("Joining team server: %s", serverURLArg)
 	fmt.Println()
@@ -632,9 +712,14 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 	}
 
 	var result struct {
-		SessionToken string `json:"session_token"`
-		PrivateKey   string `json:"private_key"`
-		ServerHost   string `json:"server_host"`
+		SessionToken string     `json:"session_token"`
+		PrivateKey   string     `json:"private_key"`
+		Certificate  string     `json:"certificate,omitempty"`
+		ValidUntil   *time.Time `json:"valid_until,omitempty"`
+		Principals   []string   `json:"principals,omitempty"`
+		CAEnabled    bool       `json:"ca_enabled"`
+		CAPublicKey  string     `json:"ca_public_key,omitempty"`
+		ServerHost   string     `json:"server_host"`
 		User         struct {
 			Name string `json:"name"`
 			Role string `json:"role"`
@@ -669,6 +754,15 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save SSH private key: %w", err)
 	}
 
+	// Save certificate if provided
+	var certPath string
+	if result.Certificate != "" {
+		certPath = keyPath + "-cert.pub"
+		if err := os.WriteFile(certPath, []byte(result.Certificate+"\n"), 0644); err != nil {
+			cli.PrintWarning("Failed to save SSH certificate: %v", err)
+		}
+	}
+
 	// Convert environments to client config format
 	envConfigs := make([]clientEnvironmentConfig, len(result.Environments))
 	for i, env := range result.Environments {
@@ -689,6 +783,8 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 		Role:         result.User.Role,
 		JoinedAt:     time.Now().Format(time.RFC3339),
 		KeyPath:      keyPath,
+		KeyFile:      keyPath,
+		CAEnabled:    result.CAEnabled,
 		Environments: envConfigs,
 	}
 
@@ -701,6 +797,19 @@ func runServerJoin(cmd *cobra.Command, args []string) error {
 	cli.PrintInfo("User: %s", result.User.Name)
 	cli.PrintInfo("Role: %s", result.User.Role)
 	cli.PrintInfo("SSH Key: %s", keyPath)
+
+	// Show certificate info if CA is enabled
+	if result.CAEnabled && certPath != "" {
+		cli.PrintInfo("Certificate: %s", certPath)
+		if result.ValidUntil != nil {
+			cli.PrintInfo("Valid Until: %s", result.ValidUntil.Format("2006-01-02 15:04:05"))
+		}
+		if len(result.Principals) > 0 {
+			cli.PrintInfo("Principals: %v", result.Principals)
+		}
+		fmt.Println()
+		cli.PrintInfo("Certificate expires automatically. Renew with: magebox cert renew")
+	}
 
 	if len(result.Environments) > 0 {
 		fmt.Println()

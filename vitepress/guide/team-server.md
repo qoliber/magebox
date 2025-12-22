@@ -9,6 +9,7 @@ The MageBox Team Server provides:
 - **Project-Based Access Control** - Users granted access to projects, not individual environments
 - **Centralized User Management** - Invite users, assign roles, manage access
 - **SSH Key Distribution** - Automatically deploy SSH keys to environments
+- **SSH Certificate Authority** - Time-limited certificates for zero-trust access (see [SSH CA](/guide/ssh-ca))
 - **Multi-Factor Authentication** - TOTP/MFA support for enhanced security
 - **Audit Logging** - Tamper-evident audit trail with hash chain verification
 - **Email Notifications** - Automated emails for invitations, security alerts
@@ -87,6 +88,8 @@ magebox server join https://teamserver.example.com --token INVITE_TOKEN
 ```
 
 The server automatically generates an Ed25519 SSH key pair for Alice. The private key is stored locally at `~/.magebox/keys/`.
+
+If SSH CA is enabled, the server also issues a time-limited certificate (default 24 hours) that must be renewed periodically. See [SSH CA](/guide/ssh-ca) for details.
 
 ### 8. Sync Environments
 
@@ -409,7 +412,28 @@ magebox server join URL \
 
 # Check status
 magebox server whoami
+
+# SSH into environment
+magebox ssh PROJECT/ENV
 ```
+
+### Certificate Commands (SSH CA)
+
+When SSH CA is enabled, use these commands to manage certificates:
+
+```bash
+# Renew your SSH certificate
+magebox cert renew
+magebox cert renew --quiet   # For scripts/cron
+
+# Show certificate info
+magebox cert show
+
+# Check when certificate expires
+magebox cert expiry
+```
+
+See [SSH CA](/guide/ssh-ca) for complete documentation.
 
 ## Docker Deployment
 
@@ -493,6 +517,8 @@ User endpoints use session tokens obtained after joining.
 | `/api/environments` | GET | List accessible environments |
 | `/api/mfa/setup` | GET | Get MFA setup (secret + QR) |
 | `/api/mfa/setup` | POST | Confirm MFA with code |
+| `/api/cert/renew` | POST | Renew SSH certificate |
+| `/api/cert/info` | GET | Get certificate status |
 
 ### Public Endpoints
 
@@ -558,4 +584,5 @@ jq '.[] | select(.id == 123)' audit.json
 
 ## Next Steps
 
+- [SSH Certificate Authority](/guide/ssh-ca) - Time-limited certificates for zero-trust access
 - [ISO 27001 Compliance](/guide/team-server-compliance) - Control mapping and compliance procedures

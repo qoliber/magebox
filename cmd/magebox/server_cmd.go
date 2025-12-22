@@ -124,6 +124,8 @@ func init() {
 
 	// Server init flags
 	serverInitCmd.Flags().StringVar(&serverDataDir, "data-dir", "", "Data directory (default: ~/.magebox/teamserver)")
+	serverInitCmd.Flags().StringVar(&serverAdminToken, "admin-token", "", "Admin token (optional, for testing)")
+	serverInitCmd.Flags().StringVar(&serverMasterKey, "master-key", "", "Master key in hex (optional, for testing)")
 
 	serverCmd.AddCommand(serverStartCmd)
 	serverCmd.AddCommand(serverStopCmd)
@@ -167,25 +169,73 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Generate master key
-	masterKey, err := teamserver.GenerateMasterKey()
-	if err != nil {
-		return fmt.Errorf("failed to generate master key: %w", err)
+	// Generate or use provided master key
+	var masterKey []byte
+	var masterKeyHex string
+	if serverMasterKey != "" {
+		// Use provided master key (for testing)
+		var err error
+		masterKey, err = teamserver.MasterKeyFromHex(serverMasterKey)
+		if err != nil {
+			return fmt.Errorf("invalid master key: %w", err)
+		}
+		masterKeyHex = serverMasterKey
+		cli.PrintSuccess("Using provided master key")
+	} else {
+		var err error
+		masterKey, err = teamserver.GenerateMasterKey()
+		if err != nil {
+			return fmt.Errorf("failed to generate master key: %w", err)
+		}
+		masterKeyHex = teamserver.MasterKeyToHex(masterKey)
+		cli.PrintSuccess("Master key generated")
 	}
-	masterKeyHex := teamserver.MasterKeyToHex(masterKey)
-	cli.PrintSuccess("Master key generated")
 
-	// Generate admin token
-	adminToken, err := teamserver.GenerateToken(32)
-	if err != nil {
-		return fmt.Errorf("failed to generate admin token: %w", err)
+	// Generate or use provided admin token
+	var adminToken string
+	if serverAdminToken != "" {
+		// Use provided admin token (for testing)
+		adminToken = serverAdminToken
+		cli.PrintSuccess("Using provided admin token")
+	} else {
+		var err error
+		adminToken, err = teamserver.GenerateToken(32)
+		if err != nil {
+			return fmt.Errorf("failed to generate admin token: %w", err)
+		}
+		cli.PrintSuccess("Admin token generated")
 	}
 
 	adminTokenHash, err := teamserver.HashToken(adminToken)
 	if err != nil {
 		return fmt.Errorf("failed to hash admin token: %w", err)
 	}
-	cli.PrintSuccess("Admin token generated")
+
+	// Generate SSH CA key pair
+	caKeyPair, err := teamserver.GenerateCAKeyPair()
+	if err != nil {
+		return fmt.Errorf("failed to generate CA key pair: %w", err)
+	}
+	cli.PrintSuccess("SSH CA key pair generated")
+
+	// Initialize database and store CA keys
+	crypto, err := teamserver.NewCrypto(masterKey)
+	if err != nil {
+		return fmt.Errorf("failed to create crypto: %w", err)
+	}
+
+	dbPath := filepath.Join(dataDir, "teamserver.db")
+	storage, err := teamserver.NewStorage(dbPath, crypto)
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer storage.Close()
+
+	// Store CA keys (encrypted)
+	if err := storage.SaveCAKeys(caKeyPair.PrivateKeyPEM, caKeyPair.PublicKeySSH); err != nil {
+		return fmt.Errorf("failed to store CA keys: %w", err)
+	}
+	cli.PrintSuccess("CA keys stored (encrypted)")
 
 	// Save configuration
 	config := map[string]interface{}{
@@ -194,6 +244,7 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 		"port":             7443,
 		"host":             "0.0.0.0",
 		"tls_enabled":      false,
+		"ca_enabled":       true,
 		"initialized_at":   time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -215,6 +266,14 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintInfo("Admin Token (use for authentication):")
 	fmt.Printf("  %s\n", adminToken)
+	fmt.Println()
+	cli.PrintTitle("SSH Certificate Authority")
+	fmt.Println()
+	cli.PrintInfo("CA Public Key (deploy to servers):")
+	fmt.Printf("  %s\n", caKeyPair.PublicKeySSH)
+	fmt.Println()
+	cli.PrintInfo("Add this to /etc/ssh/sshd_config on target servers:")
+	fmt.Printf("  TrustedUserCAKeys /etc/ssh/magebox-ca.pub\n")
 	fmt.Println()
 	cli.PrintWarning("Save these credentials! The admin token cannot be recovered.")
 	fmt.Println()

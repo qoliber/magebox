@@ -2,13 +2,12 @@
 set -e
 
 DATA_DIR="/var/lib/magebox/teamserver"
-CONFIG_FILE="$DATA_DIR/server.json"
+DB_FILE="$DATA_DIR/teamserver.db"
 
-# Check if already initialized
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Initializing server..."
+# Check if already initialized (check for database file instead of config)
+if [ ! -f "$DB_FILE" ]; then
+    echo "Initializing server with SSH CA..."
 
-    # Create config with provided credentials
     MASTER_KEY="${MAGEBOX_MASTER_KEY:-}"
     ADMIN_TOKEN="${MAGEBOX_ADMIN_TOKEN:-}"
 
@@ -22,20 +21,13 @@ if [ ! -f "$CONFIG_FILE" ]; then
         exit 1
     fi
 
-    # Hash the admin token using a simple approach for testing
-    # In production, the magebox server init command would be used
-    cat > "$CONFIG_FILE" << EOF
-{
-    "master_key": "$MASTER_KEY",
-    "admin_token_hash": "",
-    "port": 7443,
-    "host": "0.0.0.0",
-    "tls_enabled": false,
-    "initialized_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
+    # Use magebox server init to properly initialize with CA keys
+    /usr/local/bin/magebox server init \
+        --data-dir "$DATA_DIR" \
+        --admin-token "$ADMIN_TOKEN" \
+        --master-key "$MASTER_KEY"
 
-    echo "Server initialized"
+    echo "Server initialized with SSH CA enabled"
 fi
 
 echo "Starting MageBox Team Server..."

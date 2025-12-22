@@ -26,7 +26,7 @@ magebox -vvv start
 
 Example debug output:
 ```
-[trace] MageBox version: 0.15.0
+[trace] MageBox version: 1.0.0
 [trace] Verbosity level: 3
 [trace] Detecting platform...
 [trace] Platform type: linux, arch: amd64

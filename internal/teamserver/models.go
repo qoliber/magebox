@@ -104,6 +104,7 @@ type Environment struct {
 	Port       int       `json:"port"`    // SSH port
 	DeployUser string    `json:"deploy_user"`
 	DeployKey  string    `json:"-"` // Never expose - encrypted private key
+	HostKey    string    `json:"-"` // SSH host key fingerprint for verification (SHA256:...)
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -215,6 +216,8 @@ type ServerConfig struct {
 
 	Security SecurityConfig `yaml:"security"`
 
+	CA CAConfig `yaml:"ca"`
+
 	Notifications NotificationConfig `yaml:"notifications"`
 
 	Audit AuditConfig `yaml:"audit"`
@@ -239,6 +242,14 @@ type SecurityConfig struct {
 	LoginAttempts      int      `yaml:"login_attempts"`
 	AllowedIPs         []string `yaml:"allowed_ips"`
 	DefaultAccessDays  int      `yaml:"default_access_days"`
+	TrustedProxies     []string `yaml:"trusted_proxies"` // IPs/CIDRs of trusted reverse proxies (enables X-Forwarded-For)
+}
+
+// CAConfig holds SSH Certificate Authority settings
+type CAConfig struct {
+	Enabled           bool     `yaml:"enabled"`            // Enable SSH CA (default: true)
+	CertValidity      string   `yaml:"cert_validity"`      // Certificate validity duration (default: 24h)
+	DefaultPrincipals []string `yaml:"default_principals"` // Default principals for certificates (default: ["deploy"])
 }
 
 // NotificationConfig holds notification settings
@@ -286,6 +297,11 @@ func DefaultServerConfig() *ServerConfig {
 			LoginAttempts:      5,
 			DefaultAccessDays:  90,
 		},
+		CA: CAConfig{
+			Enabled:           true,
+			CertValidity:      "24h",
+			DefaultPrincipals: []string{"deploy"},
+		},
 		Audit: AuditConfig{
 			RetentionDays: 365,
 		},
@@ -317,10 +333,15 @@ type JoinRequest struct {
 // JoinResponse represents user join response
 type JoinResponse struct {
 	SessionToken string               `json:"session_token"`
-	PrivateKey   string               `json:"private_key"` // PEM-encoded private key for user to save
+	PrivateKey   string               `json:"private_key"`           // PEM-encoded private key for user to save
+	Certificate  string               `json:"certificate,omitempty"` // SSH certificate (if CA enabled)
+	ValidUntil   *time.Time           `json:"valid_until,omitempty"` // Certificate expiry time
+	Principals   []string             `json:"principals,omitempty"`  // Allowed principals (usernames)
 	User         *User                `json:"user"`
 	Environments []EnvironmentForUser `json:"environments"`
-	ServerHost   string               `json:"server_host"` // Team server hostname for key storage
+	ServerHost   string               `json:"server_host"`             // Team server hostname for key storage
+	CAEnabled    bool                 `json:"ca_enabled"`              // Whether SSH CA is enabled
+	CAPublicKey  string               `json:"ca_public_key,omitempty"` // CA public key for reference
 }
 
 // EnvironmentForUser represents environment info returned to users (for SSH connection)
@@ -370,3 +391,39 @@ type SuccessResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message,omitempty"`
 }
+
+// CertRenewResponse represents certificate renewal response
+type CertRenewResponse struct {
+	Certificate string    `json:"certificate"` // New SSH certificate
+	ValidUntil  time.Time `json:"valid_until"` // Certificate expiry time
+	Principals  []string  `json:"principals"`  // Allowed principals
+	Serial      uint64    `json:"serial"`      // Certificate serial number
+}
+
+// CertInfoResponse represents certificate info response
+type CertInfoResponse struct {
+	HasCertificate bool       `json:"has_certificate"`
+	Certificate    string     `json:"certificate,omitempty"`
+	ValidAfter     *time.Time `json:"valid_after,omitempty"`
+	ValidUntil     *time.Time `json:"valid_until,omitempty"`
+	Principals     []string   `json:"principals,omitempty"`
+	KeyID          string     `json:"key_id,omitempty"`
+	IsExpired      bool       `json:"is_expired"`
+	ExpiresIn      string     `json:"expires_in,omitempty"` // Human-readable time until expiry
+}
+
+// CAInfoResponse represents CA info response (for admin)
+type CAInfoResponse struct {
+	Enabled      bool     `json:"enabled"`
+	PublicKey    string   `json:"public_key"`    // CA public key (for deployment)
+	CertValidity string   `json:"cert_validity"` // Default certificate validity
+	Principals   []string `json:"principals"`    // Default principals
+	Fingerprint  string   `json:"fingerprint"`   // CA key fingerprint
+}
+
+// Audit actions for certificate operations
+const (
+	AuditCertIssue AuditAction = "CERT_ISSUE"
+	AuditCertRenew AuditAction = "CERT_RENEW"
+	AuditCertDeny  AuditAction = "CERT_DENY"
+)

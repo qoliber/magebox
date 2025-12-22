@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "MageBox"
   text: "Native Magento Development"
-  tagline: Native PHP and Nginx with Docker services.
+  tagline: v1.0.0 - Production Ready with Team Server & SSH CA
   image:
     src: /logo.svg
     alt: MageBox
@@ -19,27 +19,27 @@ hero:
 features:
   - icon: 🚀
     title: Native PHP/Nginx
-    details: PHP-FPM and Nginx run on your machine. Direct file access.
+    details: PHP-FPM and Nginx run on your machine. Direct file access, maximum performance.
 
   - icon: 🐳
     title: Docker Services
-    details: MySQL, Redis, OpenSearch, RabbitMQ in containers.
+    details: MySQL, Redis, OpenSearch, RabbitMQ in containers. Zero conflicts.
 
   - icon: 🔄
     title: Multi-PHP
     details: Switch PHP versions per project. Run 8.1 and 8.4 simultaneously.
 
   - icon: 🔒
-    title: Auto SSL
-    details: HTTPS with mkcert for all .test domains.
+    title: Team Server
+    details: Centralized SSH key management with Certificate Authority. ISO 27001 ready.
 
-  - icon: 📦
-    title: Project Discovery
-    details: See all projects with `magebox list`.
+  - icon: 🛡️
+    title: Security First
+    details: MFA, audit logging, encrypted storage, time-limited SSH certificates.
 
   - icon: 👥
     title: Team Collaboration
-    details: Share configs, repos, and assets with `magebox fetch`.
+    details: Project-based access control. Invite users, manage permissions.
 ---
 
 ## Quick Start

@@ -21,7 +21,7 @@ RUN CGO_ENABLED=1 go build -o /magebox ./cmd/magebox
 # Runtime image
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates curl sqlite
+RUN apk add --no-cache ca-certificates curl sqlite openssh-client
 
 COPY --from=builder /magebox /usr/local/bin/magebox
 

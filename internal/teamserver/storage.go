@@ -100,6 +100,7 @@ func (s *Storage) migrate() error {
 		port INTEGER DEFAULT 22,
 		deploy_user TEXT NOT NULL,
 		deploy_key TEXT NOT NULL,
+		host_key TEXT DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(name, project)
 	);
@@ -546,9 +547,9 @@ func (s *Storage) CreateEnvironment(env *Environment) error {
 	}
 
 	result, err := s.db.Exec(`
-		INSERT INTO environments (name, project, host, port, deploy_user, deploy_key)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		env.Name, env.Project, env.Host, env.Port, env.DeployUser, encryptedKey)
+		INSERT INTO environments (name, project, host, port, deploy_user, deploy_key, host_key)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		env.Name, env.Project, env.Host, env.Port, env.DeployUser, encryptedKey, env.HostKey)
 	if err != nil {
 		return fmt.Errorf("failed to create environment: %w", err)
 	}
@@ -563,11 +564,12 @@ func (s *Storage) CreateEnvironment(env *Environment) error {
 func (s *Storage) GetEnvironment(project, name string) (*Environment, error) {
 	env := &Environment{}
 	var encryptedKey string
+	var hostKey sql.NullString
 
 	err := s.db.QueryRow(`
-		SELECT id, name, project, host, port, deploy_user, deploy_key, created_at
+		SELECT id, name, project, host, port, deploy_user, deploy_key, host_key, created_at
 		FROM environments WHERE project = ? AND name = ?`, project, name).Scan(
-		&env.ID, &env.Name, &env.Project, &env.Host, &env.Port, &env.DeployUser, &encryptedKey, &env.CreatedAt)
+		&env.ID, &env.Name, &env.Project, &env.Host, &env.Port, &env.DeployUser, &encryptedKey, &hostKey, &env.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("environment not found: %s/%s", project, name)
 	}
@@ -581,8 +583,26 @@ func (s *Storage) GetEnvironment(project, name string) (*Environment, error) {
 		return nil, fmt.Errorf("failed to decrypt deploy key: %w", err)
 	}
 	env.DeployKey = decrypted
+	env.HostKey = hostKey.String
 
 	return env, nil
+}
+
+// UpdateEnvironmentHostKey updates the SSH host key fingerprint for an environment
+func (s *Storage) UpdateEnvironmentHostKey(project, name, hostKey string) error {
+	result, err := s.db.Exec(`
+		UPDATE environments SET host_key = ? WHERE project = ? AND name = ?`,
+		hostKey, project, name)
+	if err != nil {
+		return fmt.Errorf("failed to update host key: %w", err)
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("environment not found: %s/%s", project, name)
+	}
+
+	return nil
 }
 
 // ListEnvironments returns all environments (without deploy keys for security)
@@ -915,4 +935,69 @@ func (s *Storage) Transaction(fn func(tx *sql.Tx) error) error {
 	}
 
 	return tx.Commit()
+}
+
+// CA key storage constants
+const (
+	configCAPrivateKey = "ca_private_key"
+	configCAPublicKey  = "ca_public_key"
+)
+
+// SaveCAKeys stores the CA key pair (private key is encrypted)
+func (s *Storage) SaveCAKeys(privateKeyPEM, publicKeySSH string) error {
+	// Encrypt the private key before storing
+	encryptedPrivateKey, err := s.crypto.EncryptString(privateKeyPEM)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt CA private key: %w", err)
+	}
+
+	// Store both keys
+	if err := s.SetConfig(configCAPrivateKey, encryptedPrivateKey); err != nil {
+		return fmt.Errorf("failed to store CA private key: %w", err)
+	}
+
+	if err := s.SetConfig(configCAPublicKey, publicKeySSH); err != nil {
+		return fmt.Errorf("failed to store CA public key: %w", err)
+	}
+
+	return nil
+}
+
+// GetCAPrivateKey retrieves and decrypts the CA private key
+func (s *Storage) GetCAPrivateKey() (string, error) {
+	encryptedKey, err := s.GetConfig(configCAPrivateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to get CA private key: %w", err)
+	}
+	if encryptedKey == "" {
+		return "", fmt.Errorf("CA private key not found")
+	}
+
+	// Decrypt the private key
+	privateKey, err := s.crypto.DecryptString(encryptedKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt CA private key: %w", err)
+	}
+
+	return privateKey, nil
+}
+
+// GetCAPublicKey retrieves the CA public key
+func (s *Storage) GetCAPublicKey() (string, error) {
+	publicKey, err := s.GetConfig(configCAPublicKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to get CA public key: %w", err)
+	}
+	if publicKey == "" {
+		return "", fmt.Errorf("CA public key not found")
+	}
+
+	return publicKey, nil
+}
+
+// HasCAKeys checks if CA keys exist
+func (s *Storage) HasCAKeys() bool {
+	privateKey, _ := s.GetConfig(configCAPrivateKey)
+	publicKey, _ := s.GetConfig(configCAPublicKey)
+	return privateKey != "" && publicKey != ""
 }

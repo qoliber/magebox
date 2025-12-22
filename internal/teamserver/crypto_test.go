@@ -536,3 +536,245 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// SSH Certificate Authority Tests
+
+func TestGenerateCAKeyPair(t *testing.T) {
+	caKeyPair, err := GenerateCAKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateCAKeyPair failed: %v", err)
+	}
+
+	// Check private key PEM format
+	if !strings.HasPrefix(caKeyPair.PrivateKeyPEM, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Error("CA private key should start with OpenSSH header")
+	}
+	if !strings.HasSuffix(strings.TrimSpace(caKeyPair.PrivateKeyPEM), "-----END OPENSSH PRIVATE KEY-----") {
+		t.Error("CA private key should end with OpenSSH footer")
+	}
+
+	// Check public key format
+	if !strings.HasPrefix(caKeyPair.PublicKeySSH, "ssh-ed25519 ") {
+		t.Errorf("CA public key should start with 'ssh-ed25519 ', got: %s", caKeyPair.PublicKeySSH[:min(20, len(caKeyPair.PublicKeySSH))])
+	}
+
+	// Check raw keys are populated
+	if len(caKeyPair.PrivateKey) != 64 { // Ed25519 private key is 64 bytes
+		t.Errorf("Expected private key length 64, got %d", len(caKeyPair.PrivateKey))
+	}
+	if len(caKeyPair.PublicKey) != 32 { // Ed25519 public key is 32 bytes
+		t.Errorf("Expected public key length 32, got %d", len(caKeyPair.PublicKey))
+	}
+}
+
+func TestGenerateCAKeyPairUniqueness(t *testing.T) {
+	ca1, _ := GenerateCAKeyPair()
+	ca2, _ := GenerateCAKeyPair()
+
+	// Private keys should be different
+	if ca1.PrivateKeyPEM == ca2.PrivateKeyPEM {
+		t.Error("Generated CA private keys should be unique")
+	}
+
+	// Public keys should be different
+	if ca1.PublicKeySSH == ca2.PublicKeySSH {
+		t.Error("Generated CA public keys should be unique")
+	}
+}
+
+func TestParseCAPrivateKey(t *testing.T) {
+	// Generate a CA key pair
+	caKeyPair, err := GenerateCAKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateCAKeyPair failed: %v", err)
+	}
+
+	// Parse the private key
+	privateKey, err := ParseCAPrivateKey(caKeyPair.PrivateKeyPEM)
+	if err != nil {
+		t.Fatalf("ParseCAPrivateKey failed: %v", err)
+	}
+
+	// Check key length
+	if len(privateKey) != 64 {
+		t.Errorf("Expected parsed key length 64, got %d", len(privateKey))
+	}
+
+	// The parsed key should match the original
+	if string(privateKey) != string(caKeyPair.PrivateKey) {
+		t.Error("Parsed private key should match original")
+	}
+}
+
+func TestParseCAPrivateKeyInvalid(t *testing.T) {
+	tests := []struct {
+		name   string
+		pemKey string
+	}{
+		{"empty", ""},
+		{"invalid PEM", "not a valid PEM key"},
+		{"incomplete header", "-----BEGIN OPENSSH PRIVATE KEY-----"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseCAPrivateKey(tt.pemKey)
+			if err == nil {
+				t.Error("ParseCAPrivateKey should fail for invalid key")
+			}
+		})
+	}
+}
+
+func TestSignSSHCertificate(t *testing.T) {
+	// Generate CA key pair
+	caKeyPair, err := GenerateCAKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateCAKeyPair failed: %v", err)
+	}
+
+	// Generate user key pair
+	userKeyPair, err := GenerateSSHKeyPair("user@example.com")
+	if err != nil {
+		t.Fatalf("GenerateSSHKeyPair failed: %v", err)
+	}
+
+	// Sign certificate
+	principals := []string{"deploy", "developer"}
+	validitySeconds := int64(3600) // 1 hour
+	cert, err := SignSSHCertificate(caKeyPair.PrivateKey, userKeyPair.PublicKey, "user123", principals, validitySeconds)
+	if err != nil {
+		t.Fatalf("SignSSHCertificate failed: %v", err)
+	}
+
+	// Check certificate format
+	if !strings.HasPrefix(cert.Certificate, "ssh-ed25519-cert-v01@openssh.com ") {
+		t.Errorf("Certificate should start with 'ssh-ed25519-cert-v01@openssh.com ', got: %s", cert.Certificate[:min(50, len(cert.Certificate))])
+	}
+
+	// Check validity times (ValidAfter and ValidBefore are uint64 Unix timestamps)
+	now := uint64(time.Now().Unix())
+	if cert.ValidAfter > now {
+		t.Error("ValidAfter should be in the past or now")
+	}
+	if cert.ValidBefore < now {
+		t.Error("ValidBefore should be in the future")
+	}
+	if cert.ValidBefore-cert.ValidAfter < uint64(validitySeconds) {
+		t.Error("Certificate validity period should match requested duration")
+	}
+}
+
+func TestSignSSHCertificateInvalidUserKey(t *testing.T) {
+	caKeyPair, _ := GenerateCAKeyPair()
+
+	tests := []struct {
+		name      string
+		publicKey string
+	}{
+		{"empty", ""},
+		{"invalid format", "not a valid key"},
+		{"incomplete", "ssh-ed25519"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := SignSSHCertificate(caKeyPair.PrivateKey, tt.publicKey, "user123", []string{"deploy"}, 3600)
+			if err == nil {
+				t.Error("SignSSHCertificate should fail for invalid user key")
+			}
+		})
+	}
+}
+
+func TestGenerateSSHKeyPairWithCert(t *testing.T) {
+	// Generate CA key pair
+	caKeyPair, err := GenerateCAKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateCAKeyPair failed: %v", err)
+	}
+
+	// Generate key pair with certificate
+	// Function signature: (caPrivateKey, keyID, principals, validityDuration, comment)
+	keyID := "user123"
+	principals := []string{"deploy"}
+	validitySeconds := int64(86400) // 24 hours
+	comment := "user@example.com"
+
+	keyPairWithCert, err := GenerateSSHKeyPairWithCert(
+		caKeyPair.PrivateKey,
+		keyID,
+		principals,
+		validitySeconds,
+		comment,
+	)
+	if err != nil {
+		t.Fatalf("GenerateSSHKeyPairWithCert failed: %v", err)
+	}
+
+	// Check private key
+	if !strings.HasPrefix(keyPairWithCert.PrivateKey, "-----BEGIN OPENSSH PRIVATE KEY-----") {
+		t.Error("Private key should start with OpenSSH header")
+	}
+
+	// Check public key
+	if !strings.HasPrefix(keyPairWithCert.PublicKey, "ssh-ed25519 ") {
+		t.Error("Public key should start with 'ssh-ed25519 '")
+	}
+
+	// Check certificate (Certificate is *SSHCertificate, Certificate.Certificate is the string)
+	if keyPairWithCert.Certificate == nil {
+		t.Fatal("Certificate should not be nil")
+	}
+	if !strings.HasPrefix(keyPairWithCert.Certificate.Certificate, "ssh-ed25519-cert-v01@openssh.com ") {
+		t.Error("Certificate should start with 'ssh-ed25519-cert-v01@openssh.com '")
+	}
+
+	// Check validity times (ValidBefore is uint64 Unix timestamp)
+	now := uint64(time.Now().Unix())
+	if keyPairWithCert.Certificate.ValidBefore < now {
+		t.Error("Certificate should be valid in the future")
+	}
+}
+
+func TestSignSSHCertificatePrincipals(t *testing.T) {
+	caKeyPair, _ := GenerateCAKeyPair()
+	userKeyPair, _ := GenerateSSHKeyPair("test@example.com")
+
+	tests := []struct {
+		name       string
+		principals []string
+	}{
+		{"single principal", []string{"deploy"}},
+		{"multiple principals", []string{"deploy", "developer", "admin"}},
+		{"empty principals", []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cert, err := SignSSHCertificate(caKeyPair.PrivateKey, userKeyPair.PublicKey, "user123", tt.principals, 3600)
+			if err != nil {
+				t.Fatalf("SignSSHCertificate failed: %v", err)
+			}
+
+			if cert.Certificate == "" {
+				t.Error("Certificate should not be empty")
+			}
+		})
+	}
+}
+
+func BenchmarkGenerateCAKeyPair(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		GenerateCAKeyPair()
+	}
+}
+
+func BenchmarkSignSSHCertificate(b *testing.B) {
+	caKeyPair, _ := GenerateCAKeyPair()
+	userKeyPair, _ := GenerateSSHKeyPair("test@example.com")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		SignSSHCertificate(caKeyPair.PrivateKey, userKeyPair.PublicKey, "user123", []string{"deploy"}, 3600)
+	}
+}

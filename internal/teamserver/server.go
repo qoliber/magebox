@@ -10,6 +10,7 @@ package teamserver
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -38,7 +39,7 @@ type Server struct {
 	logger       *log.Logger
 	masterKey    []byte
 	serverURL    string
-	mu           sync.RWMutex
+	caPrivateKey ed25519.PrivateKey // CA private key for signing certificates
 }
 
 // RateLimiter implements a simple token bucket rate limiter
@@ -199,6 +200,22 @@ func NewServer(config *ServerConfig, masterKey []byte) (*Server, error) {
 		logger:    log.New(os.Stdout, "[teamserver] ", log.LstdFlags),
 	}
 
+	// Load CA private key if CA is enabled
+	if config.CA.Enabled {
+		caPrivateKeyPEM, err := storage.GetCAPrivateKey()
+		if err != nil {
+			s.logger.Printf("Warning: CA enabled but failed to load CA private key: %v", err)
+		} else {
+			caPrivateKey, err := ParseCAPrivateKey(caPrivateKeyPEM)
+			if err != nil {
+				s.logger.Printf("Warning: Failed to parse CA private key: %v", err)
+			} else {
+				s.caPrivateKey = caPrivateKey
+				s.logger.Println("SSH CA loaded successfully")
+			}
+		}
+	}
+
 	if config.Security.RateLimitEnabled {
 		s.rateLimiter = NewRateLimiter(config.Security.RateLimitPerMinute, time.Minute)
 	}
@@ -228,6 +245,8 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/environments", s.withMiddleware(s.handleUserEnvironments, true))
 	s.mux.HandleFunc("/api/mfa/setup", s.withMiddleware(s.handleMFASetup, true))
 	s.mux.HandleFunc("/api/mfa/verify", s.withMiddleware(s.handleMFAVerify, true))
+	s.mux.HandleFunc("/api/cert/renew", s.withMiddleware(s.handleCertRenew, true))
+	s.mux.HandleFunc("/api/cert/info", s.withMiddleware(s.handleCertInfo, true))
 
 	// Admin endpoints (require admin authentication)
 	s.mux.HandleFunc("/api/admin/users", s.withMiddleware(s.handleAdminUsers, true))
@@ -238,18 +257,36 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/admin/environments/", s.withMiddleware(s.handleAdminEnvironment, true))
 	s.mux.HandleFunc("/api/admin/audit", s.withMiddleware(s.handleAdminAudit, true))
 	s.mux.HandleFunc("/api/admin/sync", s.withMiddleware(s.handleAdminSync, true))
+	s.mux.HandleFunc("/api/admin/ca", s.withMiddleware(s.handleAdminCA, true))
 }
 
 // withMiddleware wraps a handler with common middleware
 func (s *Server) withMiddleware(handler http.HandlerFunc, requireAuth bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Set security headers
+		// Set comprehensive security headers
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Content-Type", "application/json")
 
-		ip := getClientIP(r)
+		// HSTS - enforce HTTPS connections (1 year, include subdomains)
+		if s.config.TLS.Enabled {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+
+		// Content Security Policy - restrict resource loading (API server, very restrictive)
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+
+		// Referrer Policy - don't leak referrer info
+		w.Header().Set("Referrer-Policy", "no-referrer")
+
+		// Permissions Policy - disable browser features not needed for API
+		w.Header().Set("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
+
+		// Cache control for API responses
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+
+		ip := s.getClientIP(r)
 
 		// Rate limiting
 		if s.rateLimiter != nil {
@@ -335,7 +372,7 @@ func (s *Server) requireAdminMFA(user *User) error {
 	switch s.config.Security.AdminMFA {
 	case "required":
 		if !user.MFAEnabled {
-			return fmt.Errorf("MFA is required for admin operations. Please enable MFA first.")
+			return fmt.Errorf("MFA is required for admin operations, please enable MFA first")
 		}
 	case "disabled":
 		return nil
@@ -429,7 +466,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	// Find and validate invite
 	invites, err := s.findValidInvite(req.InviteToken)
 	if err != nil {
-		s.logAudit(AuditAuthFailed, "", "Invalid invite token", getClientIP(r))
+		s.logAudit(AuditAuthFailed, "", "Invalid invite token", s.getClientIP(r))
 		s.writeError(w, http.StatusUnauthorized, "INVALID_INVITE", err.Error())
 		return
 	}
@@ -495,7 +532,7 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.logAudit(AuditUserJoin, user.Name, fmt.Sprintf("User joined: %s (SSH key generated)", user.Email), getClientIP(r))
+	s.logAudit(AuditUserJoin, user.Name, fmt.Sprintf("User joined: %s (SSH key generated)", user.Email), s.getClientIP(r))
 
 	// Send welcome email (async, non-blocking)
 	go func() {
@@ -517,13 +554,41 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		serverHost = "teamserver"
 	}
 
-	json.NewEncoder(w).Encode(JoinResponse{
+	// Prepare response
+	response := JoinResponse{
 		SessionToken: sessionToken,
 		PrivateKey:   keyPair.PrivateKey,
 		User:         user,
 		Environments: envsForUser,
 		ServerHost:   serverHost,
-	})
+		CAEnabled:    s.config.CA.Enabled && s.caPrivateKey != nil,
+	}
+
+	// Sign certificate if CA is enabled
+	if s.config.CA.Enabled && s.caPrivateKey != nil {
+		certValidity := s.getCertValiditySeconds()
+		principals := s.config.CA.DefaultPrincipals
+		if len(principals) == 0 {
+			principals = []string{"deploy"}
+		}
+
+		cert, err := SignSSHCertificate(s.caPrivateKey, keyPair.PublicKey, user.Email, principals, certValidity)
+		if err != nil {
+			s.logger.Printf("Warning: Failed to sign certificate for %s: %v", user.Name, err)
+		} else {
+			response.Certificate = cert.Certificate
+			validUntil := time.Unix(int64(cert.ValidBefore), 0)
+			response.ValidUntil = &validUntil
+			response.Principals = principals
+			s.logAudit(AuditCertIssue, user.Name, fmt.Sprintf("Certificate issued, valid until %s", validUntil.Format(time.RFC3339)), s.getClientIP(r))
+		}
+
+		// Include CA public key for reference
+		caPublicKey, _ := s.storage.GetCAPublicKey()
+		response.CAPublicKey = caPublicKey
+	}
+
+	json.NewEncoder(w).Encode(response)
 }
 
 // deployUserKey deploys a user's public key to all accessible environments
@@ -746,9 +811,9 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate the code
-		if !s.mfa.ValidateCode(string(decryptedSecret), req.Code) {
-			s.logAudit(AuditMFASetup, user.Name, "MFA setup failed - invalid code", getClientIP(r))
+		// Validate the code with replay protection
+		if !s.mfa.ValidateCodeForUser(user.Name, string(decryptedSecret), req.Code) {
+			s.logAudit(AuditMFASetup, user.Name, "MFA setup failed - invalid code", s.getClientIP(r))
 			s.writeError(w, http.StatusUnauthorized, "INVALID_CODE", "Invalid MFA code")
 			return
 		}
@@ -766,7 +831,7 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 			s.logger.Printf("Failed to generate recovery codes: %v", err)
 		}
 
-		s.logAudit(AuditMFASetup, user.Name, "MFA enabled successfully", getClientIP(r))
+		s.logAudit(AuditMFASetup, user.Name, "MFA enabled successfully", s.getClientIP(r))
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":        true,
@@ -788,7 +853,7 @@ func (s *Server) handleMFASetup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.logAudit(AuditMFASetup, user.Name, "MFA disabled", getClientIP(r))
+		s.logAudit(AuditMFASetup, user.Name, "MFA disabled", s.getClientIP(r))
 
 		json.NewEncoder(w).Encode(SuccessResponse{
 			Success: true,
@@ -836,14 +901,14 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the code
-	if !s.mfa.ValidateCode(string(decryptedSecret), req.Code) {
-		s.logAudit(AuditMFAVerify, user.Name, "MFA verification failed", getClientIP(r))
+	// Validate the code with replay protection
+	if !s.mfa.ValidateCodeForUser(user.Name, string(decryptedSecret), req.Code) {
+		s.logAudit(AuditMFAVerify, user.Name, "MFA verification failed", s.getClientIP(r))
 		s.writeError(w, http.StatusUnauthorized, "INVALID_CODE", "Invalid MFA code")
 		return
 	}
 
-	s.logAudit(AuditMFAVerify, user.Name, "MFA verification successful", getClientIP(r))
+	s.logAudit(AuditMFAVerify, user.Name, "MFA verification successful", s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
@@ -933,7 +998,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	admin := getCurrentUser(r)
-	s.logAudit(AuditUserCreate, admin.Name, fmt.Sprintf("Created invite for: %s (%s)", req.Name, req.Email), getClientIP(r))
+	s.logAudit(AuditUserCreate, admin.Name, fmt.Sprintf("Created invite for: %s (%s)", req.Name, req.Email), s.getClientIP(r))
 
 	// Send invitation email (async, non-blocking)
 	go func() {
@@ -1042,7 +1107,7 @@ func (s *Server) grantUserAccess(w http.ResponseWriter, r *http.Request, userNam
 		return
 	}
 
-	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Granted project access: %s -> %s", userName, req.Project), getClientIP(r))
+	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Granted project access: %s -> %s", userName, req.Project), s.getClientIP(r))
 
 	// Get updated user with projects
 	user, _ := s.storage.GetUser(userName)
@@ -1076,7 +1141,7 @@ func (s *Server) revokeUserAccess(w http.ResponseWriter, r *http.Request, userNa
 		return
 	}
 
-	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Revoked project access: %s -> %s", userName, req.Project), getClientIP(r))
+	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Revoked project access: %s -> %s", userName, req.Project), s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
@@ -1131,7 +1196,7 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, name string)
 	}
 
 	admin := getCurrentUser(r)
-	s.logAudit(AuditUserUpdate, admin.Name, fmt.Sprintf("Updated user: %s", name), getClientIP(r))
+	s.logAudit(AuditUserUpdate, admin.Name, fmt.Sprintf("Updated user: %s", name), s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(user)
 }
@@ -1154,7 +1219,7 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, name string)
 	}
 
 	admin := getCurrentUser(r)
-	s.logAudit(AuditUserRemove, admin.Name, fmt.Sprintf("Removed user: %s", name), getClientIP(r))
+	s.logAudit(AuditUserRemove, admin.Name, fmt.Sprintf("Removed user: %s", name), s.getClientIP(r))
 
 	// Send access revoked email (async, non-blocking)
 	go func() {
@@ -1253,7 +1318,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Created project: %s", req.Name), getClientIP(r))
+	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Created project: %s", req.Name), s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(project)
 }
@@ -1305,7 +1370,7 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request, name stri
 	}
 
 	admin := getCurrentUser(r)
-	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Deleted project: %s", name), getClientIP(r))
+	s.logAudit(AuditAdminAction, admin.Name, fmt.Sprintf("Deleted project: %s", name), s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
@@ -1386,7 +1451,7 @@ func (s *Server) createEnvironment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	admin := getCurrentUser(r)
-	s.logAudit(AuditEnvCreate, admin.Name, fmt.Sprintf("Created environment: %s/%s (%s)", req.Project, req.Name, req.Host), getClientIP(r))
+	s.logAudit(AuditEnvCreate, admin.Name, fmt.Sprintf("Created environment: %s/%s (%s)", req.Project, req.Name, req.Host), s.getClientIP(r))
 
 	// Don't return deploy key in response
 	env.DeployKey = ""
@@ -1446,7 +1511,7 @@ func (s *Server) deleteEnvironment(w http.ResponseWriter, r *http.Request, proje
 	}
 
 	admin := getCurrentUser(r)
-	s.logAudit(AuditEnvRemove, admin.Name, fmt.Sprintf("Removed environment: %s/%s", project, name), getClientIP(r))
+	s.logAudit(AuditEnvRemove, admin.Name, fmt.Sprintf("Removed environment: %s/%s", project, name), s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(SuccessResponse{
 		Success: true,
@@ -1557,7 +1622,7 @@ func (s *Server) handleAdminSync(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.logAudit(AuditKeySync, user.Name, fmt.Sprintf("Synced keys to %d/%d environments", successCount, len(results)), getClientIP(r))
+	s.logAudit(AuditKeySync, user.Name, fmt.Sprintf("Synced keys to %d/%d environments", successCount, len(results)), s.getClientIP(r))
 
 	json.NewEncoder(w).Encode(SyncResponse{
 		Success: successCount == len(results),
@@ -1761,23 +1826,222 @@ func (s *Server) GetCrypto() *Crypto {
 	return s.crypto
 }
 
+// getCertValiditySeconds returns the certificate validity duration in seconds
+func (s *Server) getCertValiditySeconds() int64 {
+	validity := s.config.CA.CertValidity
+	if validity == "" {
+		validity = "24h"
+	}
+
+	duration, err := time.ParseDuration(validity)
+	if err != nil {
+		// Default to 24 hours
+		return 24 * 60 * 60
+	}
+
+	return int64(duration.Seconds())
+}
+
+// handleCertRenew handles certificate renewal requests
+func (s *Server) handleCertRenew(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Only POST is allowed")
+		return
+	}
+
+	user := getCurrentUser(r)
+	if user == nil {
+		s.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	// Check if CA is enabled
+	if !s.config.CA.Enabled || s.caPrivateKey == nil {
+		s.writeError(w, http.StatusNotImplemented, "CA_DISABLED", "SSH CA is not enabled on this server")
+		return
+	}
+
+	// Check if user still has access to any projects
+	if len(user.Projects) == 0 {
+		s.logAudit(AuditCertDeny, user.Name, "Certificate renewal denied: no project access", s.getClientIP(r))
+		s.writeError(w, http.StatusForbidden, "NO_ACCESS", "No project access. Cannot renew certificate.")
+		return
+	}
+
+	// Check if user is expired
+	if user.IsExpired() {
+		s.logAudit(AuditCertDeny, user.Name, "Certificate renewal denied: user expired", s.getClientIP(r))
+		s.writeError(w, http.StatusForbidden, "USER_EXPIRED", "User access has expired. Cannot renew certificate.")
+		return
+	}
+
+	// Check if user has a public key
+	if user.PublicKey == "" {
+		s.writeError(w, http.StatusBadRequest, "NO_KEY", "User has no public key. Re-join to generate new key pair.")
+		return
+	}
+
+	// Sign new certificate
+	certValidity := s.getCertValiditySeconds()
+	principals := s.config.CA.DefaultPrincipals
+	if len(principals) == 0 {
+		principals = []string{"deploy"}
+	}
+
+	cert, err := SignSSHCertificate(s.caPrivateKey, user.PublicKey, user.Email, principals, certValidity)
+	if err != nil {
+		s.logger.Printf("Failed to sign certificate for %s: %v", user.Name, err)
+		s.writeError(w, http.StatusInternalServerError, "SIGN_ERROR", "Failed to sign certificate")
+		return
+	}
+
+	validUntil := time.Unix(int64(cert.ValidBefore), 0)
+	s.logAudit(AuditCertRenew, user.Name, fmt.Sprintf("Certificate renewed, valid until %s", validUntil.Format(time.RFC3339)), s.getClientIP(r))
+
+	json.NewEncoder(w).Encode(CertRenewResponse{
+		Certificate: cert.Certificate,
+		ValidUntil:  validUntil,
+		Principals:  principals,
+		Serial:      cert.Serial,
+	})
+}
+
+// handleCertInfo returns certificate information for the current user
+func (s *Server) handleCertInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Only GET is allowed")
+		return
+	}
+
+	user := getCurrentUser(r)
+	if user == nil {
+		s.writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
+		return
+	}
+
+	// Check if CA is enabled
+	if !s.config.CA.Enabled || s.caPrivateKey == nil {
+		json.NewEncoder(w).Encode(CertInfoResponse{
+			HasCertificate: false,
+			IsExpired:      true,
+		})
+		return
+	}
+
+	// Return CA info and whether user can get a certificate
+	canGetCert := user.PublicKey != "" && len(user.Projects) > 0 && !user.IsExpired()
+
+	json.NewEncoder(w).Encode(CertInfoResponse{
+		HasCertificate: canGetCert,
+		IsExpired:      !canGetCert,
+		Principals:     s.config.CA.DefaultPrincipals,
+		KeyID:          user.Email,
+	})
+}
+
+// handleAdminCA returns CA information for admins
+func (s *Server) handleAdminCA(w http.ResponseWriter, r *http.Request) {
+	user := getCurrentUser(r)
+	if user == nil || user.Role != RoleAdmin {
+		s.writeError(w, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		s.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "Only GET is allowed")
+		return
+	}
+
+	if !s.config.CA.Enabled {
+		json.NewEncoder(w).Encode(CAInfoResponse{
+			Enabled: false,
+		})
+		return
+	}
+
+	caPublicKey, err := s.storage.GetCAPublicKey()
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "CA_ERROR", "Failed to get CA public key")
+		return
+	}
+
+	// Get fingerprint
+	_, fingerprint, _ := ParseSSHPublicKey(caPublicKey)
+
+	json.NewEncoder(w).Encode(CAInfoResponse{
+		Enabled:      true,
+		PublicKey:    caPublicKey,
+		CertValidity: s.config.CA.CertValidity,
+		Principals:   s.config.CA.DefaultPrincipals,
+		Fingerprint:  fingerprint,
+	})
+}
+
 // Helper functions
 
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header
+// getClientIP extracts the real client IP address from the request.
+// If trusted proxies are configured and the request comes from a trusted proxy,
+// it will parse X-Forwarded-For or X-Real-IP headers.
+// Otherwise, it returns the direct connection IP (RemoteAddr).
+func (s *Server) getClientIP(r *http.Request) string {
+	// Get the direct connection IP
+	directIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if directIP == "" {
+		directIP = r.RemoteAddr
+	}
+
+	// Only trust proxy headers if the direct connection is from a trusted proxy
+	trustedProxies := s.config.Security.TrustedProxies
+	if len(trustedProxies) == 0 {
+		// No trusted proxies configured - always use direct IP
+		return directIP
+	}
+
+	// Check if the direct connection is from a trusted proxy
+	isTrustedProxy := false
+	for _, proxy := range trustedProxies {
+		if matchCIDR(directIP, proxy) {
+			isTrustedProxy = true
+			break
+		}
+	}
+
+	if !isTrustedProxy {
+		// Connection is not from a trusted proxy - ignore proxy headers
+		return directIP
+	}
+
+	// Connection is from a trusted proxy - parse X-Forwarded-For
+	// Take the rightmost IP that is NOT a trusted proxy (the actual client)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		ips := strings.Split(xff, ",")
-		return strings.TrimSpace(ips[0])
+		// Walk backwards through the IPs to find the first non-proxy IP
+		for i := len(ips) - 1; i >= 0; i-- {
+			ip := strings.TrimSpace(ips[i])
+			if ip == "" {
+				continue
+			}
+			// Check if this IP is also a trusted proxy
+			isProxy := false
+			for _, proxy := range trustedProxies {
+				if matchCIDR(ip, proxy) {
+					isProxy = true
+					break
+				}
+			}
+			if !isProxy {
+				return ip
+			}
+		}
 	}
 
-	// Check X-Real-IP header
+	// Check X-Real-IP as fallback
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
+		return strings.TrimSpace(xri)
 	}
 
-	// Fall back to RemoteAddr
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return ip
+	// Fall back to direct IP
+	return directIP
 }
 
 func matchCIDR(ip, cidr string) bool {

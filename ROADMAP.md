@@ -2,7 +2,7 @@
 
 This document outlines planned features and improvements for MageBox.
 
-## Current Version: 0.10.12
+## Current Version: 1.0.0
 
 ### Completed Features
 
@@ -243,6 +243,21 @@ magebox templates validate
 3. Make existing templates (nginx, php-fpm, varnish) user-overridable
 4. Add CLI commands for template management
 5. Document template variables and customization
+
+## Security Enhancements (Post v1.0.0)
+
+The following security improvements are planned for future releases:
+
+### Authentication & MFA
+
+- **Recovery code storage and usage** - Store MFA recovery codes securely in the database with usage tracking
+- **MFA rate limiting per user** - Add per-user rate limiting on MFA verification attempts to prevent brute force
+- **WebAuthn/FIDO2 support** - Add hardware security key support as an MFA option
+
+### Transport Security
+
+- **TLS certificate pinning** - Pin server certificates on client connections to prevent MITM attacks
+- **Certificate transparency logging** - Log certificate changes for audit purposes
 
 ## Contributing
 

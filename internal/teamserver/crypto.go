@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/ssh"
@@ -301,4 +302,164 @@ func ParseSSHPublicKey(publicKey string) (keyType string, fingerprint string, er
 	}
 
 	return keyType, fingerprint, nil
+}
+
+// CAKeyPair represents an SSH Certificate Authority key pair
+type CAKeyPair struct {
+	PrivateKey    ed25519.PrivateKey // CA private key for signing
+	PublicKey     ed25519.PublicKey  // CA public key
+	PrivateKeyPEM string             // PEM-encoded private key (for storage)
+	PublicKeySSH  string             // OpenSSH format public key (for deployment to servers)
+}
+
+// GenerateCAKeyPair generates a new Ed25519 CA key pair
+func GenerateCAKeyPair() (*CAKeyPair, error) {
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate CA key pair: %w", err)
+	}
+
+	// Convert private key to PEM format
+	privKeyPEM, err := ssh.MarshalPrivateKey(privKey, "magebox-ca")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal CA private key: %w", err)
+	}
+
+	// Convert public key to OpenSSH format
+	sshPubKey, err := ssh.NewPublicKey(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SSH public key: %w", err)
+	}
+
+	publicKeySSH := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshPubKey))) + " magebox-ca"
+
+	return &CAKeyPair{
+		PrivateKey:    privKey,
+		PublicKey:     pubKey,
+		PrivateKeyPEM: string(pem.EncodeToMemory(privKeyPEM)),
+		PublicKeySSH:  publicKeySSH,
+	}, nil
+}
+
+// ParseCAPrivateKey parses a PEM-encoded CA private key
+func ParseCAPrivateKey(pemData string) (ed25519.PrivateKey, error) {
+	privKey, err := ssh.ParseRawPrivateKey([]byte(pemData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CA private key: %w", err)
+	}
+
+	ed25519Key, ok := privKey.(*ed25519.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("CA private key is not Ed25519")
+	}
+
+	return *ed25519Key, nil
+}
+
+// SSHCertificate represents a signed SSH certificate
+type SSHCertificate struct {
+	Certificate    string   // OpenSSH certificate format (user saves as *-cert.pub)
+	CertificateRaw []byte   // Raw certificate bytes
+	Serial         uint64   // Certificate serial number
+	ValidAfter     uint64   // Unix timestamp - valid from
+	ValidBefore    uint64   // Unix timestamp - valid until
+	KeyID          string   // Certificate key ID (usually user email)
+	Principals     []string // Allowed usernames (e.g., "deploy")
+}
+
+// SignSSHCertificate signs a user's public key with the CA, creating a certificate
+func SignSSHCertificate(caPrivateKey ed25519.PrivateKey, userPublicKey string, keyID string, principals []string, validityDuration int64) (*SSHCertificate, error) {
+	// Parse the user's public key
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(userPublicKey))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse user public key: %w", err)
+	}
+
+	// Create CA signer
+	caSigner, err := ssh.NewSignerFromKey(caPrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CA signer: %w", err)
+	}
+
+	// Generate certificate serial number
+	serialBytes := make([]byte, 8)
+	if _, err := io.ReadFull(rand.Reader, serialBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate serial: %w", err)
+	}
+	serial := uint64(serialBytes[0])<<56 | uint64(serialBytes[1])<<48 | uint64(serialBytes[2])<<40 |
+		uint64(serialBytes[3])<<32 | uint64(serialBytes[4])<<24 | uint64(serialBytes[5])<<16 |
+		uint64(serialBytes[6])<<8 | uint64(serialBytes[7])
+
+	// Calculate validity times
+	now := uint64(time.Now().Unix())
+	validAfter := now - 60 // 1 minute grace period for clock skew
+	validBefore := now + uint64(validityDuration)
+
+	// Create the certificate
+	cert := &ssh.Certificate{
+		Key:             pubKey,
+		Serial:          serial,
+		CertType:        ssh.UserCert,
+		KeyId:           keyID,
+		ValidPrincipals: principals,
+		ValidAfter:      validAfter,
+		ValidBefore:     validBefore,
+		Permissions: ssh.Permissions{
+			Extensions: map[string]string{
+				"permit-pty":              "",
+				"permit-user-rc":          "",
+				"permit-agent-forwarding": "",
+				"permit-port-forwarding":  "",
+			},
+		},
+	}
+
+	// Sign the certificate
+	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
+		return nil, fmt.Errorf("failed to sign certificate: %w", err)
+	}
+
+	// Marshal to OpenSSH format
+	certBytes := ssh.MarshalAuthorizedKey(cert)
+	certString := strings.TrimSpace(string(certBytes))
+
+	return &SSHCertificate{
+		Certificate:    certString,
+		CertificateRaw: certBytes,
+		Serial:         serial,
+		ValidAfter:     validAfter,
+		ValidBefore:    validBefore,
+		KeyID:          keyID,
+		Principals:     principals,
+	}, nil
+}
+
+// SSHKeyPairWithCert represents an SSH key pair with a signed certificate
+type SSHKeyPairWithCert struct {
+	PrivateKey    string          // PEM-encoded private key
+	PublicKey     string          // OpenSSH format public key
+	PrivateKeyPEM []byte          // Raw PEM bytes
+	Certificate   *SSHCertificate // Signed certificate
+}
+
+// GenerateSSHKeyPairWithCert generates a new SSH key pair and signs it with the CA
+func GenerateSSHKeyPairWithCert(caPrivateKey ed25519.PrivateKey, keyID string, principals []string, validityDuration int64, comment string) (*SSHKeyPairWithCert, error) {
+	// Generate the key pair
+	keyPair, err := GenerateSSHKeyPair(comment)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sign the public key
+	cert, err := SignSSHCertificate(caPrivateKey, keyPair.PublicKey, keyID, principals, validityDuration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SSHKeyPairWithCert{
+		PrivateKey:    keyPair.PrivateKey,
+		PublicKey:     keyPair.PublicKey,
+		PrivateKeyPEM: keyPair.PrivateKeyPEM,
+		Certificate:   cert,
+	}, nil
 }

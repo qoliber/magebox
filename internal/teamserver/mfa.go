@@ -11,12 +11,13 @@ package teamserver
 import (
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,14 +27,24 @@ const (
 	// TOTPPeriod is the time step in seconds (30 seconds is standard)
 	TOTPPeriod = 30
 	// TOTPSecretLength is the length of the secret in bytes
-	TOTPSecretLength = 20
+	TOTPSecretLength = 32 // Use 32 bytes for SHA-256
 	// TOTPWindow allows for clock skew (1 period before/after)
 	TOTPWindow = 1
+	// usedCodeExpiry is how long to keep track of used codes
+	usedCodeExpiry = 90 * time.Second // 3 time windows (30s * 3)
 )
+
+// usedCode represents a used TOTP code with expiry time
+type usedCode struct {
+	code      string
+	expiresAt time.Time
+}
 
 // MFAManager handles multi-factor authentication operations
 type MFAManager struct {
-	issuer string
+	issuer    string
+	usedCodes map[string][]usedCode // userID -> list of used codes
+	mu        sync.Mutex
 }
 
 // NewMFAManager creates a new MFA manager
@@ -41,8 +52,35 @@ func NewMFAManager(issuer string) *MFAManager {
 	if issuer == "" {
 		issuer = "MageBox"
 	}
-	return &MFAManager{
-		issuer: issuer,
+	m := &MFAManager{
+		issuer:    issuer,
+		usedCodes: make(map[string][]usedCode),
+	}
+	// Start cleanup goroutine
+	go m.cleanupExpiredCodes()
+	return m
+}
+
+// cleanupExpiredCodes periodically removes expired used codes
+func (m *MFAManager) cleanupExpiredCodes() {
+	ticker := time.NewTicker(time.Minute)
+	for range ticker.C {
+		m.mu.Lock()
+		now := time.Now()
+		for userID, codes := range m.usedCodes {
+			var activeCodes []usedCode
+			for _, c := range codes {
+				if c.expiresAt.After(now) {
+					activeCodes = append(activeCodes, c)
+				}
+			}
+			if len(activeCodes) == 0 {
+				delete(m.usedCodes, userID)
+			} else {
+				m.usedCodes[userID] = activeCodes
+			}
+		}
+		m.mu.Unlock()
 	}
 }
 
@@ -70,8 +108,52 @@ func (m *MFAManager) GenerateQRCodeURL(secret, accountName string) string {
 	)
 }
 
-// ValidateCode validates a TOTP code against a secret
+// ValidateCode validates a TOTP code against a secret (legacy, no replay protection)
+// Deprecated: Use ValidateCodeForUser instead for replay attack protection
 func (m *MFAManager) ValidateCode(secret, code string) bool {
+	return m.validateCodeInternal(secret, code)
+}
+
+// ValidateCodeForUser validates a TOTP code with replay attack protection
+// Each code can only be used once per user within the validity window
+func (m *MFAManager) ValidateCodeForUser(userID, secret, code string) bool {
+	// Remove any spaces from the code
+	code = strings.ReplaceAll(code, " ", "")
+
+	if len(code) != TOTPDigits {
+		return false
+	}
+
+	// Check if this code was already used by this user
+	m.mu.Lock()
+	codes := m.usedCodes[userID]
+	now := time.Now()
+	for _, c := range codes {
+		if c.code == code && c.expiresAt.After(now) {
+			m.mu.Unlock()
+			return false // Code was already used (replay attack)
+		}
+	}
+	m.mu.Unlock()
+
+	// Validate the code
+	if !m.validateCodeInternal(secret, code) {
+		return false
+	}
+
+	// Mark the code as used
+	m.mu.Lock()
+	m.usedCodes[userID] = append(m.usedCodes[userID], usedCode{
+		code:      code,
+		expiresAt: now.Add(usedCodeExpiry),
+	})
+	m.mu.Unlock()
+
+	return true
+}
+
+// validateCodeInternal validates a TOTP code against a secret
+func (m *MFAManager) validateCodeInternal(secret, code string) bool {
 	// Remove any spaces from the code
 	code = strings.ReplaceAll(code, " ", "")
 
@@ -106,8 +188,8 @@ func (m *MFAManager) generateCode(secret []byte, counter int64) string {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(counter))
 
-	// Generate HMAC-SHA1
-	mac := hmac.New(sha1.New, secret)
+	// Generate HMAC-SHA256 (more secure than SHA-1)
+	mac := hmac.New(sha256.New, secret)
 	mac.Write(buf)
 	sum := mac.Sum(nil)
 

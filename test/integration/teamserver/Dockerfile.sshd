@@ -1,8 +1,8 @@
 # Dockerfile for SSH test environments
 FROM alpine:3.19
 
-# Install OpenSSH server
-RUN apk add --no-cache openssh openssh-server bash
+# Install OpenSSH server and curl for health checks
+RUN apk add --no-cache openssh openssh-server bash curl
 
 # Create deploy user
 RUN adduser -D -s /bin/bash deploy && \
@@ -14,11 +14,24 @@ RUN adduser -D -s /bin/bash deploy && \
 # Generate host keys
 RUN ssh-keygen -A
 
-# Configure SSH
+# Create CA keys directory
+RUN mkdir -p /etc/ssh/ca
+
+# Configure SSH with CA support
 RUN echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication no" >> /etc/ssh/sshd_config && \
     echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config && \
-    echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config
+    echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config && \
+    echo "TrustedUserCAKeys /etc/ssh/ca/trusted_ca.pub" >> /etc/ssh/sshd_config && \
+    echo "AuthorizedPrincipalsFile /etc/ssh/ca/principals/%u" >> /etc/ssh/sshd_config
+
+# Create principals file for deploy user (allows "deploy" principal)
+RUN mkdir -p /etc/ssh/ca/principals && \
+    echo "deploy" > /etc/ssh/ca/principals/deploy
+
+# Create empty CA file (will be populated at runtime)
+RUN touch /etc/ssh/ca/trusted_ca.pub && \
+    chmod 644 /etc/ssh/ca/trusted_ca.pub
 
 # Create directory for authorized_keys management
 RUN mkdir -p /etc/magebox && \

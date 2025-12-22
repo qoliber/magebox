@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/qoliber/magebox/internal/cli"
 	"github.com/spf13/cobra"
@@ -80,11 +81,44 @@ func runSSH(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check SSH key exists
-	if config.KeyPath == "" {
+	keyPath := config.KeyPath
+	if keyPath == "" {
+		keyPath = config.KeyFile
+	}
+	if keyPath == "" {
 		return fmt.Errorf("no SSH key configured. Rejoin the team server with: magebox server join")
 	}
-	if _, err := os.Stat(config.KeyPath); os.IsNotExist(err) {
-		return fmt.Errorf("SSH key not found at %s. Rejoin the team server with: magebox server join", config.KeyPath)
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		return fmt.Errorf("SSH key not found at %s. Rejoin the team server with: magebox server join", keyPath)
+	}
+
+	// Check for certificate if CA is enabled
+	certFile := keyPath + "-cert.pub"
+	hasCert := false
+	certExpired := false
+
+	if config.CAEnabled {
+		if _, err := os.Stat(certFile); err == nil {
+			hasCert = true
+			// Check certificate modification time as a proxy for expiry
+			// (actual expiry requires parsing the certificate)
+			if certInfo, err := os.Stat(certFile); err == nil {
+				// If certificate is older than 23 hours, it's likely expired or about to expire
+				if time.Since(certInfo.ModTime()) > 23*time.Hour {
+					certExpired = true
+				}
+			}
+		}
+
+		if !hasCert {
+			cli.PrintWarning("No SSH certificate found")
+			cli.PrintInfo("Run 'magebox cert renew' to get a certificate")
+			fmt.Println()
+		} else if certExpired {
+			cli.PrintWarning("SSH certificate may be expired")
+			cli.PrintInfo("Run 'magebox cert renew' to renew your certificate")
+			fmt.Println()
+		}
 	}
 
 	// Build SSH command
@@ -94,13 +128,18 @@ func runSSH(cmd *cobra.Command, args []string) error {
 	}
 
 	sshArgs := []string{
-		"-i", config.KeyPath,
+		"-i", keyPath,
 		"-p", strconv.Itoa(port),
 		"-o", "StrictHostKeyChecking=accept-new",
 		fmt.Sprintf("%s@%s", targetEnv.DeployUser, targetEnv.Host),
 	}
 
-	cli.PrintInfo("Connecting to %s (%s@%s:%d)...", targetEnv.Name, targetEnv.DeployUser, targetEnv.Host, port)
+	// Show connection info
+	if config.CAEnabled && hasCert && !certExpired {
+		cli.PrintInfo("Connecting to %s using certificate (%s@%s:%d)...", targetEnv.Name, targetEnv.DeployUser, targetEnv.Host, port)
+	} else {
+		cli.PrintInfo("Connecting to %s (%s@%s:%d)...", targetEnv.Name, targetEnv.DeployUser, targetEnv.Host, port)
+	}
 
 	sshPath, err := exec.LookPath("ssh")
 	if err != nil {

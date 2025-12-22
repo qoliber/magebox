@@ -26,6 +26,11 @@ func TestNewDeployer(t *testing.T) {
 func TestFormatKeyLine(t *testing.T) {
 	d := NewDeployer()
 
+	// Use valid base64-encoded SSH key data for tests
+	// This is a valid ed25519 public key structure (just for testing)
+	validEd25519Key := "AAAAC3NzaC1lZDI1NTE5AAAAIJGeLTQZvDa0nX+e1/sE9vI9WU5m/GBi4aEYGvZ9klhj"
+	validRSAKey := "AAAAB3NzaC1yc2EAAAADAQABAAABgQC5vLxf" // Valid RSA key prefix
+
 	tests := []struct {
 		name     string
 		userKey  UserKey
@@ -35,25 +40,25 @@ func TestFormatKeyLine(t *testing.T) {
 			name: "key without comment",
 			userKey: UserKey{
 				UserName:  "alice",
-				PublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest",
+				PublicKey: "ssh-ed25519 " + validEd25519Key,
 			},
-			expected: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest magebox:alice",
+			expected: "ssh-ed25519 " + validEd25519Key + " magebox:alice",
 		},
 		{
 			name: "key with existing comment",
 			userKey: UserKey{
 				UserName:  "bob",
-				PublicKey: "ssh-rsa AAAAB3... bob@example.com",
+				PublicKey: "ssh-rsa " + validRSAKey + " bob@example.com",
 			},
-			expected: "ssh-rsa AAAAB3... magebox:bob",
+			expected: "ssh-rsa " + validRSAKey + " magebox:bob",
 		},
 		{
 			name: "key with magebox marker already",
 			userKey: UserKey{
 				UserName:  "charlie",
-				PublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest magebox:charlie",
+				PublicKey: "ssh-ed25519 " + validEd25519Key + " magebox:charlie",
 			},
-			expected: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest magebox:charlie",
+			expected: "ssh-ed25519 " + validEd25519Key + " magebox:charlie",
 		},
 	}
 
@@ -127,6 +132,12 @@ func TestKeysMatch(t *testing.T) {
 func TestBuildAuthorizedKeys(t *testing.T) {
 	d := NewDeployer()
 
+	// Valid base64 SSH key data for tests
+	key1 := "AAAAC3NzaC1lZDI1NTE5AAAAIJGeLTQZvDa0nX+e1/sE9vI9WU5m/GBi4aEYGvZ9klhj"
+	key2 := "AAAAC3NzaC1lZDI1NTE5AAAAINxV5p+j5f5kQ3e1xF8y2e5Zp8t1vY6s7u7XzKbNfPqM"
+	key3 := "AAAAC3NzaC1lZDI1NTE5AAAAIOld7u8p9F5kQ3e1xF8y2e5Zp8t1vY6s7u7XzKbNfPqP"
+	rsaKey := "AAAAB3NzaC1yc2EAAAADAQABAAABgQC5vLxf"
+
 	tests := []struct {
 		name          string
 		currentKeys   []string
@@ -139,62 +150,62 @@ func TestBuildAuthorizedKeys(t *testing.T) {
 			name:        "empty to new keys",
 			currentKeys: []string{},
 			newKeys: []UserKey{
-				{UserName: "alice", PublicKey: "ssh-ed25519 AAAA1"},
-				{UserName: "bob", PublicKey: "ssh-ed25519 AAAA2"},
+				{UserName: "alice", PublicKey: "ssh-ed25519 " + key1},
+				{UserName: "bob", PublicKey: "ssh-ed25519 " + key2},
 			},
 			expectAdded:   2,
 			expectRemoved: 0,
-			expectKeys:    []string{"ssh-ed25519 AAAA1 magebox:alice", "ssh-ed25519 AAAA2 magebox:bob"},
+			expectKeys:    []string{"ssh-ed25519 " + key1 + " magebox:alice", "ssh-ed25519 " + key2 + " magebox:bob"},
 		},
 		{
 			name: "preserve unmanaged keys",
 			currentKeys: []string{
-				"ssh-rsa UNMANAGED user@external",
+				"ssh-rsa " + rsaKey + " user@external",
 			},
 			newKeys: []UserKey{
-				{UserName: "alice", PublicKey: "ssh-ed25519 AAAA1"},
+				{UserName: "alice", PublicKey: "ssh-ed25519 " + key1},
 			},
 			expectAdded:   1,
 			expectRemoved: 0,
-			expectKeys:    []string{"ssh-rsa UNMANAGED user@external", "ssh-ed25519 AAAA1 magebox:alice"},
+			expectKeys:    []string{"ssh-rsa " + rsaKey + " user@external", "ssh-ed25519 " + key1 + " magebox:alice"},
 		},
 		{
 			name: "remove old managed key",
 			currentKeys: []string{
-				"ssh-ed25519 AAAA1 magebox:alice",
-				"ssh-ed25519 AAAA2 magebox:bob",
+				"ssh-ed25519 " + key1 + " magebox:alice",
+				"ssh-ed25519 " + key2 + " magebox:bob",
 			},
 			newKeys: []UserKey{
-				{UserName: "alice", PublicKey: "ssh-ed25519 AAAA1"},
+				{UserName: "alice", PublicKey: "ssh-ed25519 " + key1},
 			},
 			expectAdded:   0,
 			expectRemoved: 1,
-			expectKeys:    []string{"ssh-ed25519 AAAA1 magebox:alice"},
+			expectKeys:    []string{"ssh-ed25519 " + key1 + " magebox:alice"},
 		},
 		{
 			name: "mixed managed and unmanaged",
 			currentKeys: []string{
-				"ssh-rsa UNMANAGED external@host",
-				"ssh-ed25519 OLD magebox:olduser",
+				"ssh-rsa " + rsaKey + " external@host",
+				"ssh-ed25519 " + key2 + " magebox:olduser",
 			},
 			newKeys: []UserKey{
-				{UserName: "newuser", PublicKey: "ssh-ed25519 NEW"},
+				{UserName: "newuser", PublicKey: "ssh-ed25519 " + key3},
 			},
 			expectAdded:   1,
 			expectRemoved: 1,
-			expectKeys:    []string{"ssh-rsa UNMANAGED external@host", "ssh-ed25519 NEW magebox:newuser"},
+			expectKeys:    []string{"ssh-rsa " + rsaKey + " external@host", "ssh-ed25519 " + key3 + " magebox:newuser"},
 		},
 		{
 			name: "no changes",
 			currentKeys: []string{
-				"ssh-ed25519 AAAA1 magebox:alice",
+				"ssh-ed25519 " + key1 + " magebox:alice",
 			},
 			newKeys: []UserKey{
-				{UserName: "alice", PublicKey: "ssh-ed25519 AAAA1"},
+				{UserName: "alice", PublicKey: "ssh-ed25519 " + key1},
 			},
 			expectAdded:   0,
 			expectRemoved: 0,
-			expectKeys:    []string{"ssh-ed25519 AAAA1 magebox:alice"},
+			expectKeys:    []string{"ssh-ed25519 " + key1 + " magebox:alice"},
 		},
 	}
 
@@ -318,25 +329,39 @@ func TestBuildAuthorizedKeysContent(t *testing.T) {
 
 func TestFormatKeyLineEdgeCases(t *testing.T) {
 	d := NewDeployer()
+	validEd25519Key := "AAAAC3NzaC1lZDI1NTE5AAAAIJGeLTQZvDa0nX+e1/sE9vI9WU5m/GBi4aEYGvZ9klhj"
 
-	// Test with whitespace
+	// Test with whitespace - should trim and process valid key
 	key := UserKey{
 		UserName:  "alice",
-		PublicKey: "  ssh-ed25519 AAAA1  ",
+		PublicKey: "  ssh-ed25519 " + validEd25519Key + "  ",
 	}
 	result := d.formatKeyLine(key)
 	if strings.HasPrefix(result, " ") {
 		t.Error("Result should not have leading whitespace")
 	}
+	if result == "" {
+		t.Error("Valid key with whitespace should be processed")
+	}
 
-	// Test with only key type (malformed)
+	// Test with only key type (malformed) - should return empty for invalid keys
 	malformed := UserKey{
 		UserName:  "bob",
 		PublicKey: "ssh-ed25519",
 	}
 	malformedResult := d.formatKeyLine(malformed)
-	// Should return original if can't parse
-	if malformedResult == "" {
-		t.Error("Should return something for malformed key")
+	// Should return empty for invalid/malformed keys (security: reject invalid input)
+	if malformedResult != "" {
+		t.Error("Malformed key should return empty string for security")
+	}
+
+	// Test with invalid base64 - should return empty
+	invalidBase64 := UserKey{
+		UserName:  "charlie",
+		PublicKey: "ssh-ed25519 not_valid_base64!!!",
+	}
+	invalidResult := d.formatKeyLine(invalidBase64)
+	if invalidResult != "" {
+		t.Error("Invalid base64 key should return empty string")
 	}
 }

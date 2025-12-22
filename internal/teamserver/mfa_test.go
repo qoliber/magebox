@@ -42,9 +42,10 @@ func TestGenerateSecret(t *testing.T) {
 		t.Error("Secret should not be empty")
 	}
 
-	// Should be 32 characters (20 bytes base32 encoded without padding)
-	if len(secret) != 32 {
-		t.Errorf("Secret length = %d, want 32", len(secret))
+	// Should be 52 characters (32 bytes base32 encoded without padding)
+	// 32 bytes * 8 bits / 5 bits per base32 char = 51.2 -> 52 characters
+	if len(secret) != 52 {
+		t.Errorf("Secret length = %d, want 52", len(secret))
 	}
 
 	// Generate another secret - should be different

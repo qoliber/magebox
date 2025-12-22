@@ -5,6 +5,45 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-12-22
+
+### 🎉 First Stable Release
+
+MageBox v1.0.0 marks the first stable release, ready for team collaboration and production use.
+
+### Security Hardening
+
+This release includes comprehensive security improvements following a full code audit:
+
+- **Shell Injection Prevention** - SSH key deployment now uses base64 encoding instead of heredocs to prevent command injection
+- **X-Forwarded-For Protection** - Proxy headers only trusted when connection is from configured `trusted_proxies`, with rightmost non-proxy IP extraction
+- **SSH Host Key Verification** - TOFU (Trust On First Use) with fingerprint storage and verification for subsequent connections
+- **TOTP Replay Attack Prevention** - Used codes are tracked and rejected within validity window (90 seconds)
+- **HMAC Upgraded to SHA-256** - MFA now uses HMAC-SHA256 with 32-byte secrets (was SHA-1/20-byte)
+- **URL Validation** - Server join command validates URLs and warns about private/local addresses
+- **Security Headers** - Added HSTS, Content-Security-Policy, Referrer-Policy, Permissions-Policy, Cache-Control
+- **Input Validation** - SSH public keys validated for format and base64 encoding; usernames sanitized
+
+### Added
+
+- `TrustedProxies` configuration option for secure proxy header handling
+- `HostKey` field in Environment for SSH host key verification
+- `ValidateCodeForUser()` MFA method with replay protection
+- SSH key format validation (`validateSSHPublicKey`)
+- Username sanitization (`sanitizeUsername`)
+
+### Changed
+
+- TOTP secret length increased from 20 to 32 bytes for SHA-256
+- SSH key deployment uses base64 encoding for security
+- Client IP extraction requires explicit proxy configuration
+
+### Testing
+
+- All unit tests pass (17 packages)
+- Static analysis clean (`go vet`, `staticcheck`)
+- No known vulnerabilities (`govulncheck`)
+
 ## [0.19.1] - 2025-12-19
 
 ### Added

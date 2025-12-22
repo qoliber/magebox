@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -333,18 +332,6 @@ func runEnvShow(_ *cobra.Command, args []string) error {
 	fmt.Printf("  %s %s\n", cmd.Path, strings.Join(cmd.Args[1:], " "))
 
 	return nil
-}
-
-// Helper to convert string to int with default
-func parsePort(s string, defaultVal int) int {
-	if s == "" {
-		return defaultVal
-	}
-	p, err := strconv.Atoi(s)
-	if err != nil {
-		return defaultVal
-	}
-	return p
 }
 
 func runEnvSync(_ *cobra.Command, _ []string) error {
