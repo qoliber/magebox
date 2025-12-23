@@ -108,24 +108,14 @@ func (b *BaseInstaller) ConfigureShellPath() error {
 	// Check for shell-specific config files
 	switch shellName {
 	case "zsh":
-		// zsh: add to .zshrc for interactive shells
-		zshrc := homeDir + "/.zshrc"
-		if !b.FileExists(zshrc) {
-			// Create empty .zshrc if it doesn't exist
-			if f, err := os.Create(zshrc); err == nil {
+		// zsh: add to .zshenv (always sourced, even by IDE terminals)
+		zshenv := homeDir + "/.zshenv"
+		if !b.FileExists(zshenv) {
+			if f, err := os.Create(zshenv); err == nil {
 				f.Close()
 			}
 		}
-		rcFiles = append(rcFiles, zshrc)
-		// Also add to .zprofile for login shells (IDEs like PhpStorm, VS Code)
-		zprofile := homeDir + "/.zprofile"
-		if !b.FileExists(zprofile) {
-			// Create .zprofile if it doesn't exist (for IDE terminals)
-			if f, err := os.Create(zprofile); err == nil {
-				f.Close()
-			}
-		}
-		rcFiles = append(rcFiles, zprofile)
+		rcFiles = append(rcFiles, zshenv)
 	case "bash":
 		// bash: prefer .bashrc
 		bashrc := homeDir + "/.bashrc"

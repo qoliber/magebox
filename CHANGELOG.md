@@ -40,7 +40,7 @@ This release includes comprehensive security improvements following a full code 
 
 ### Fixed
 
-- **IDE Terminal PHP Wrappers** - Bootstrap now adds PATH to `.zprofile` for zsh users, fixing PhpStorm and VS Code terminal integration
+- **IDE Terminal PHP Wrappers** - Bootstrap now adds PATH to `.zshenv` for zsh users, which is sourced by ALL shell invocations including IDE terminals
 - **Fedora/RHEL PHP Detection** - Added direct Remi PHP path (`/opt/remi/phpXX/root/usr/bin/php`) as fallback
 - **macOS Port Forwarding Persistence** - Use WatchPaths instead of KeepAlive for reliable pf rule persistence across network changes
 
