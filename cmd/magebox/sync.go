@@ -95,15 +95,20 @@ func runSync(cmd *cobra.Command, args []string) error {
 			team.FormatSpeed(prog.Speed), prog.ETA)
 	})
 
-	if !syncDryRun {
-		if err := assetClient.Connect(); err != nil {
-			return fmt.Errorf("failed to connect to asset storage: %w", err)
-		}
-		defer assetClient.Close()
+	// Connect to verify files exist (even in dry-run mode)
+	if err := assetClient.Connect(); err != nil {
+		return fmt.Errorf("failed to connect to asset storage: %w", err)
 	}
+	defer assetClient.Close()
 
 	// Sync database
 	if !syncMediaOnly && project.DB != "" {
+		// Check if file exists on remote
+		if !assetClient.FileExists(project.DB) {
+			return fmt.Errorf("database file not found on asset storage: %s\n       Full path: %s/%s\n       Update the project config with: magebox team %s project add %s --db <correct-path>",
+				project.DB, t.Assets.Path, project.DB, t.Name, filepath.Base(project.Repo))
+		}
+
 		if syncDryRun {
 			size, _ := assetClient.GetFileSize(project.DB)
 			fmt.Printf("Would download database: %s (%s)\n", project.DB, team.FormatBytes(size))
@@ -137,6 +142,12 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	// Sync media
 	if !syncDBOnly && project.Media != "" {
+		// Check if file exists on remote
+		if !assetClient.FileExists(project.Media) {
+			return fmt.Errorf("media file not found on asset storage: %s\n       Full path: %s/%s\n       Update the project config with: magebox team %s project add %s --media <correct-path>",
+				project.Media, t.Assets.Path, project.Media, t.Name, filepath.Base(project.Repo))
+		}
+
 		if syncDryRun {
 			size, _ := assetClient.GetFileSize(project.Media)
 			fmt.Printf("Would download media: %s (%s)\n", project.Media, team.FormatBytes(size))
