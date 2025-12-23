@@ -277,6 +277,44 @@ echo $PATH | tr ':' '\n' | head -5
 # If not, check your ~/.zshrc or ~/.bashrc
 ```
 
+### PhpStorm Terminal Uses System PHP
+
+PhpStorm's built-in terminal may ignore your shell PATH and use its own configured PHP. This happens because:
+
+1. **PhpStorm injects its CLI interpreter into PATH** - Check Settings → Tools → Terminal → look for PHP-related options
+2. **GUI apps don't inherit shell PATH** - PhpStorm reads environment at launch, not from shell config
+
+**Solution 1: Disable PhpStorm's PHP PATH injection**
+
+Go to **Settings → Tools → Terminal** and uncheck any option like "Add PHP interpreter to PATH" or similar.
+
+**Solution 2: Create a symlink at `/usr/local/bin`**
+
+```bash
+# Create symlink that takes precedence
+sudo ln -sf ~/.magebox/bin/php /usr/local/bin/php
+
+# Add /usr/local/bin first in PATH (in ~/.zshenv)
+export PATH="/usr/local/bin:$PATH"
+```
+
+**Solution 3: Configure PhpStorm to use MageBox wrapper**
+
+1. Go to **Settings → PHP → CLI Interpreter**
+2. Add new interpreter pointing to `~/.magebox/bin/php`
+3. Set it as project default
+
+**Verify in PhpStorm terminal:**
+```bash
+which php          # Should NOT be /usr/bin/php
+php -v             # Should match project's PHP version
+env | grep -i php  # Check if PhpStorm injected PHP paths
+```
+
+::: warning Restart Required
+After changing PATH in `~/.zshenv`, you must **fully quit and restart PhpStorm** (not just the terminal tab) for changes to take effect.
+:::
+
 ### PHP Version Not Changing
 
 1. Ensure `.magebox.yaml` exists in project root
