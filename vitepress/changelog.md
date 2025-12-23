@@ -51,6 +51,12 @@ Comprehensive security audit and fixes for production readiness:
 - **Security Headers** - HSTS, CSP, Referrer-Policy, Permissions-Policy, Cache-Control
 - **Input Validation** - SSH public key and username validation
 
+### Fixed
+
+- **IDE Terminal PHP Wrappers** - Bootstrap now adds PATH to `.zprofile` for zsh users, fixing PhpStorm and VS Code terminal integration
+- **Fedora/RHEL PHP Detection** - Added direct Remi PHP path as fallback
+- **macOS Port Forwarding Persistence** - Use WatchPaths for reliable pf rule persistence
+
 ### Breaking Changes
 
 None - v1.0.0 is backward compatible with v0.19.x configurations.

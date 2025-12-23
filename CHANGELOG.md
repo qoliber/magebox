@@ -38,6 +38,12 @@ This release includes comprehensive security improvements following a full code 
 - SSH key deployment uses base64 encoding for security
 - Client IP extraction requires explicit proxy configuration
 
+### Fixed
+
+- **IDE Terminal PHP Wrappers** - Bootstrap now adds PATH to `.zprofile` for zsh users, fixing PhpStorm and VS Code terminal integration
+- **Fedora/RHEL PHP Detection** - Added direct Remi PHP path (`/opt/remi/phpXX/root/usr/bin/php`) as fallback
+- **macOS Port Forwarding Persistence** - Use WatchPaths instead of KeepAlive for reliable pf rule persistence across network changes
+
 ### Testing
 
 - All unit tests pass (17 packages)
