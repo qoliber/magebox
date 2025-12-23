@@ -158,7 +158,8 @@ rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
 
 // createLaunchDaemon creates the LaunchDaemon plist
 func (m *Manager) createLaunchDaemon() error {
-	// Load the main pf.conf which now includes our anchor
+	// Load the main pf.conf which includes our anchor
+	// WatchPaths triggers reload when pf.conf or network config changes
 	plist := `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -176,8 +177,12 @@ func (m *Manager) createLaunchDaemon() error {
     <key>RunAtLoad</key>
     <true/>
 
-    <key>KeepAlive</key>
-    <false/>
+    <key>WatchPaths</key>
+    <array>
+        <string>/etc/pf.conf</string>
+        <string>/etc/pf.anchors</string>
+        <string>/Library/Preferences/SystemConfiguration</string>
+    </array>
 
     <key>StandardOutPath</key>
     <string>/var/log/magebox-portforward.log</string>

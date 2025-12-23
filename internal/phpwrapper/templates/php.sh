@@ -56,9 +56,15 @@ find_php_binary() {
         return 0
     fi
 
-    # Linux Fedora/RHEL Remi: /usr/bin/php82 (no dot)
+    # Linux Fedora/RHEL: /usr/bin/php82 (without dot, symlink to Remi)
     if [[ -x "/usr/bin/php$version_no_dot" ]]; then
         echo "/usr/bin/php$version_no_dot"
+        return 0
+    fi
+
+    # Linux Fedora/RHEL Remi direct: /opt/remi/php82/root/usr/bin/php
+    if [[ -x "/opt/remi/php$version_no_dot/root/usr/bin/php" ]]; then
+        echo "/opt/remi/php$version_no_dot/root/usr/bin/php"
         return 0
     fi
 
