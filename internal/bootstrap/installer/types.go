@@ -26,7 +26,7 @@ var PHPVersions = []string{"8.1", "8.2", "8.3", "8.4", "8.5"}
 // RequiredPHPExtensions defines required PHP extensions for Magento
 var RequiredPHPExtensions = []string{
 	"bcmath", "cli", "common", "curl", "fpm", "gd", "intl",
-	"mbstring", "mysql", "opcache", "soap", "xml", "zip",
+	"mbstring", "mysql", "opcache", "soap", "sodium", "xml", "zip",
 }
 
 // OSVersionInfo contains OS version details
@@ -75,6 +75,10 @@ type Installer interface {
 
 	// InstallImagick installs ImageMagick PHP extension for a specific PHP version
 	InstallImagick(version string) error
+
+	// InstallSodium installs the sodium PHP extension for a specific PHP version
+	// This is required for Argon2i password hashing in Magento
+	InstallSodium(version string) error
 
 	// InstallBlackfire installs Blackfire agent and PHP extension for all versions
 	InstallBlackfire(versions []string) error

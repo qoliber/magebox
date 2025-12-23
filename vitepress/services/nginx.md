@@ -159,16 +159,24 @@ magebox restart
 
 ### Viewing Logs
 
-```bash
-# Access log
-tail -f /var/log/nginx/access.log
+MageBox stores per-domain logs for easy debugging:
 
-# Error log
+```bash
+# Per-domain logs (recommended)
+tail -f ~/.magebox/logs/nginx/mystore.test-access.log
+tail -f ~/.magebox/logs/nginx/mystore.test-error.log
+
+# System-wide nginx logs (fallback)
+tail -f /var/log/nginx/access.log
 tail -f /var/log/nginx/error.log
 
 # macOS (Homebrew)
 tail -f /opt/homebrew/var/log/nginx/error.log
 ```
+
+::: tip Per-Domain Logging
+Each domain configured in your project gets its own access and error log in `~/.magebox/logs/nginx/`. This makes it easy to debug issues for specific projects without searching through system-wide logs.
+:::
 
 ## Troubleshooting
 

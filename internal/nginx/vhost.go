@@ -60,6 +60,8 @@ type VhostConfig struct {
 	BackendPort   int    // Backend port for Varnish (always 8080 when Varnish enabled)
 	StoreCode     string // Magento store code for multi-store setup (default: "default")
 	MageRunType   string // Magento run type: "store" or "website" (default: "store")
+	AccessLog     string // Path to access log file
+	ErrorLog      string // Path to error log file
 }
 
 // ProxyConfig contains data needed to generate a proxy vhost
@@ -97,6 +99,12 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 		return fmt.Errorf("failed to create vhosts directory: %w", err)
 	}
 
+	// Ensure nginx logs directory exists
+	logsDir := filepath.Join(g.platform.MageBoxDir(), "logs", "nginx")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create nginx logs directory: %w", err)
+	}
+
 	// Generate upstream config (once per project, not per domain)
 	upstreamCfg := UpstreamConfig{
 		ProjectName:   cfg.Name,
@@ -122,6 +130,9 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			backendPort = 8080
 		}
 
+		// Generate sanitized domain name for log files
+		sanitizedDomain := sanitizeDomain(domain.Host)
+
 		vhostCfg := VhostConfig{
 			ProjectName:   cfg.Name,
 			Domain:        domain.Host,
@@ -136,6 +147,8 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			BackendPort:   backendPort,
 			StoreCode:     domain.GetStoreCode(),
 			MageRunType:   domain.GetMageRunType(),
+			AccessLog:     filepath.Join(logsDir, fmt.Sprintf("%s-access.log", sanitizedDomain)),
+			ErrorLog:      filepath.Join(logsDir, fmt.Sprintf("%s-error.log", sanitizedDomain)),
 		}
 
 		// Get SSL cert paths if SSL is enabled

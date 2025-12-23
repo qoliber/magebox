@@ -166,6 +166,13 @@ func (u *UbuntuInstaller) InstallImagick(version string) error {
 	return nil
 }
 
+// InstallSodium installs the sodium PHP extension for a specific PHP version
+// Required for Argon2i password hashing in Magento
+// Note: On Ubuntu/Debian with Ondrej PPA, sodium may be in php-common or separate package
+func (u *UbuntuInstaller) InstallSodium(version string) error {
+	return u.RunSudo("apt", "install", "-y", fmt.Sprintf("php%s-sodium", version))
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
 func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
 	for _, v := range versions {

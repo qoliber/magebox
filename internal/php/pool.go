@@ -48,9 +48,9 @@ const (
 
 // PoolGenerator generates PHP-FPM pool configurations
 type PoolGenerator struct {
-	platform *platform.Platform
-	poolsDir string
-	runDir   string
+	platform     *platform.Platform
+	basePoolsDir string // Base pools directory (version subdirs will be created)
+	runDir       string
 }
 
 // PoolConfig contains all data needed to generate a PHP-FPM pool
@@ -75,16 +75,22 @@ type PoolConfig struct {
 // NewPoolGenerator creates a new pool generator
 func NewPoolGenerator(p *platform.Platform) *PoolGenerator {
 	return &PoolGenerator{
-		platform: p,
-		poolsDir: filepath.Join(p.MageBoxDir(), "php", "pools"),
-		runDir:   filepath.Join(p.MageBoxDir(), "run"),
+		platform:     p,
+		basePoolsDir: filepath.Join(p.MageBoxDir(), "php", "pools"),
+		runDir:       filepath.Join(p.MageBoxDir(), "run"),
 	}
+}
+
+// getVersionPoolsDir returns the version-specific pools directory
+func (g *PoolGenerator) getVersionPoolsDir(phpVersion string) string {
+	return filepath.Join(g.basePoolsDir, phpVersion)
 }
 
 // Generate generates a PHP-FPM pool configuration for a project
 func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool) error {
-	// Ensure directories exist
-	if err := os.MkdirAll(g.poolsDir, 0755); err != nil {
+	// Ensure version-specific pools directory exists
+	versionPoolsDir := g.getVersionPoolsDir(phpVersion)
+	if err := os.MkdirAll(versionPoolsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create pools directory: %w", err)
 	}
 	if err := os.MkdirAll(g.runDir, 0755); err != nil {
@@ -137,11 +143,42 @@ func (g *PoolGenerator) Generate(projectName, phpVersion string, env map[string]
 		return fmt.Errorf("failed to render pool config: %w", err)
 	}
 
-	poolFile := filepath.Join(g.poolsDir, fmt.Sprintf("%s.conf", projectName))
+	poolFile := filepath.Join(versionPoolsDir, fmt.Sprintf("%s.conf", projectName))
 	if err := os.WriteFile(poolFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write pool file: %w", err)
 	}
 
+	// Clean up old pool configs from other PHP versions (project can only use one version)
+	if err := g.removeOldVersionPools(projectName, phpVersion); err != nil {
+		// Log but don't fail - old pools won't cause issues, just clutter
+		fmt.Printf("[WARN] Failed to remove old version pool configs: %v\n", err)
+	}
+
+	return nil
+}
+
+// removeOldVersionPools removes pool configs for a project from other PHP version directories
+func (g *PoolGenerator) removeOldVersionPools(projectName, currentVersion string) error {
+	entries, err := os.ReadDir(g.basePoolsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	poolFileName := fmt.Sprintf("%s.conf", projectName)
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == currentVersion {
+			continue
+		}
+		oldPoolFile := filepath.Join(g.basePoolsDir, entry.Name(), poolFileName)
+		if _, err := os.Stat(oldPoolFile); err == nil {
+			if err := os.Remove(oldPoolFile); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -162,11 +199,25 @@ func (g *PoolGenerator) setupMailpitSendmail() (string, error) {
 	return sendmailPath, nil
 }
 
-// Remove removes the pool configuration for a project
+// Remove removes the pool configuration for a project from all version directories
 func (g *PoolGenerator) Remove(projectName string) error {
-	poolFile := filepath.Join(g.poolsDir, fmt.Sprintf("%s.conf", projectName))
-	if err := os.Remove(poolFile); err != nil && !os.IsNotExist(err) {
+	entries, err := os.ReadDir(g.basePoolsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
+	}
+
+	poolFileName := fmt.Sprintf("%s.conf", projectName)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		poolFile := filepath.Join(g.basePoolsDir, entry.Name(), poolFileName)
+		if err := os.Remove(poolFile); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }
@@ -176,9 +227,14 @@ func (g *PoolGenerator) GetSocketPath(projectName, phpVersion string) string {
 	return filepath.Join(g.runDir, fmt.Sprintf("%s-php%s.sock", projectName, phpVersion))
 }
 
-// PoolsDir returns the pools directory path
+// PoolsDir returns the base pools directory path
 func (g *PoolGenerator) PoolsDir() string {
-	return g.poolsDir
+	return g.basePoolsDir
+}
+
+// PoolsDirForVersion returns the version-specific pools directory path
+func (g *PoolGenerator) PoolsDirForVersion(phpVersion string) string {
+	return g.getVersionPoolsDir(phpVersion)
 }
 
 // RunDir returns the run directory path
@@ -186,9 +242,15 @@ func (g *PoolGenerator) RunDir() string {
 	return g.runDir
 }
 
-// ListPools returns all pool configuration files
+// ListPools returns all pool configuration files across all versions
 func (g *PoolGenerator) ListPools() ([]string, error) {
-	pattern := filepath.Join(g.poolsDir, "*.conf")
+	pattern := filepath.Join(g.basePoolsDir, "*", "*.conf")
+	return filepath.Glob(pattern)
+}
+
+// ListPoolsForVersion returns pool configuration files for a specific PHP version
+func (g *PoolGenerator) ListPoolsForVersion(phpVersion string) ([]string, error) {
+	pattern := filepath.Join(g.getVersionPoolsDir(phpVersion), "*.conf")
 	return filepath.Glob(pattern)
 }
 
@@ -276,7 +338,7 @@ func (c *FPMController) getErrorLogPath() string {
 
 // getPoolsDir returns the path to the pools directory
 func (c *FPMController) getPoolsDir() string {
-	return filepath.Join(c.platform.MageBoxDir(), "php", "pools")
+	return filepath.Join(c.platform.MageBoxDir(), "php", "pools", c.version)
 }
 
 // getBinaryPath returns the path to php-fpm binary for this version
@@ -418,9 +480,14 @@ func (c *FPMController) getPID() (int, error) {
 	return pid, nil
 }
 
-// GetIncludeDirective returns the include path for the pools directory
+// GetIncludeDirective returns the include path for all pools (deprecated - use GetIncludeDirectiveForVersion)
 func (g *PoolGenerator) GetIncludeDirective() string {
-	return g.poolsDir + "/*.conf"
+	return g.basePoolsDir + "/*/*.conf"
+}
+
+// GetIncludeDirectiveForVersion returns the include path for version-specific pools
+func (g *PoolGenerator) GetIncludeDirectiveForVersion(phpVersion string) string {
+	return g.getVersionPoolsDir(phpVersion) + "/*.conf"
 }
 
 // SetupFPMConfig creates symlinks from PHP-FPM conf.d directories to MageBox pools
@@ -448,13 +515,19 @@ func (g *PoolGenerator) SetupFPMConfig(version string) error {
 		return fmt.Errorf("PHP-FPM config directory not found: %s", fpmConfDir)
 	}
 
-	// Create symlink from PHP-FPM conf.d to our pools directory
+	// Create symlink from PHP-FPM conf.d to our version-specific pools directory
 	symlinkPath := filepath.Join(fpmConfDir, "magebox")
+	versionPoolsDir := g.getVersionPoolsDir(version)
+
+	// Ensure version pools directory exists
+	if err := os.MkdirAll(versionPoolsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create version pools directory: %w", err)
+	}
 
 	// Check if symlink already exists
 	if linkTarget, err := os.Readlink(symlinkPath); err == nil {
 		// Symlink exists, check if it points to the right place
-		if linkTarget == g.poolsDir {
+		if linkTarget == versionPoolsDir {
 			return nil // Already configured correctly
 		}
 		// Remove old symlink
@@ -468,7 +541,7 @@ func (g *PoolGenerator) SetupFPMConfig(version string) error {
 	}
 
 	// Create symlink with sudo
-	cmd := exec.Command("sudo", "ln", "-s", g.poolsDir, symlinkPath)
+	cmd := exec.Command("sudo", "ln", "-s", versionPoolsDir, symlinkPath)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

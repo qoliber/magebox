@@ -28,13 +28,13 @@ func TestNewPoolGenerator(t *testing.T) {
 	}
 
 	expectedPoolsDir := filepath.Join(tmpDir, ".magebox", "php", "pools")
-	if g.poolsDir != expectedPoolsDir {
-		t.Errorf("poolsDir = %v, want %v", g.poolsDir, expectedPoolsDir)
+	if g.PoolsDir() != expectedPoolsDir {
+		t.Errorf("PoolsDir() = %v, want %v", g.PoolsDir(), expectedPoolsDir)
 	}
 
 	expectedRunDir := filepath.Join(tmpDir, ".magebox", "run")
-	if g.runDir != expectedRunDir {
-		t.Errorf("runDir = %v, want %v", g.runDir, expectedRunDir)
+	if g.RunDir() != expectedRunDir {
+		t.Errorf("RunDir() = %v, want %v", g.RunDir(), expectedRunDir)
 	}
 }
 
@@ -80,7 +80,7 @@ func TestPoolGenerator_Generate(t *testing.T) {
 	}
 
 	// Check that pool file was created
-	poolFile := filepath.Join(g.poolsDir, "mystore.conf")
+	poolFile := filepath.Join(g.PoolsDirForVersion("8.2"), "mystore.conf")
 	if _, err := os.Stat(poolFile); os.IsNotExist(err) {
 		t.Error("Pool file should have been created")
 	}
@@ -118,8 +118,8 @@ func TestPoolGenerator_GenerateWithoutEnv(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	// Check that pool file was created
-	poolFile := filepath.Join(g.poolsDir, "mystore.conf")
+	// Check that pool file was created in version-specific directory
+	poolFile := filepath.Join(g.PoolsDirForVersion("8.3"), "mystore.conf")
 	if _, err := os.Stat(poolFile); os.IsNotExist(err) {
 		t.Error("Pool file should have been created")
 	}
@@ -139,7 +139,7 @@ func TestPoolGenerator_Remove(t *testing.T) {
 	}
 
 	// Verify it's gone
-	poolFile := filepath.Join(g.poolsDir, "mystore.conf")
+	poolFile := filepath.Join(g.PoolsDirForVersion("8.2"), "mystore.conf")
 	if _, err := os.Stat(poolFile); !os.IsNotExist(err) {
 		t.Error("Pool file should have been removed")
 	}
@@ -178,9 +178,16 @@ func TestPoolGenerator_ListPools(t *testing.T) {
 func TestPoolGenerator_GetIncludeDirective(t *testing.T) {
 	g, tmpDir := setupTestPoolGenerator(t)
 
-	expected := filepath.Join(tmpDir, ".magebox", "php", "pools") + "/*.conf"
+	// GetIncludeDirective returns pattern for all versions
+	expected := filepath.Join(tmpDir, ".magebox", "php", "pools") + "/*/*.conf"
 	if got := g.GetIncludeDirective(); got != expected {
 		t.Errorf("GetIncludeDirective() = %v, want %v", got, expected)
+	}
+
+	// GetIncludeDirectiveForVersion returns pattern for specific version
+	expectedVersion := filepath.Join(tmpDir, ".magebox", "php", "pools", "8.2") + "/*.conf"
+	if got := g.GetIncludeDirectiveForVersion("8.2"); got != expectedVersion {
+		t.Errorf("GetIncludeDirectiveForVersion() = %v, want %v", got, expectedVersion)
 	}
 }
 
@@ -192,7 +199,7 @@ func TestPoolConfig_Defaults(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	poolFile := filepath.Join(g.poolsDir, "testproject.conf")
+	poolFile := filepath.Join(g.PoolsDirForVersion("8.2"), "testproject.conf")
 	content, err := os.ReadFile(poolFile)
 	if err != nil {
 		t.Fatalf("Failed to read pool file: %v", err)
@@ -364,7 +371,7 @@ func TestGenerate_WithPHPINI(t *testing.T) {
 	}
 
 	// Read the generated file
-	poolFile := filepath.Join(g.poolsDir, "testproject.conf")
+	poolFile := filepath.Join(g.PoolsDirForVersion("8.2"), "testproject.conf")
 	content, err := os.ReadFile(poolFile)
 	if err != nil {
 		t.Fatalf("Failed to read pool file: %v", err)
@@ -390,7 +397,7 @@ func TestGenerate_WithMailpit(t *testing.T) {
 	}
 
 	// Read the generated file
-	poolFile := filepath.Join(g.poolsDir, "testproject.conf")
+	poolFile := filepath.Join(g.PoolsDirForVersion("8.2"), "testproject.conf")
 	content, err := os.ReadFile(poolFile)
 	if err != nil {
 		t.Fatalf("Failed to read pool file: %v", err)

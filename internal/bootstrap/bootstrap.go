@@ -106,6 +106,11 @@ func (b *Bootstrapper) InstallImagick(version string) error {
 	return b.installer.InstallImagick(version)
 }
 
+// InstallSodium installs the sodium PHP extension for a specific PHP version
+func (b *Bootstrapper) InstallSodium(version string) error {
+	return b.installer.InstallSodium(version)
+}
+
 // ConfigurePHPFPM configures PHP-FPM for installed versions
 func (b *Bootstrapper) ConfigurePHPFPM(versions []string) error {
 	return b.installer.ConfigurePHPFPM(versions)

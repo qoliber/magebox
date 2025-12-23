@@ -2,20 +2,12 @@
 # MageBox PHP version wrapper
 # Automatically uses the correct PHP version based on .magebox.yaml
 
-find_config_file() {
+find_project_dir() {
     local dir="$PWD"
     while [[ "$dir" != "/" ]]; do
-        if [[ -f "$dir/.magebox.yaml" ]]; then
-            echo "$dir/.magebox.yaml"
-            return 0
-        elif [[ -f "$dir/.magebox.local.yaml" ]]; then
-            echo "$dir/.magebox.local.yaml"
-            return 0
-        elif [[ -f "$dir/.magebox" ]]; then
-            echo "$dir/.magebox"
-            return 0
-        elif [[ -f "$dir/.magebox.local" ]]; then
-            echo "$dir/.magebox.local"
+        if [[ -f "$dir/.magebox.yaml" ]] || [[ -f "$dir/.magebox.local.yaml" ]] || \
+           [[ -f "$dir/.magebox" ]] || [[ -f "$dir/.magebox.local" ]]; then
+            echo "$dir"
             return 0
         fi
         dir="$(dirname "$dir")"
@@ -23,11 +15,44 @@ find_config_file() {
     return 1
 }
 
-get_php_version_from_config() {
+get_php_version_from_file() {
     local config_file="$1"
-    # Extract PHP version from YAML using grep
-    php_version=$(grep "^php:" "$config_file" | head -n1 | sed 's/php:[[:space:]]*["'\'']\{0,1\}\([0-9.]*\)["'\'']\{0,1\}/\1/' | tr -d ' ')
-    echo "$php_version"
+    if [[ -f "$config_file" ]]; then
+        grep "^php:" "$config_file" | head -n1 | sed 's/php:[[:space:]]*["'\'']\{0,1\}\([0-9.]*\)["'\'']\{0,1\}/\1/' | tr -d ' '
+    fi
+}
+
+get_php_version() {
+    local project_dir="$1"
+    local version=""
+
+    # Check local override first (highest priority)
+    version=$(get_php_version_from_file "$project_dir/.magebox.local.yaml")
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+
+    version=$(get_php_version_from_file "$project_dir/.magebox.local")
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+
+    # Fall back to main config
+    version=$(get_php_version_from_file "$project_dir/.magebox.yaml")
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+
+    version=$(get_php_version_from_file "$project_dir/.magebox")
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+
+    return 1
 }
 
 find_php_binary() {
@@ -71,12 +96,12 @@ find_php_binary() {
     return 1
 }
 
-# Try to find config file
-config_file=$(find_config_file)
+# Try to find project directory
+project_dir=$(find_project_dir)
 
-if [[ -n "$config_file" ]]; then
-    # Get PHP version from config
-    php_version=$(get_php_version_from_config "$config_file")
+if [[ -n "$project_dir" ]]; then
+    # Get PHP version (local override takes priority over main config)
+    php_version=$(get_php_version "$project_dir")
 
     if [[ -n "$php_version" ]]; then
         php_bin=$(find_php_binary "$php_version")

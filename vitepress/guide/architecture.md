@@ -138,7 +138,9 @@ Each project runs its own PHP-FPM pool with:
 - Custom environment variables from `env:` section
 - PHP INI overrides from `php_ini:` section
 
-**Pool location**: `~/.magebox/php/pools/{project}.conf`
+**Pool location**: `~/.magebox/php/pools/{version}/{project}.conf`
+
+Pools are organized by PHP version to allow switching between versions without conflicts.
 
 #### Generated Pool Structure
 
@@ -213,13 +215,21 @@ All MageBox configuration and generated files are stored in your home directory:
 │       ├── mystore-api.mystore.test.conf
 │       └── another-another.test.conf
 ├── php/
-│   └── pools/               # Generated PHP-FPM pool configs
-│       ├── mystore.conf
-│       └── another.conf
+│   └── pools/               # Generated PHP-FPM pool configs (by version)
+│       ├── 8.1/
+│       │   └── project-a.conf
+│       ├── 8.2/
+│       │   ├── mystore.conf
+│       │   └── another.conf
+│       └── 8.3/
+│           └── project-b.conf
 ├── docker/                  # Docker Compose configuration
 │   ├── docker-compose.yml   # Service definitions
 │   └── .env                 # Docker environment variables
 ├── logs/                    # MageBox log files
+│   ├── nginx/               # Per-domain Nginx logs
+│   │   ├── mystore.test-access.log
+│   │   └── mystore.test-error.log
 │   └── php-fpm/             # PHP-FPM error logs per project
 │       └── mystore.log
 └── data/                    # Persistent data (future use)

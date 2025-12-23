@@ -167,6 +167,13 @@ func (f *FedoraInstaller) InstallImagick(version string) error {
 	return nil
 }
 
+// InstallSodium installs the sodium PHP extension for a specific PHP version
+// Required for Argon2i password hashing in Magento
+func (f *FedoraInstaller) InstallSodium(version string) error {
+	remiVersion := strings.ReplaceAll(version, ".", "")
+	return f.RunSudo("dnf", "install", "-y", fmt.Sprintf("php%s-php-sodium", remiVersion))
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Fedora
 func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 	for _, v := range versions {

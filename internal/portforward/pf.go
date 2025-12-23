@@ -159,7 +159,10 @@ rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
 // createLaunchDaemon creates the LaunchDaemon plist
 func (m *Manager) createLaunchDaemon() error {
 	// Load the main pf.conf which includes our anchor
-	// WatchPaths triggers reload when pf.conf or network config changes
+	// Uses multiple triggers to ensure rules stay active:
+	// - RunAtLoad: load on boot
+	// - WatchPaths: reload when pf.conf or network config changes
+	// - StartInterval: check every 60 seconds (catches resets by other apps)
 	plist := `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -171,11 +174,14 @@ func (m *Manager) createLaunchDaemon() error {
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>pfctl -s info | grep -q "Status: Enabled" &amp;&amp; pfctl -f /etc/pf.conf || pfctl -ef /etc/pf.conf</string>
+        <string>pfctl -sr 2>/dev/null | grep -q "port = 80" || (pfctl -s info | grep -q "Status: Enabled" &amp;&amp; pfctl -f /etc/pf.conf || pfctl -ef /etc/pf.conf)</string>
     </array>
 
     <key>RunAtLoad</key>
     <true/>
+
+    <key>StartInterval</key>
+    <integer>60</integer>
 
     <key>WatchPaths</key>
     <array>

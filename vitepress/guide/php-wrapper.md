@@ -10,12 +10,25 @@ MageBox includes smart CLI wrappers that automatically use the correct PHP versi
 
 When you run `php`, `composer`, or `blackfire` commands, the wrappers:
 
-1. Walk up the directory tree looking for `.magebox.yaml` or `.magebox.local.yaml`
-2. Extract the PHP version from the config file
-3. Execute the correct PHP binary for your platform
-4. Fall back to system PHP if no config file is found
+1. Walk up the directory tree looking for a project directory (containing `.magebox.yaml` or `.magebox.local.yaml`)
+2. Check `.magebox.local.yaml` first for PHP version (local overrides have priority)
+3. Fall back to `.magebox.yaml` if no local override exists
+4. Execute the correct PHP binary for your platform
+5. Fall back to system PHP if no config file is found
 
 This means you can switch between projects with different PHP versions without manual intervention.
+
+::: tip Local Overrides Take Priority
+If both `.magebox.yaml` and `.magebox.local.yaml` exist, the PHP version from `.magebox.local.yaml` is used. This allows you to test different PHP versions locally without changing the shared project config.
+
+```yaml
+# .magebox.yaml (committed to git)
+php: "8.2"
+
+# .magebox.local.yaml (not committed, your local override)
+php: "8.1"  # This version will be used
+```
+:::
 
 ## Installation
 
@@ -72,15 +85,15 @@ php -v
             └────────────────┬┴─────────────────┘
                              │
                   ┌──────────▼──────────┐
-                  │  Search for config  │
-                  │  .magebox.yaml in   │
-                  │  parent directories │
+                  │  Find project dir   │
+                  │  with .magebox.yaml │
+                  │  or .magebox.local  │
                   └──────────┬──────────┘
                              │
                   ┌──────────▼──────────┐
-                  │  Extract PHP        │
-                  │  version from       │
-                  │  config file        │
+                  │  Check local first: │
+                  │  .magebox.local.yaml│
+                  │  → .magebox.yaml    │
                   └──────────┬──────────┘
                              │
                   ┌──────────▼──────────┐

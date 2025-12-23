@@ -139,6 +139,12 @@ func (a *ArchInstaller) InstallImagick(version string) error {
 	return a.RunSudo("pacman", "-S", "--noconfirm", "php-imagick")
 }
 
+// InstallSodium installs the sodium PHP extension for a specific PHP version
+// Required for Argon2i password hashing in Magento
+func (a *ArchInstaller) InstallSodium(version string) error {
+	return a.RunSudo("pacman", "-S", "--noconfirm", "php-sodium")
+}
+
 // ConfigurePHPFPM configures PHP-FPM on Arch Linux
 func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
 	// On Arch, PHP-FPM service is just "php-fpm"

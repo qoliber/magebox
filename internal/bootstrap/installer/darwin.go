@@ -170,6 +170,13 @@ func (d *DarwinInstaller) InstallImagick(version string) error {
 	return d.RunCommandSilent(fmt.Sprintf("%s install imagick 2>/dev/null || true", peclBin))
 }
 
+// InstallSodium installs the sodium PHP extension for a specific PHP version
+// On macOS, sodium is bundled with Homebrew PHP formula by default
+func (d *DarwinInstaller) InstallSodium(version string) error {
+	// Sodium is included in Homebrew PHP by default, nothing to install
+	return nil
+}
+
 // ConfigurePHPFPM configures PHP-FPM on macOS
 // On macOS, PHP-FPM is typically started via brew services
 func (d *DarwinInstaller) ConfigurePHPFPM(versions []string) error {

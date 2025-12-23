@@ -146,6 +146,43 @@ php -r "throw new Exception('Test error');"
 
 Press `Ctrl+C` to stop watching for new reports.
 
+## Nginx Logs
+
+MageBox stores per-domain nginx logs for easy debugging:
+
+### Location
+
+```
+~/.magebox/logs/nginx/
+├── mystore.test-access.log
+├── mystore.test-error.log
+├── api.mystore.test-access.log
+└── api.mystore.test-error.log
+```
+
+Each domain configured in your project gets its own access and error log.
+
+### Viewing Nginx Logs
+
+```bash
+# Watch access log for a specific domain
+tail -f ~/.magebox/logs/nginx/mystore.test-access.log
+
+# Watch error log for a specific domain
+tail -f ~/.magebox/logs/nginx/mystore.test-error.log
+
+# Watch all nginx logs
+tail -f ~/.magebox/logs/nginx/*.log
+```
+
+### Common Errors
+
+| Error | Likely Cause |
+|-------|-------------|
+| `502 Bad Gateway` | PHP-FPM not running or socket missing |
+| `404 Not Found` | Wrong document root (should be `pub`) |
+| `connect() failed` | PHP-FPM socket not found |
+
 ## Combining Both Commands
 
 For comprehensive debugging, run both commands in separate terminal tabs:
@@ -187,6 +224,9 @@ tail -f var/log/system.log | grep "Vendor_Module"
 | `var/log/exception.log` | PHP exceptions and stack traces |
 | `var/log/debug.log` | Debug-level messages (when enabled) |
 | `var/report/*` | Unhandled exception reports with unique IDs |
+| `~/.magebox/logs/nginx/{domain}-access.log` | Per-domain nginx access logs |
+| `~/.magebox/logs/nginx/{domain}-error.log` | Per-domain nginx error logs |
+| `~/.magebox/logs/php-fpm/{project}.log` | PHP-FPM error logs per project |
 
 ### Cleaning Up Reports
 

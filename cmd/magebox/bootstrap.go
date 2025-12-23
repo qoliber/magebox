@@ -399,6 +399,23 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Install Sodium for all installed PHP versions (required for Argon2i password hashing)
+	if len(installedPHPVersions) > 0 {
+		fmt.Println()
+		fmt.Print("  Installing Sodium for all PHP versions... ")
+		sodiumErrors := 0
+		for _, ver := range installedPHPVersions {
+			if err := bootstrapper.InstallSodium(ver.Version); err != nil {
+				sodiumErrors++
+			}
+		}
+		if sodiumErrors > 0 {
+			fmt.Println(cli.Warning("done with warnings"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
 	// Configure PHP INI settings for Magento (memory_limit, max_execution_time)
 	if len(installedPHPVersions) > 0 {
 		fmt.Println()

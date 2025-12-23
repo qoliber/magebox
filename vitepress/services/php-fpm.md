@@ -25,11 +25,25 @@ Each MageBox project gets its own PHP-FPM pool with:
 
 ### Location
 
-Pool configurations are generated at:
+Pool configurations are organized by PHP version:
 
 ```
-~/.magebox/php/pools/{project}.conf
+~/.magebox/php/pools/{version}/{project}.conf
 ```
+
+For example:
+```
+~/.magebox/php/pools/
+├── 8.1/
+│   └── project-a.conf
+├── 8.2/
+│   ├── project-b.conf
+│   └── project-c.conf
+└── 8.3/
+    └── project-d.conf
+```
+
+This allows multiple PHP versions to run simultaneously without conflicts.
 
 ### Generated Structure
 
@@ -313,8 +327,8 @@ php bin/magento cache:flush
 On Linux, ensure PHP-FPM runs as your user:
 
 ```bash
-# Check pool config
-cat ~/.magebox/php/pools/mystore.conf | grep user
+# Check pool config (replace 8.2 with your PHP version)
+cat ~/.magebox/php/pools/8.2/mystore.conf | grep user
 
 # Should show your username
 ```

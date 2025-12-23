@@ -5,6 +5,22 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-23
+
+### Added
+
+- **Per-Domain Nginx Logging** - Each domain now gets its own access and error logs stored in `~/.magebox/logs/nginx/`
+  - Access logs: `~/.magebox/logs/nginx/<domain>-access.log`
+  - Error logs: `~/.magebox/logs/nginx/<domain>-error.log`
+
+- **Sodium PHP Extension** - Bootstrap now installs the `sodium` extension for all PHP versions. Required for Argon2i password hashing in Magento.
+
+### Fixed
+
+- **PHP Wrapper Local Override** - Fixed bug where PHP wrapper ignored `.magebox.local.yaml` PHP version. Local config now correctly takes priority over main config
+- **PHP Version Switching** - Fixed critical bug where switching PHP versions (e.g., `mbox php 8.1`) would fail because all pool configs were in a single directory. Now pools are organized by version: `~/.magebox/php/pools/<version>/`
+- **macOS Port Forwarding Reliability** - Added `StartInterval` to LaunchDaemon to re-apply pf rules every 60 seconds (catches resets by other apps like Little Snitch)
+
 ## [1.0.0] - 2025-12-22
 
 ### 🎉 First Stable Release

@@ -9,6 +9,9 @@ server {
     http2 on;
     server_name {{.Domain}};
 
+    access_log {{.AccessLog}};
+    error_log {{.ErrorLog}};
+
     ssl_certificate {{.SSLCertFile}};
     ssl_certificate_key {{.SSLKeyFile}};
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -34,11 +37,17 @@ server {
 server {
     listen {{.BackendPort}};
     server_name {{.Domain}};
+
+    access_log {{.AccessLog}};
+    error_log {{.ErrorLog}};
 {{else}}
 # Standard setup: HTTP redirects to HTTPS, HTTPS handles requests directly
 server {
     listen {{.HTTPPort}};
     server_name {{.Domain}};
+
+    access_log {{.AccessLog}};
+    error_log {{.ErrorLog}};
 
     # Allow health check for Varnish probe on HTTP
     location = /health_check.php {
@@ -59,6 +68,9 @@ server {
     http2 on;
     server_name {{.Domain}};
 
+    access_log {{.AccessLog}};
+    error_log {{.ErrorLog}};
+
     ssl_certificate {{.SSLCertFile}};
     ssl_certificate_key {{.SSLKeyFile}};
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -69,6 +81,9 @@ server {
 server {
     listen {{.HTTPPort}};
     server_name {{.Domain}};
+
+    access_log {{.AccessLog}};
+    error_log {{.ErrorLog}};
 {{end}}
 
     set $MAGE_ROOT {{.DocumentRoot}};
