@@ -1,10 +1,6 @@
 # Xdebug
 
-::: warning Work in Progress
-This feature is currently being tested and may not work as expected on all platforms.
-:::
-
-MageBox provides built-in Xdebug management for PHP debugging.
+MageBox provides built-in Xdebug management for effortless PHP debugging. Enable step-through debugging in seconds with automatic IDE integration.
 
 ## Quick Start
 

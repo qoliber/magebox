@@ -55,7 +55,8 @@ export default defineConfig({
           items: [
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
-            { text: 'Bootstrap', link: '/guide/bootstrap' }
+            { text: 'Bootstrap', link: '/guide/bootstrap' },
+            { text: 'Common Workflows', link: '/guide/workflows' }
           ]
         },
         {
@@ -125,6 +126,7 @@ export default defineConfig({
         {
           text: 'Reference',
           items: [
+            { text: 'Quick Reference', link: '/reference/quick-reference' },
             { text: 'CLI Commands', link: '/reference/commands' },
             { text: 'Configuration Options', link: '/reference/config-options' },
             { text: 'Compatibility Matrix', link: '/reference/compatibility' },
@@ -134,6 +136,7 @@ export default defineConfig({
         {
           text: 'Help',
           items: [
+            { text: 'FAQ', link: '/guide/faq' },
             { text: 'Troubleshooting', link: '/guide/troubleshooting' }
           ]
         }
@@ -142,6 +145,7 @@ export default defineConfig({
         {
           text: 'Reference',
           items: [
+            { text: 'Quick Reference', link: '/reference/quick-reference' },
             { text: 'CLI Commands', link: '/reference/commands' },
             { text: 'Configuration Options', link: '/reference/config-options' },
             { text: 'Compatibility Matrix', link: '/reference/compatibility' },
@@ -163,7 +167,8 @@ export default defineConfig({
           items: [
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
-            { text: 'Bootstrap', link: '/guide/bootstrap' }
+            { text: 'Bootstrap', link: '/guide/bootstrap' },
+            { text: 'Common Workflows', link: '/guide/workflows' }
           ]
         },
         {
@@ -233,6 +238,7 @@ export default defineConfig({
         {
           text: 'Reference',
           items: [
+            { text: 'Quick Reference', link: '/reference/quick-reference' },
             { text: 'CLI Commands', link: '/reference/commands' },
             { text: 'Configuration Options', link: '/reference/config-options' },
             { text: 'Compatibility Matrix', link: '/reference/compatibility' },
@@ -242,6 +248,7 @@ export default defineConfig({
         {
           text: 'Help',
           items: [
+            { text: 'FAQ', link: '/guide/faq' },
             { text: 'Troubleshooting', link: '/guide/troubleshooting' }
           ]
         }
