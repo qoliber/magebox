@@ -678,28 +678,66 @@ func serviceNameToContainerPattern(serviceName string) string {
 }
 
 // insertVersionDots converts version string without dots to version with dots
-// Examples: 80 -> 8.0, 84 -> 8.4, 8170 -> 8.17.0, 2194 -> 2.19.4
+// This function handles common version patterns for MySQL, MariaDB, OpenSearch, Elasticsearch
+//
+// Examples:
+//   - 2 digits:  80 -> 8.0, 84 -> 8.4
+//   - 3 digits:  106 -> 10.6 (MariaDB), 817 -> 8.17
+//   - 4 digits:  1011 -> 10.11 (MariaDB), 8170 -> 8.17.0
+//   - 5 digits:  21160 -> 2.11.60 or similar
+//
+// Heuristic: Numbers starting with "10" or "11" are likely MariaDB major versions
 func insertVersionDots(v string) string {
+	if len(v) == 0 {
+		return v
+	}
+
+	// Check for known double-digit major version prefixes (10.x, 11.x for MariaDB)
+	hasDoubleMajor := len(v) >= 2 && (v[:2] == "10" || v[:2] == "11")
+
 	switch len(v) {
 	case 2:
-		// 80 -> 8.0
+		// 80 -> 8.0, 84 -> 8.4
 		return v[:1] + "." + v[1:]
+
 	case 3:
-		// 817 -> 8.17 or 106 -> 10.6
-		if v[0] == '1' && v[1] == '0' {
+		if hasDoubleMajor {
+			// 106 -> 10.6, 114 -> 11.4 (MariaDB)
 			return v[:2] + "." + v[2:]
 		}
+		// 817 -> 8.17 (unlikely but possible)
 		return v[:1] + "." + v[1:]
+
 	case 4:
-		// 8170 -> 8.17.0 or 1146 -> 11.4.6
-		if v[0] == '1' && v[1] == '1' {
-			return v[:2] + "." + v[2:3] + "." + v[3:]
+		if hasDoubleMajor {
+			// 1011 -> 10.11, 1146 -> 11.4.6 or 11.46
+			// Prefer 10.11 interpretation for 4-digit with 10/11 prefix
+			return v[:2] + "." + v[2:]
 		}
+		// 8170 -> 8.17.0
 		return v[:1] + "." + v[1:3] + "." + v[3:]
+
 	case 5:
-		// 21940 -> 2.19.40 (unlikely) or handle as needed
+		if hasDoubleMajor {
+			// 10114 -> 10.11.4 (MariaDB patch version)
+			return v[:2] + "." + v[2:4] + "." + v[4:]
+		}
+		// 21940 -> 2.19.40 or 2.194.0
 		return v[:1] + "." + v[1:3] + "." + v[3:]
+
+	case 6:
+		if hasDoubleMajor {
+			// 101146 -> 10.11.46 (unlikely but handle)
+			return v[:2] + "." + v[2:4] + "." + v[4:]
+		}
+		// 217300 -> 2.17.300 or similar
+		return v[:1] + "." + v[1:3] + "." + v[3:]
+
 	default:
+		// For very long versions, try reasonable splitting
+		if hasDoubleMajor && len(v) > 4 {
+			return v[:2] + "." + v[2:4] + "." + v[4:]
+		}
 		return v
 	}
 }

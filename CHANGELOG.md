@@ -5,6 +5,32 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-26
+
+### Fixed
+
+- **macOS Port Forwarding Persistence** - Completely fixed port forwarding rules not persisting after sleep/restart:
+  - Added `KeepAlive.NetworkState` trigger - rules now reload automatically when network comes up after wake
+  - Fixed rule detection using `-sn` (NAT rules) instead of `-sr` (filter rules)
+  - Added `sleep 2` delay to wait for network stability after wake
+  - Reduced check interval from 60s to 30s for faster recovery
+  - Added `ThrottleInterval: 5` to prevent rapid re-execution
+  - LaunchDaemon now correctly reloads anchor rules directly instead of full pf.conf
+
+- **LaunchDaemon Auto-Upgrade** - Running `magebox bootstrap` now automatically upgrades old LaunchDaemon versions:
+  - Version marker (`<!-- MageBox-Version-X -->`) tracks plist version
+  - Bootstrap detects outdated versions and reinstalls with new configuration
+  - Existing users get sleep/wake fixes automatically
+
+### Improved
+
+- **Refactored `addAnchorToPfConf()`** - Split complex function into smaller, focused functions for better maintainability
+- **Future-proofed `insertVersionDots()`** - Better handling of MariaDB 10.x/11.x version formats in Docker Compose
+
+### Added
+
+- **Makefile** - Added development tooling with `make lint`, `make test`, `make build` targets
+
 ## [1.0.1] - 2025-12-23
 
 ### Added

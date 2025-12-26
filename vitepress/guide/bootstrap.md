@@ -185,6 +185,9 @@ rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
 - Loads pf rules automatically on boot
 - Runs as root (required for pf)
 - Enables forwarding transparently
+- **Sleep/Wake Recovery**: Uses `KeepAlive.NetworkState` to reload rules when network comes up after sleep
+- **Periodic Check**: Verifies rules every 30 seconds as a fallback
+- **Auto-Upgrade**: Running `magebox bootstrap` automatically upgrades old LaunchDaemon versions
 
 ### Verification
 
@@ -355,20 +358,33 @@ Services running after bootstrap:
 
 ### Port Forwarding Not Working (macOS)
 
-1. Verify LaunchDaemon is loaded:
+1. Verify LaunchDaemon is loaded and check version:
    ```bash
    sudo launchctl list | grep magebox
+   grep "MageBox-Version" /Library/LaunchDaemons/com.magebox.portforward.plist
    ```
 
-2. Reload pf rules manually:
+2. Check if rules are active (use `-sn` for NAT/redirect rules):
    ```bash
-   sudo pfctl -ef /etc/pf.anchors/com.magebox
+   sudo pfctl -a com.magebox -sn
+   # Should show: rdr pass on lo0 inet proto tcp ... port = 80 -> 127.0.0.1 port 8080
    ```
 
-3. Check nginx is listening:
+3. Reload anchor rules manually:
+   ```bash
+   sudo pfctl -a com.magebox -f /etc/pf.anchors/com.magebox
+   ```
+
+4. Check nginx is listening:
    ```bash
    lsof -nP -iTCP:8080 -sTCP:LISTEN
    lsof -nP -iTCP:8443 -sTCP:LISTEN
+   ```
+
+5. **Upgrade LaunchDaemon** (if using old version without sleep/wake support):
+   ```bash
+   magebox bootstrap
+   # This automatically detects and upgrades old LaunchDaemon versions
    ```
 
 ### Docker not running
