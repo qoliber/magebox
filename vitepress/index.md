@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "MageBox"
   text: "Native Magento Development"
-  tagline: v1.0.0 - Production Ready with Team Server & SSH CA
+  tagline: v1.0.3 - New clone command & simplified fetch
   image:
     src: /logo.svg
     alt: MageBox
