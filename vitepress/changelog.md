@@ -2,6 +2,37 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.0.3] - 2025-12-29
+
+### Added
+
+- **New `magebox clone` Command** - Dedicated command for cloning team projects:
+  - Clones repository from configured Git provider
+  - Creates `.magebox.yaml` if not present
+  - Runs `composer install` automatically
+  - Optional `--fetch` flag to also download database and media
+
+- **SELinux Fix for Fedora** - Bootstrap now sets `httpd_read_user_content` boolean:
+  - Fixes "Permission denied" errors when nginx accesses files in home directories
+  - Resolves issues with PHP-created files being inaccessible to nginx
+
+### Changed
+
+- **Simplified `magebox fetch` Command** - Now works on existing projects:
+  - Reads project name from local `.magebox.yaml`
+  - Searches team asset storage for matching files
+  - Downloads and imports database by default
+  - Use `--media` flag to also download media files
+  - Use `--team` flag to specify team explicitly
+
+### Improved
+
+- **Better Error Messages** - Clearer guidance when project not found in asset storage
+- **Unit Tests** - Added tests for Cloner and AssetFetcher
+- **E2E Test Setup** - Added integration test framework with Docker SFTP
+
+---
+
 ## [1.0.2] - 2025-12-26
 
 ### Fixed
