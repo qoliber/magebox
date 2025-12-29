@@ -1212,22 +1212,47 @@ magebox team myteam project remove shop
 
 ---
 
-### `magebox fetch <project>`
+### `magebox clone <project>`
 
-Fetch a project (clone + database + media).
+Clone a team project repository.
 
 ```bash
-magebox fetch myteam/myproject
-magebox fetch myproject              # If only one team
+magebox clone myteam/myproject
+magebox clone myproject              # If only one team
 ```
 
 **Options:**
 - `--branch` - Specific branch to checkout
-- `--no-db` - Skip database download/import
-- `--no-media` - Skip media download/extraction
-- `--db-only` - Only download and import database
-- `--dry-run` - Show what would happen
+- `--fetch` - Also fetch database and media after cloning
 - `--to` - Custom destination directory
+- `--dry-run` - Show what would happen
+
+**What it does:**
+1. Clones the repository from the configured provider
+2. Creates `.magebox.yaml` if not present
+3. Runs `composer install`
+
+---
+
+### `magebox fetch`
+
+Download database and media from team asset storage for the current project.
+
+```bash
+cd myproject
+magebox fetch                        # Download & import database
+magebox fetch --media                # Also download & extract media
+```
+
+**Options:**
+- `--media` - Also download and extract media files
+- `--backup` - Backup current database before importing
+- `--team` - Specify team explicitly (if project in multiple teams)
+- `--dry-run` - Show what would happen
+
+::: tip
+Run from within a project directory. Reads project name from `.magebox.yaml` and searches team asset storage for matching files.
+:::
 
 ---
 

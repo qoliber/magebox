@@ -197,10 +197,12 @@ tail -f ~/.magebox/logs/php-fpm/*.log
 
 ### What is team sync?
 
-Team sync allows you to share project configurations, databases, and media files with your team. When a colleague runs `magebox fetch myproject`, they get:
+Team sync allows you to share project configurations, databases, and media files with your team. When a colleague runs `magebox clone myproject`, they get:
 - Git repository cloned
-- Database imported automatically
-- Media files downloaded
+- `.magebox.yaml` created if not present
+- `composer install` executed
+
+Then running `magebox fetch` from the project directory downloads and imports the database.
 
 ### Do we need a server for team features?
 
@@ -243,6 +245,7 @@ No, MageBox configures nginx to run as your user so it can access SSL certificat
 Run `magebox bootstrap` to configure SELinux contexts, or manually:
 ```bash
 sudo setsebool -P httpd_can_network_connect on
+sudo setsebool -P httpd_read_user_content on
 sudo chcon -R -t httpd_config_t ~/.magebox/nginx/
 sudo chcon -R -t httpd_config_t ~/.magebox/certs/
 ```

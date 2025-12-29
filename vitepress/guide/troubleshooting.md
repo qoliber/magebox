@@ -501,6 +501,15 @@ Nginx can't proxy to Docker containers:
 sudo setsebool -P httpd_can_network_connect on
 ```
 
+#### Nginx can't read files from home directory
+
+Permission denied errors when accessing project files:
+
+```bash
+# Allow nginx to read user content
+sudo setsebool -P httpd_read_user_content on
+```
+
 #### PHP-FPM fails to start
 
 PHP-FPM can't write to log directories:

@@ -8,7 +8,7 @@ The team feature enables:
 - **Centralized repository configuration** - Define Git providers (GitHub/GitLab/Bitbucket) once
 - **Asset storage** - SFTP/FTP access for database dumps and media files
 - **Project definitions** - Pre-configured projects with repo, branch, DB, and media paths
-- **One-command setup** - Fetch entire projects with `magebox fetch`
+- **One-command setup** - Clone projects with `magebox clone`, fetch assets with `magebox fetch`
 
 ## Configuration Storage
 
@@ -55,17 +55,26 @@ This interactive wizard will ask for:
 magebox team myteam project add myproject --repo myorg/myproject --db backups/db.sql.gz
 ```
 
-### 3. Fetch the Project
+### 3. Clone the Project
 
 ```bash
-magebox fetch myteam/myproject
+magebox clone myteam/myproject
 ```
 
 This will:
 1. Clone the repository
-2. Download the database dump
-3. Import to MySQL (with progress bar)
-4. Download and extract media files (with progress bar)
+2. Create `.magebox.yaml` if not present
+3. Run `composer install`
+
+### 4. Fetch Database & Media
+
+From within the project directory:
+
+```bash
+cd myproject
+magebox fetch              # Download & import database
+magebox fetch --media      # Also download & extract media
+```
 
 All long-running operations display real-time progress bars showing percentage, speed, and ETA.
 
@@ -108,21 +117,36 @@ magebox team <name> project add <project-name> \
 magebox team <name> project remove <project-name>
 ```
 
-### Fetch & Sync
+### Clone (New Projects)
 
 ```bash
-# Fetch a project (clone + db + media)
-magebox fetch myteam/myproject
-magebox fetch myproject              # If only one team configured
+# Clone a project repository
+magebox clone myteam/myproject
+magebox clone myproject              # If only one team configured
 
-# Fetch options
-magebox fetch myproject --branch dev # Specific branch
-magebox fetch myproject --no-db      # Skip database
-magebox fetch myproject --no-media   # Skip media
-magebox fetch myproject --db-only    # Only database
-magebox fetch myproject --dry-run    # Show what would happen
-magebox fetch myproject --to /path   # Custom destination
+# Clone options
+magebox clone myproject --branch dev # Specific branch
+magebox clone myproject --fetch      # Clone + fetch DB & media
+magebox clone myproject --to /path   # Custom destination
+magebox clone myproject --dry-run    # Show what would happen
+```
 
+### Fetch (Existing Projects)
+
+Run from within a project directory (reads project name from `.magebox.yaml`):
+
+```bash
+# Fetch database from team asset storage
+magebox fetch                        # Download & import database
+magebox fetch --media                # Also download & extract media
+magebox fetch --backup               # Backup current DB before importing
+magebox fetch --team myteam          # Specify team explicitly
+magebox fetch --dry-run              # Show what would happen
+```
+
+### Sync (Alternative for Existing Projects)
+
+```bash
 # Sync existing project (run from project directory)
 magebox sync                         # Sync both DB and media
 magebox sync --db                    # Only sync database
@@ -225,10 +249,10 @@ teams:
       auth: token
 ```
 
-Then fetch with the explicit team name:
+Then clone with the explicit team name:
 ```bash
-magebox fetch qoliber-github/myproject
-magebox fetch qoliber-gitlab/myproject
+magebox clone qoliber-github/myproject
+magebox clone qoliber-gitlab/myproject
 ```
 
 ## Example Workflow
@@ -264,12 +288,12 @@ magebox team acme project add b2b \
 export MAGEBOX_ACME_TOKEN="ghp_xxxxx"
 export MAGEBOX_ACME_ASSET_KEY="~/.ssh/backup_key"
 
-# 3. Fetch project
-magebox fetch acme/shop
+# 3. Clone project
+magebox clone acme/shop
 
-# 4. Initialize and start
+# 4. Fetch database & start
 cd shop
-magebox init
+magebox fetch              # Download & import database
 magebox start
 ```
 

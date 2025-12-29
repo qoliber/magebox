@@ -225,8 +225,10 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 	}
 
 	// Allow nginx to make network connections (for proxying to Docker containers)
+	// Allow nginx to read user content (for serving files from home directories)
 	if f.CommandExists("setsebool") {
 		_ = f.RunSudo("setsebool", "-P", "httpd_can_network_connect", "on")
+		_ = f.RunSudo("setsebool", "-P", "httpd_read_user_content", "on")
 	}
 
 	// Get home directory for SELinux context on MageBox configs

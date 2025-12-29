@@ -224,7 +224,12 @@ Fedora has SELinux enabled by default. Bootstrap automatically configures:
    setsebool -P httpd_can_network_connect on
    ```
 
-2. **Config file access** - Set correct SELinux context on MageBox directories:
+2. **User content access** - Allow nginx to read files from user home directories:
+   ```bash
+   setsebool -P httpd_read_user_content on
+   ```
+
+3. **Config file access** - Set correct SELinux context on MageBox directories:
    ```bash
    chcon -R -t httpd_config_t ~/.magebox/nginx/
    chcon -R -t httpd_config_t ~/.magebox/certs/

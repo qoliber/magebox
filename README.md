@@ -1392,6 +1392,12 @@ sudo chcon -R -t httpd_config_t ~/.magebox/certs/
 sudo setsebool -P httpd_can_network_connect on
 ```
 
+**Nginx can't read files from home directory (Permission denied):**
+```bash
+# Allow nginx to read user content
+sudo setsebool -P httpd_read_user_content on
+```
+
 **PHP-FPM can't write logs:**
 ```bash
 # Set correct context on PHP-FPM log directories

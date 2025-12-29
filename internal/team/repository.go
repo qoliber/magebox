@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -464,14 +463,4 @@ func matchFilter(name, filter string) bool {
 
 	// Exact match
 	return name == filter
-}
-
-// GetProjectPath returns the local path for a project
-func GetProjectPath(destPath, projectName string) string {
-	if destPath != "" {
-		return destPath
-	}
-	// Default to current directory + project name
-	cwd, _ := os.Getwd()
-	return filepath.Join(cwd, projectName)
 }

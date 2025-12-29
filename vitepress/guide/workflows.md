@@ -68,15 +68,18 @@ magebox team add mycompany
 #   - Organization: your-org-name
 #   - Asset storage: SFTP details for DB/media
 
-# 3. Fetch the project (clones code + imports DB + downloads media)
-magebox fetch storefront
-# This creates ~/projects/storefront with everything ready
+# 3. Clone the project
+magebox clone storefront
+# This creates ~/projects/storefront with code ready
 
-# 4. Navigate and start
+# 4. Navigate and fetch database
 cd ~/projects/storefront
+magebox fetch              # Download & import database
+
+# 5. Start services
 magebox start
 
-# 5. Open in browser
+# 6. Open in browser
 open https://storefront.test
 ```
 

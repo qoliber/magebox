@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  sftp:
+    image: atmoz/sftp:alpine
+    ports:
+      - "2222:22"
+    volumes:
+      - ./testdata:/home/testuser/backups:ro
+    command: testuser:testpass:1000:1000:backups

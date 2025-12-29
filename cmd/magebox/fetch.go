@@ -6,168 +6,231 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/qoliber/magebox/internal/cli"
+	"github.com/qoliber/magebox/internal/config"
 	"github.com/qoliber/magebox/internal/team"
 )
 
 var fetchCmd = &cobra.Command{
-	Use:   "fetch <project>",
-	Short: "Fetch a team project (clone repo, download DB & media)",
-	Long: `Fetches a project from a configured team.
+	Use:   "fetch",
+	Short: "Download database and media from team asset storage",
+	Long: `Downloads database and media files from the team's asset storage for the current project.
 
-This command:
-1. Clones the repository from the configured provider
-2. Downloads the database dump from asset storage
-3. Imports the database to MySQL
-4. Downloads and extracts media files
-
-Project can be specified as:
-  - "project" (if only one team configured)
-  - "team/project" (explicit team)
+This command reads the project name from .magebox.yaml and searches for it in
+the configured team asset storage. If found, it downloads and imports the database.
 
 Examples:
-  magebox fetch myproject              # Fetch from default team
-  magebox fetch qoliber/myproject      # Fetch from specific team
-  magebox fetch myproject --branch dev # Fetch specific branch
-  magebox fetch myproject --no-db      # Skip database
-  magebox fetch myproject --dry-run    # Show what would happen`,
-	Args: cobra.ExactArgs(1),
+  magebox fetch              # Download & import database
+  magebox fetch --media      # Also download & extract media
+  magebox fetch --dry-run    # Show what would happen
+  magebox fetch --backup     # Backup current DB before importing`,
 	RunE: runFetch,
 }
 
 var (
-	fetchBranch    string
-	fetchNoDB      bool
-	fetchNoMedia   bool
-	fetchDBOnly    bool
-	fetchMediaOnly bool
-	fetchDryRun    bool
-	fetchDestPath  string
+	fetchMedia   bool
+	fetchDryRun  bool
+	fetchBackup  bool
+	fetchTeam    string
 )
 
 func init() {
-	fetchCmd.Flags().StringVar(&fetchBranch, "branch", "", "Branch to clone")
-	fetchCmd.Flags().BoolVar(&fetchNoDB, "no-db", false, "Skip database download")
-	fetchCmd.Flags().BoolVar(&fetchNoMedia, "no-media", false, "Skip media download")
-	fetchCmd.Flags().BoolVar(&fetchDBOnly, "db-only", false, "Only download database")
-	fetchCmd.Flags().BoolVar(&fetchMediaOnly, "media-only", false, "Only download media")
+	fetchCmd.Flags().BoolVar(&fetchMedia, "media", false, "Also download and extract media")
 	fetchCmd.Flags().BoolVar(&fetchDryRun, "dry-run", false, "Show what would happen without making changes")
-	fetchCmd.Flags().StringVar(&fetchDestPath, "to", "", "Destination path (default: current dir + project name)")
+	fetchCmd.Flags().BoolVar(&fetchBackup, "backup", false, "Backup current database before importing")
+	fetchCmd.Flags().StringVar(&fetchTeam, "team", "", "Specify team (if project exists in multiple teams)")
 
 	rootCmd.AddCommand(fetchCmd)
 }
 
 func runFetch(cmd *cobra.Command, args []string) error {
-	projectRef := args[0]
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
 
 	p, err := getPlatform()
 	if err != nil {
 		return err
 	}
 
+	// Load project config from current directory
+	projectConfig, err := config.LoadFromPath(cwd)
+	if err != nil {
+		return fmt.Errorf("not in a MageBox project directory: %w\n\nRun this command from a project with .magebox.yaml", err)
+	}
+
+	projectName := projectConfig.Name
+	if projectName == "" {
+		return fmt.Errorf("project name not set in .magebox.yaml")
+	}
+
 	// Load team config
-	config, err := team.LoadConfig(p.HomeDir)
+	teamConfig, err := team.LoadConfig(p.HomeDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("no team configuration found: %w\n\nRun 'magebox team add' to configure a team", err)
 	}
 
-	// Find project
-	t, project, err := config.FindProject(projectRef)
+	// Find team with this project in asset storage
+	t, dbPath, mediaPath, err := findProjectInAssetStorage(teamConfig, projectName, fetchTeam)
 	if err != nil {
 		return err
-	}
-
-	// Determine destination path
-	projectName := filepath.Base(project.Repo)
-	destPath := fetchDestPath
-	if destPath == "" {
-		cwd, _ := os.Getwd()
-		destPath = filepath.Join(cwd, projectName)
 	}
 
 	// Print header
-	cli.PrintTitle("Fetching Project")
+	cli.PrintTitle("Fetching Assets")
 	fmt.Println()
-	fmt.Printf("  Team:        %s\n", cli.Highlight(t.Name))
-	fmt.Printf("  Project:     %s\n", cli.Highlight(projectName))
-	fmt.Printf("  Repository:  %s\n", project.Repo)
-	fmt.Printf("  Branch:      %s\n", getBranchForFetch(t, project))
-	fmt.Printf("  Destination: %s\n", destPath)
+	fmt.Printf("  Project:  %s\n", cli.Highlight(projectName))
+	fmt.Printf("  Team:     %s\n", cli.Highlight(t.Name))
+	fmt.Printf("  From:     %s@%s\n", t.Assets.Username, t.Assets.Host)
+	fmt.Printf("  Database: %s\n", dbPath)
+	if fetchMedia {
+		fmt.Printf("  Media:    %s\n", mediaPath)
+	}
 	fmt.Println()
-
-	// Check what will be fetched (assets use defaults if not explicitly configured)
-	fetchItems := []string{}
-	if !fetchNoDB && !fetchMediaOnly && t.Assets.Host != "" {
-		fetchItems = append(fetchItems, "database")
-	}
-	if !fetchNoMedia && !fetchDBOnly && t.Assets.Host != "" {
-		fetchItems = append(fetchItems, "media")
-	}
-	if len(fetchItems) > 0 {
-		fmt.Printf("  Assets:      %s\n", strings.Join(fetchItems, ", "))
-		fmt.Printf("  From:        %s@%s\n", t.Assets.Username, t.Assets.Host)
-		fmt.Println()
-	}
 
 	if fetchDryRun {
 		fmt.Println(cli.Warning("DRY RUN - No changes will be made"))
 		fmt.Println()
-	}
-
-	// Create fetch options
-	options := team.FetchOptions{
-		Branch:    fetchBranch,
-		NoDB:      fetchNoDB,
-		NoMedia:   fetchNoMedia,
-		DBOnly:    fetchDBOnly,
-		MediaOnly: fetchMediaOnly,
-		DryRun:    fetchDryRun,
-		DestPath:  destPath,
+		return dryRunFetch(t, dbPath, mediaPath, fetchMedia)
 	}
 
 	// Create fetcher and execute
-	fetcher := team.NewFetcher(t, project, options)
-	fetcher.SetProgressCallback(func(msg string) {
-		// Handle carriage return for progress updates
-		if strings.HasPrefix(msg, "\r") {
-			fmt.Print(msg)
-		} else {
-			fmt.Println(msg)
+	options := team.FetchOptions{
+		DryRun:    fetchDryRun,
+		NoMedia:   !fetchMedia,
+		DestPath:  cwd,
+	}
+
+	fetcher := team.NewAssetFetcher(t, projectName, dbPath, mediaPath, options)
+	fetcher.SetProgressCallback(createProgressCallback())
+
+	// Backup current database if requested
+	if fetchBackup {
+		if err := backupDatabase(cwd); err != nil {
+			cli.PrintWarning("Failed to backup database: %v", err)
 		}
-	})
+	}
 
 	if err := fetcher.Execute(); err != nil {
 		return err
 	}
 
 	fmt.Println()
-	cli.PrintSuccess("Project fetched successfully!")
-	fmt.Println()
-
-	// Show next steps
-	cli.PrintInfo("Next steps:")
-	fmt.Printf("  cd %s\n", destPath)
-	fmt.Println("  magebox init        # Initialize MageBox configuration")
-	fmt.Println("  magebox start       # Start services")
+	cli.PrintSuccess("Assets fetched successfully!")
 
 	return nil
 }
 
-func getBranchForFetch(t *team.Team, project *team.Project) string {
-	if fetchBranch != "" {
-		return fetchBranch
+// findProjectInAssetStorage searches team asset storage for the project
+func findProjectInAssetStorage(cfg *team.TeamsConfig, projectName, preferredTeam string) (*team.Team, string, string, error) {
+	// Build default paths
+	dbPath := fmt.Sprintf("%s/%s.sql.gz", projectName, projectName)
+	mediaPath := fmt.Sprintf("%s/%s.tar.gz", projectName, projectName)
+
+	// If team specified, use it directly
+	if preferredTeam != "" {
+		t, ok := cfg.Teams[preferredTeam]
+		if !ok {
+			return nil, "", "", fmt.Errorf("team '%s' not found in configuration", preferredTeam)
+		}
+		return t, dbPath, mediaPath, nil
 	}
-	if project.Branch != "" {
-		return project.Branch
+
+	// Check if project is configured in any team
+	var matchedTeams []*team.Team
+	for _, t := range cfg.Teams {
+		// First check if project is explicitly configured
+		if _, ok := t.Projects[projectName]; ok {
+			proj := t.Projects[projectName]
+			if proj.DB != "" {
+				dbPath = proj.DB
+			}
+			if proj.Media != "" {
+				mediaPath = proj.Media
+			}
+			return t, dbPath, mediaPath, nil
+		}
+		// Otherwise, add team with asset storage configured to candidates
+		if t.Assets.Host != "" {
+			matchedTeams = append(matchedTeams, t)
+		}
 	}
-	// Detect default branch from remote
-	if branch := team.DetectDefaultBranch(t.GetCloneURL(project)); branch != "" {
-		return branch
+
+	// If only one team has asset storage, use it
+	if len(matchedTeams) == 1 {
+		return matchedTeams[0], dbPath, mediaPath, nil
 	}
-	return "main"
+
+	// Multiple teams - need to check which one has the file
+	if len(matchedTeams) > 1 {
+		// Try to find the project in asset storage
+		for _, t := range matchedTeams {
+			assetClient := team.NewAssetClient(t, nil)
+			if err := assetClient.Connect(); err != nil {
+				continue
+			}
+			if assetClient.FileExists(dbPath) {
+				assetClient.Close()
+				return t, dbPath, mediaPath, nil
+			}
+			assetClient.Close()
+		}
+
+		// Project not found in any team's asset storage
+		teamNames := make([]string, 0, len(matchedTeams))
+		for _, t := range matchedTeams {
+			teamNames = append(teamNames, t.Name)
+		}
+		return nil, "", "", fmt.Errorf("project '%s' not found in asset storage\n\nChecked teams: %v\nExpected path: %s\n\nUse --team to specify which team to use, or add the project to team config:\n  magebox team %s project add %s",
+			projectName, teamNames, dbPath, matchedTeams[0].Name, projectName)
+	}
+
+	return nil, "", "", fmt.Errorf("no team with asset storage configured\n\nRun 'magebox team add' to configure a team with asset storage")
+}
+
+// dryRunFetch shows what would happen
+func dryRunFetch(t *team.Team, dbPath, mediaPath string, includeMedia bool) error {
+	// Connect to verify files exist
+	assetClient := team.NewAssetClient(t, nil)
+	if err := assetClient.Connect(); err != nil {
+		return fmt.Errorf("failed to connect to asset storage: %w", err)
+	}
+	defer assetClient.Close()
+
+	// Check database
+	if assetClient.FileExists(dbPath) {
+		size, _ := assetClient.GetFileSize(dbPath)
+		fmt.Printf("Would download: %s (%s)\n", dbPath, team.FormatBytes(size))
+		fmt.Println("Would import to MySQL via 'magebox db import'")
+	} else {
+		fmt.Printf("%s Database not found: %s\n", cli.Warning("!"), dbPath)
+	}
+
+	// Check media
+	if includeMedia {
+		if assetClient.FileExists(mediaPath) {
+			size, _ := assetClient.GetFileSize(mediaPath)
+			fmt.Printf("\nWould download: %s (%s)\n", mediaPath, team.FormatBytes(size))
+			fmt.Println("Would extract to pub/media")
+		} else {
+			fmt.Printf("\n%s Media not found: %s\n", cli.Warning("!"), mediaPath)
+		}
+	}
+
+	return nil
+}
+
+// createProgressCallback creates a progress callback for fetch operations
+func createProgressCallback() func(string) {
+	return func(msg string) {
+		if len(msg) > 0 && msg[0] == '\r' {
+			fmt.Print(msg)
+		} else {
+			fmt.Println(msg)
+		}
+	}
 }

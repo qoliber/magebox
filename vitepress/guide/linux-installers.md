@@ -145,6 +145,7 @@ Config path: `/etc/opt/remi/php82/php-fpm.conf`
 ::: tip SELinux Configuration
 Fedora has SELinux enabled by default. MageBox bootstrap automatically configures:
 - `setsebool -P httpd_can_network_connect on` - allows nginx to proxy to Docker
+- `setsebool -P httpd_read_user_content on` - allows nginx to read files from home directories
 - `chcon -R -t httpd_config_t ~/.magebox/nginx/` - allows nginx to read vhost configs
 - `chcon -R -t httpd_config_t ~/.magebox/certs/` - allows nginx to read SSL certs
 

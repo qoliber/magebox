@@ -84,9 +84,13 @@ magebox test status        # Check installed tools
 magebox team add myteam    # Configure team (interactive)
 magebox team list          # List configured teams
 
-# Fetch projects
-magebox fetch myproject    # Clone + DB + media
-magebox fetch myproject --no-db --no-media  # Code only
+# Clone projects
+magebox clone myproject              # Clone repo + composer install
+magebox clone myproject --fetch      # Clone + DB + media
+
+# Fetch assets (from project directory)
+magebox fetch              # Download & import DB
+magebox fetch --media      # Also download media
 
 # Sync existing project
 magebox sync               # Update DB and media
