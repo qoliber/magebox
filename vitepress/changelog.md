@@ -2,6 +2,21 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.0.5] - 2025-12-30
+
+### Fixed
+
+- **Database Name Sanitization** - MySQL database names now replace hyphens with underscores:
+  - Project `m2-layout-xml-compiler` creates database `m2_layout_xml_compiler`
+  - Added `DatabaseName()` method to Config for consistent sanitization
+  - Applied to all database operations: create, import, export, shell, reset, snapshots
+
+- **Search Plugins Volume Definition** - Fixed Docker Compose volume errors:
+  - OpenSearch and Elasticsearch plugins volumes now properly defined
+  - Fixes "undefined volume" error on `mbox start`
+
+---
+
 ## [1.0.4] - 2025-12-30
 
 ### Fixed
