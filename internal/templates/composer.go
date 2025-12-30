@@ -138,11 +138,11 @@ func GetMageOSVersions() map[string]MageOSVersion {
 			RootUpdatePlugin:   "1.1.0",
 			VersionAuditPlugin: "1.1.0",
 		},
-		"1.0.4": {
-			Version:            "1.0.4",
-			ProductVersion:     "1.0.4",
-			RootUpdatePlugin:   "1.0.4",
-			VersionAuditPlugin: "1.0.4",
+		"1.0.5": {
+			Version:            "1.0.5",
+			ProductVersion:     "1.0.5",
+			RootUpdatePlugin:   "1.0.5",
+			VersionAuditPlugin: "1.0.5",
 		},
 		"1.0.3": {
 			Version:            "1.0.3",
@@ -335,7 +335,7 @@ func GetAvailableMageOSVersions() []string {
 	return []string{
 		"2.0.0",
 		"1.1.0",
-		"1.0.4",
+		"1.0.5",
 		"1.0.3",
 		"1.0.2",
 		"1.0.1",

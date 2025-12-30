@@ -101,7 +101,7 @@ func (g *envGenerator) buildTemplateData() EnvPHPData {
 		// Database defaults
 		DatabaseHost:     "127.0.0.1",
 		DatabasePort:     g.getDatabasePort(),
-		DatabaseName:     g.config.Name,
+		DatabaseName:     g.config.DatabaseName(),
 		DatabaseUser:     "root",
 		DatabasePassword: "magebox",
 

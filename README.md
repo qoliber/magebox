@@ -267,7 +267,7 @@ magebox new mystore --quick
 ```
 
 This installs MageOS with sensible defaults:
-- MageOS 1.0.4 (no Adobe authentication required)
+- MageOS 1.0.5 (no Adobe authentication required)
 - PHP 8.3, MySQL 8.0, Redis, OpenSearch
 - Sample data included
 - Domain: mystore.test

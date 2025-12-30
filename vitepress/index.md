@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "MageBox"
   text: "Native Magento Development"
-  tagline: v1.0.4 - ImageMagick support & OpenSearch reliability
+  tagline: v1.0.5 - ImageMagick support & OpenSearch reliability
   image:
     src: /logo.svg
     alt: MageBox

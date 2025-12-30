@@ -377,8 +377,8 @@ func (m *Manager) ensureDatabase(cfg *config.Config) error {
 		return fmt.Errorf("database service %s is not running", serviceName)
 	}
 
-	// Create database
-	return dockerController.CreateDatabase(serviceName, cfg.Name)
+	// Create database (use sanitized name - hyphens replaced with underscores)
+	return dockerController.CreateDatabase(serviceName, cfg.DatabaseName())
 }
 
 // getStartedServices returns a list of started service names

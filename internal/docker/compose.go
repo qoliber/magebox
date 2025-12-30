@@ -211,6 +211,7 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(version, ".", ""))
 		compose.Services[serviceName] = g.getOpenSearchService(svcCfg)
 		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+		compose.Volumes[fmt.Sprintf("opensearch%s_plugins", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 
 	// Add Elasticsearch services
@@ -218,6 +219,7 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(version, ".", ""))
 		compose.Services[serviceName] = g.getElasticsearchService(svcCfg)
 		compose.Volumes[fmt.Sprintf("elasticsearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+		compose.Volumes[fmt.Sprintf("elasticsearch%s_plugins", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 
 	// Add RabbitMQ if needed
@@ -830,6 +832,7 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 		}
 		compose.Services[serviceName] = g.getOpenSearchService(svcCfg)
 		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+		compose.Volumes[fmt.Sprintf("opensearch%s_plugins", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 
 	// Add Mailpit (useful for all projects)

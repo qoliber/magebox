@@ -36,7 +36,7 @@ This command will guide you through:
 
 Quick Mode (--quick):
   Skip all questions and install MageOS with sensible defaults:
-  - MageOS 1.0.4 (latest stable, no auth required)
+  - MageOS 1.0.5 (latest stable, no auth required)
   - PHP 8.3
   - MySQL 8.0, Redis, OpenSearch
   - Sample data included
@@ -135,7 +135,7 @@ var magentoVersions = []MagentoVersion{
 
 // Available MageOS versions
 var mageosVersions = []MagentoVersion{
-	{Name: "MageOS 1.0.4 (Latest)", Version: "1.0.4", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
+	{Name: "MageOS 1.0.5 (Latest)", Version: "1.0.5", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
 	{Name: "MageOS 1.0.3", Version: "1.0.3", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
 	{Name: "MageOS 1.0.2", Version: "1.0.2", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
 	{Name: "MageOS 1.0.1", Version: "1.0.1", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
@@ -801,7 +801,7 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	tld := globalCfg.GetTLD()
 
 	// Defaults for quick mode
-	selectedVersion := mageosVersions[0] // MageOS 1.0.4 (latest)
+	selectedVersion := mageosVersions[0] // MageOS 1.0.5 (latest)
 	selectedPHP := DefaultPHPVersion
 	dbVersion := DefaultMySQLVersion
 	searchVersion := DefaultOpenSearchVersion

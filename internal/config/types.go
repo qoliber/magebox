@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Config represents the merged configuration from .magebox and .magebox.local
 type Config struct {
@@ -224,6 +227,12 @@ func (c *Config) Validate() error {
 		return &ValidationError{Field: "php", Message: "php version is required"}
 	}
 	return nil
+}
+
+// DatabaseName returns the sanitized database name
+// MySQL doesn't handle hyphens well in database names, so we replace them with underscores
+func (c *Config) DatabaseName() string {
+	return strings.ReplaceAll(c.Name, "-", "_")
 }
 
 // ValidationError represents a configuration validation error
