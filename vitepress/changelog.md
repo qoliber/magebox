@@ -2,6 +2,26 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.0.4] - 2025-12-30
+
+### Fixed
+
+- **ImageMagick PHP Extension** - Bootstrap now properly installs imagick for all PHP versions:
+  - Fixed `InstallImagick` on Fedora to install `php*-php-pecl-imagick-im7`
+  - Fixed `InstallImagick` on Ubuntu to install `php*-imagick`
+  - Added `php-imagick` to Arch Linux default PHP packages
+  - macOS already working via PECL
+
+- **OpenSearch/Elasticsearch Reliability** - Plugins now persist across container restarts:
+  - Added plugins volume to prevent re-downloading on every start
+  - Fixes restart loops caused by temporary DNS/network issues
+
+- **PHP-FPM Pool Isolation** - Fixed pool configuration path bug:
+  - Each PHP version now uses isolated pool directory (`pools/8.1/`, `pools/8.3/`, etc.)
+  - Prevents version conflicts when running multiple PHP versions
+
+---
+
 ## [1.0.3] - 2025-12-29
 
 ### Added
