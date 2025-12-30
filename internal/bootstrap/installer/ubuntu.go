@@ -160,10 +160,8 @@ func (u *UbuntuInstaller) InstallXdebug(version string) error {
 }
 
 // InstallImagick installs ImageMagick PHP extension for a specific PHP version
-// On Ubuntu, imagick is already installed with PHP packages (php*-imagick)
 func (u *UbuntuInstaller) InstallImagick(version string) error {
-	// Already installed in InstallPHP, this is a no-op
-	return nil
+	return u.RunSudo("apt", "install", "-y", fmt.Sprintf("php%s-imagick", version))
 }
 
 // InstallSodium installs the sodium PHP extension for a specific PHP version

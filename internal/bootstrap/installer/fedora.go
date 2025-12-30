@@ -161,10 +161,9 @@ func (f *FedoraInstaller) InstallXdebug(version string) error {
 }
 
 // InstallImagick installs ImageMagick PHP extension for a specific PHP version
-// On Fedora, imagick is already installed with PHP packages (php*-php-pecl-imagick-im7)
 func (f *FedoraInstaller) InstallImagick(version string) error {
-	// Already installed in InstallPHP, this is a no-op
-	return nil
+	remiVersion := strings.ReplaceAll(version, ".", "")
+	return f.RunSudo("dnf", "install", "-y", fmt.Sprintf("php%s-php-pecl-imagick-im7", remiVersion))
 }
 
 // InstallSodium installs the sodium PHP extension for a specific PHP version

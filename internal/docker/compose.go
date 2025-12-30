@@ -411,6 +411,7 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig) Co
 		},
 		Volumes: []string{
 			fmt.Sprintf("opensearch%s_data:/usr/share/opensearch/data", strings.ReplaceAll(version, ".", "")),
+			fmt.Sprintf("opensearch%s_plugins:/usr/share/opensearch/plugins", strings.ReplaceAll(version, ".", "")),
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
@@ -442,6 +443,7 @@ func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig)
 		},
 		Volumes: []string{
 			fmt.Sprintf("elasticsearch%s_data:/usr/share/elasticsearch/data", strings.ReplaceAll(version, ".", "")),
+			fmt.Sprintf("elasticsearch%s_plugins:/usr/share/elasticsearch/plugins", strings.ReplaceAll(version, ".", "")),
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",

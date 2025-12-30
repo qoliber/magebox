@@ -87,6 +87,7 @@ func (a *ArchInstaller) InstallPHP(version string) error {
 		"php-gd",
 		"php-intl",
 		"php-sodium",
+		"php-imagick",
 	}
 
 	args := append([]string{"pacman", "-S", "--noconfirm"}, packages...)
