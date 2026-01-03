@@ -9,13 +9,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/dns"
-	"github.com/qoliber/magebox/internal/docker"
-	"github.com/qoliber/magebox/internal/phpwrapper"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/portforward"
-	"github.com/qoliber/magebox/internal/project"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/dns"
+	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/phpwrapper"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/portforward"
+	"qoliber/magebox/internal/project"
 )
 
 var (

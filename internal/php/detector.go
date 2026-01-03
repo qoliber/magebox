@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/not-installed-message.tmpl

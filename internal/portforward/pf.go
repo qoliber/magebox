@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/verbose"
+	"qoliber/magebox/internal/verbose"
 )
 
 const (

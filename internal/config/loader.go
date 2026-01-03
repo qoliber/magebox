@@ -229,6 +229,7 @@ func SaveToPath(cfg *Config, path string) error {
 
 // LocalConfig represents local config overrides that can be saved independently
 type LocalConfig struct {
+	PHP    string            `yaml:"php,omitempty"`
 	PHPINI map[string]string `yaml:"php_ini,omitempty"`
 	Env    map[string]string `yaml:"env,omitempty"`
 }

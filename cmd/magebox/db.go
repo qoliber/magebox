@@ -13,10 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/docker"
-	"github.com/qoliber/magebox/internal/progress"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/progress"
 )
 
 var dbCmd = &cobra.Command{

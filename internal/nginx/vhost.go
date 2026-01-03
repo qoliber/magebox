@@ -10,19 +10,27 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/ssl"
 )
 
 //go:embed templates/vhost.conf.tmpl
-var vhostTemplate string
+var vhostTemplateEmbed string
 
 //go:embed templates/proxy.conf.tmpl
-var proxyTemplate string
+var proxyTemplateEmbed string
 
 //go:embed templates/upstream.conf.tmpl
-var upstreamTemplate string
+var upstreamTemplateEmbed string
+
+func init() {
+	// Register embedded templates as fallbacks
+	lib.RegisterFallbackTemplate(lib.TemplateNginx, "vhost.conf.tmpl", vhostTemplateEmbed)
+	lib.RegisterFallbackTemplate(lib.TemplateNginx, "proxy.conf.tmpl", proxyTemplateEmbed)
+	lib.RegisterFallbackTemplate(lib.TemplateNginx, "upstream.conf.tmpl", upstreamTemplateEmbed)
+}
 
 // Template variables available in vhost.conf.tmpl:
 // - ProjectName: Name of the project (e.g., "mystore")
@@ -46,6 +54,7 @@ type VhostGenerator struct {
 // VhostConfig contains all data needed to generate a vhost
 type VhostConfig struct {
 	ProjectName   string
+	ProjectPath   string // Absolute path to project root (for config file references)
 	Domain        string
 	DocumentRoot  string
 	PHPVersion    string
@@ -135,6 +144,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 
 		vhostCfg := VhostConfig{
 			ProjectName:   cfg.Name,
+			ProjectPath:   projectPath,
 			Domain:        domain.Host,
 			DocumentRoot:  filepath.Join(projectPath, domain.GetRoot()),
 			PHPVersion:    cfg.PHP,
@@ -196,7 +206,12 @@ func (g *VhostGenerator) getPHPSocketPath(projectName, phpVersion string) string
 
 // renderVhost renders the vhost template
 func (g *VhostGenerator) renderVhost(cfg VhostConfig) (string, error) {
-	tmpl, err := template.New("vhost").Parse(vhostTemplate)
+	tmplContent, err := lib.GetTemplate(lib.TemplateNginx, "vhost.conf.tmpl")
+	if err != nil {
+		return "", err
+	}
+
+	tmpl, err := template.New("vhost").Parse(tmplContent)
 	if err != nil {
 		return "", err
 	}
@@ -222,7 +237,12 @@ func (g *VhostGenerator) generateUpstream(cfg UpstreamConfig) error {
 
 // renderUpstream renders the upstream template
 func (g *VhostGenerator) renderUpstream(cfg UpstreamConfig) (string, error) {
-	tmpl, err := template.New("upstream").Parse(upstreamTemplate)
+	tmplContent, err := lib.GetTemplate(lib.TemplateNginx, "upstream.conf.tmpl")
+	if err != nil {
+		return "", err
+	}
+
+	tmpl, err := template.New("upstream").Parse(tmplContent)
 	if err != nil {
 		return "", err
 	}
@@ -286,7 +306,12 @@ func (g *VhostGenerator) GenerateProxyVhost(cfg ProxyConfig) error {
 
 // renderProxyVhost renders the proxy vhost template
 func (g *VhostGenerator) renderProxyVhost(cfg ProxyConfig) (string, error) {
-	tmpl, err := template.New("proxy").Parse(proxyTemplate)
+	tmplContent, err := lib.GetTemplate(lib.TemplateNginx, "proxy.conf.tmpl")
+	if err != nil {
+		return "", err
+	}
+
+	tmpl, err := template.New("proxy").Parse(tmplContent)
 	if err != nil {
 		return "", err
 	}

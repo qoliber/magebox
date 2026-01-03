@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/verbose"
+	"qoliber/magebox/internal/verbose"
 )
 
 // Type represents the operating system type

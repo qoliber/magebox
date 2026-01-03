@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
 )
 
 // ProjectInfo contains information about a discovered project

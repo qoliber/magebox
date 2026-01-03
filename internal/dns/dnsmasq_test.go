@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 func TestNewDnsmasqManager(t *testing.T) {

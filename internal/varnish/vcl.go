@@ -9,12 +9,18 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/default.vcl.tmpl
-var vclTemplate string
+var vclTemplateEmbed string
+
+func init() {
+	// Register embedded template as fallback
+	lib.RegisterFallbackTemplate(lib.TemplateVarnish, "default.vcl.tmpl", vclTemplateEmbed)
+}
 
 // Template variables available in default.vcl.tmpl:
 // - Backends: Array of backend configurations
@@ -127,7 +133,13 @@ func (g *VCLGenerator) buildVCLConfig(configs []*config.Config) VCLConfig {
 
 // renderVCL renders the VCL template
 func (g *VCLGenerator) renderVCL(cfg VCLConfig) (string, error) {
-	tmpl, err := template.New("vcl").Parse(vclTemplate)
+	// Load template from lib (with embedded fallback)
+	tmplContent, err := lib.GetTemplate(lib.TemplateVarnish, "default.vcl.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to load VCL template: %w", err)
+	}
+
+	tmpl, err := template.New("vcl").Parse(tmplContent)
 	if err != nil {
 		return "", err
 	}

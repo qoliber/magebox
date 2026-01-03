@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/docker"
-	"github.com/qoliber/magebox/internal/nginx"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/nginx"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/platform"
 )
 
 var globalCmd = &cobra.Command{

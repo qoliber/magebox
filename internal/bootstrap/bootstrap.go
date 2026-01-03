@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/qoliber/magebox/internal/bootstrap/installer"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/bootstrap/installer"
+	"qoliber/magebox/internal/platform"
 )
 
 // Bootstrapper orchestrates the MageBox bootstrap process

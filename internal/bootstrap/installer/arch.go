@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
 )
 
 // ArchInstaller handles installation on Arch Linux and derivatives
@@ -148,8 +148,50 @@ func (a *ArchInstaller) InstallSodium(version string) error {
 
 // ConfigurePHPFPM configures PHP-FPM on Arch Linux
 func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
-	// On Arch, PHP-FPM service is just "php-fpm"
+	// On Arch, PHP-FPM service is just "php-fpm" (single version)
 	// Note: We use default log paths to avoid permission issues
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Arch Linux paths (single PHP version)
+	fpmConfPath := "/etc/php/php-fpm.conf"
+	wwwConfPath := "/etc/php/php-fpm.d/www.conf"
+
+	// Disable default www.conf pool - MageBox manages its own pools
+	if a.FileExists(wwwConfPath) {
+		disabledPath := wwwConfPath + ".disabled"
+		if !a.FileExists(disabledPath) {
+			if err := a.RunSudo("mv", wwwConfPath, disabledPath); err != nil {
+				fmt.Printf("  Warning: could not disable default www.conf pool: %v\n", err)
+			}
+		}
+	}
+
+	// Arch uses PHP version from system, so we'll use the first version or default to current
+	phpVersion := "8.3" // Default for Arch's current PHP
+	if len(versions) > 0 {
+		phpVersion = versions[0]
+	}
+	mageboxPoolsInclude := fmt.Sprintf("include=%s/.magebox/php/pools/%s/*.conf", homeDir, phpVersion)
+
+	// Add MageBox pools include to php-fpm.conf if not already present
+	if a.FileExists(fpmConfPath) {
+		checkCmd := exec.Command("grep", "-q", mageboxPoolsInclude, fpmConfPath)
+		if checkCmd.Run() != nil {
+			if err := a.RunSudo("sh", "-c", fmt.Sprintf("echo '%s' >> %s", mageboxPoolsInclude, fpmConfPath)); err != nil {
+				return fmt.Errorf("failed to add MageBox pools include to %s: %w", fpmConfPath, err)
+			}
+		}
+	}
+
+	// Create MageBox pools directory
+	poolsDir := fmt.Sprintf("%s/.magebox/php/pools/%s", homeDir, phpVersion)
+	if err := os.MkdirAll(poolsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create pools directory %s: %w", poolsDir, err)
+	}
 
 	// Enable and start service
 	if err := a.RunSudo("systemctl", "enable", "php-fpm"); err != nil {

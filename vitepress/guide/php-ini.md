@@ -6,7 +6,56 @@ MageBox allows you to override PHP configuration settings per-project using the 
 
 PHP INI settings are injected into the PHP-FPM pool configuration and take precedence over system-wide PHP settings. This allows different projects to have different PHP configurations.
 
-## Basic Usage
+## CLI Commands
+
+MageBox provides CLI commands to manage PHP INI settings without editing YAML files directly:
+
+### Set a Value
+
+```bash
+mbox php ini set memory_limit 4G
+mbox php ini set opcache.enable 0
+mbox php ini set xdebug.mode debug
+```
+
+### Get a Value
+
+```bash
+mbox php ini get memory_limit
+# Output: memory_limit = 4G
+```
+
+### List All Settings
+
+```bash
+mbox php ini list
+```
+
+Shows all PHP INI settings including defaults and custom overrides:
+
+```
+PHP INI Settings for project-name
+─────────────────────────────────
+
+Default settings:
+  memory_limit = 756M
+  max_execution_time = 18000
+  ...
+
+Custom settings (from .magebox.yaml):
+  opcache.enable = 0
+  display_errors = On
+```
+
+### Remove a Setting
+
+```bash
+mbox php ini unset opcache.enable
+```
+
+Removes the custom override, reverting to the default value.
+
+## YAML Configuration
 
 Add `php_ini` settings to your `.magebox.yaml` file:
 
@@ -170,10 +219,16 @@ You can override any PHP INI directive that can be set via `php_admin_value` in 
 
 ## Applying Changes
 
-After modifying `php_ini` settings, restart your project:
+### Using CLI Commands
+
+CLI commands (`mbox php ini set/unset`) automatically restart the project after making changes.
+
+### Manual YAML Edits
+
+After modifying `php_ini` settings in YAML files, restart your project:
 
 ```bash
-magebox restart
+mbox restart
 ```
 
 This regenerates the PHP-FPM pool configuration and reloads PHP-FPM.

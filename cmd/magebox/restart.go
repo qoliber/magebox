@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/project"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/project"
 )
 
 var restartAllProjects bool

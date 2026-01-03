@@ -1,19 +1,63 @@
 # Linux Installers
 
-MageBox uses a platform-specific installer architecture to handle the differences between Linux distributions. This page explains how the system works and how to extend it for new distributions.
+MageBox uses a **declarative YAML-based configuration system** to handle the differences between Linux distributions. Platform-specific packages, commands, and paths are defined in external YAML files that can be updated independently of the MageBox binary.
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  magebox-lib (external repository)                          │
+│  ├── installers/                                            │
+│  │   ├── fedora.yaml                                        │
+│  │   ├── ubuntu.yaml                                        │
+│  │   ├── arch.yaml                                          │
+│  │   └── darwin.yaml                                        │
+│  └── templates/                                             │
+│      ├── nginx/                                             │
+│      ├── php/                                               │
+│      └── ...                                                │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          │ git clone / git pull
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ~/.magebox/yaml/ (local installation)                      │
+│  ├── installers/                                            │
+│  └── templates/                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+::: tip
+See the [Configuration Library](/guide/configuration-library) guide for detailed information about managing and customizing the library.
+:::
 
 ## File Locations
 
-The installer code is located in:
+### YAML Configuration Files
+
+The installer configurations are stored in the configuration library:
+
+```
+~/.magebox/yaml/installers/
+├── fedora.yaml   # Fedora/RHEL/CentOS (dnf + Remi)
+├── ubuntu.yaml   # Ubuntu/Debian (apt + Ondrej PPA)
+├── arch.yaml     # Arch Linux (pacman)
+└── darwin.yaml   # macOS (Homebrew)
+```
+
+### Go Implementation
+
+The installer code that loads and processes YAML is located in:
 
 ```
 internal/bootstrap/installer/
 ├── base.go       # Common functionality for all installers
 ├── types.go      # Interfaces, types, and supported versions
-├── darwin.go     # macOS (Homebrew) installer
-├── fedora.go     # Fedora/RHEL/CentOS (dnf + Remi) installer
-├── ubuntu.go     # Ubuntu/Debian (apt + Ondrej PPA) installer
-└── arch.go       # Arch Linux (pacman) installer
+├── generic.go    # Generic installer using YAML config
+├── darwin.go     # macOS-specific fallback
+├── fedora.go     # Fedora-specific fallback
+├── ubuntu.go     # Ubuntu-specific fallback
+└── arch.go       # Arch-specific fallback
 ```
 
 ## The Installer Interface
@@ -138,9 +182,44 @@ php82-php-opcache
 php82-php-sodium
 ```
 
-Service name: `php82-php-fpm`
+System service name: `php82-php-fpm`
 
 Config path: `/etc/opt/remi/php82/php-fpm.conf`
+
+::: warning PHP-FPM Management on Fedora
+MageBox uses **direct process management** for PHP-FPM on Fedora, NOT systemd. This is intentional due to SELinux context issues:
+
+- When PHP-FPM runs via systemd, it gets the `httpd_t` SELinux context
+- The `httpd_t` context cannot access files in user home directories (`user_home_t`)
+- Even with `httpd_read_user_content=on`, symlinks and certain operations are blocked
+
+**How MageBox manages PHP-FPM on Fedora:**
+```
+~/.magebox/php/php-fpm-8.3.conf     # Master config
+~/.magebox/php/pools/8.3/*.conf     # Pool configs per project
+~/.magebox/run/*.sock               # Unix sockets
+~/.magebox/run/php-fpm-8.3.pid      # PID file
+```
+
+MageBox starts PHP-FPM directly as your user:
+```bash
+php-fpm -y ~/.magebox/php/php-fpm-8.3.conf
+```
+
+This runs PHP-FPM with `unconfined_t` SELinux context, giving full access to your project files.
+:::
+
+::: tip PHP-FPM Management on Debian/Ubuntu
+On Debian-based systems (Ubuntu, Linux Mint, Pop!_OS, etc.), MageBox uses **systemd** for PHP-FPM management. AppArmor (used instead of SELinux) is more permissive and allows access to user home directories.
+
+```bash
+# MageBox uses systemd on Debian/Ubuntu:
+sudo systemctl start php8.3-fpm
+sudo systemctl reload php8.3-fpm
+```
+
+Pool configs are still stored in `~/.magebox/php/pools/{version}/` and included by the system PHP-FPM service.
+:::
 
 ::: tip SELinux Configuration
 Fedora has SELinux enabled by default. MageBox bootstrap automatically configures:
@@ -187,11 +266,156 @@ php@8.4
 
 Service: `brew services start php@8.2`
 
+## YAML Installer Schema
+
+Each platform installer is defined in a YAML file with the following structure:
+
+```yaml
+# ~/.magebox/yaml/installers/fedora.yaml
+schema_version: "1.0"
+
+meta:
+  platform: linux
+  distro: fedora
+  display_name: "Fedora Linux"
+  supported_versions: ["40", "41", "42"]
+
+package_manager:
+  name: dnf
+  install: "sudo dnf install -y"
+  update: "sudo dnf update -y"
+
+php:
+  version_format: "php${versionNoDot}"  # php82, php83, etc.
+  versions: ["8.1", "8.2", "8.3", "8.4"]
+  packages:
+    core:
+      - "${phpPrefix}-php-fpm"
+      - "${phpPrefix}-php-cli"
+    extensions:
+      - "${phpPrefix}-php-mysqlnd"
+      - "${phpPrefix}-php-xml"
+      - "${phpPrefix}-php-mbstring"
+      # ... more extensions
+  paths:
+    binary: "/usr/bin/php${versionNoDot}"
+    ini: "/etc/opt/remi/php${versionNoDot}/php.ini"
+  services:
+    fpm:
+      name: "php${versionNoDot}-php-fpm"
+      start: "sudo systemctl start ${serviceName}"
+      reload: "sudo systemctl reload ${serviceName}"
+
+nginx:
+  packages: ["nginx"]
+  paths:
+    config: "/etc/nginx/nginx.conf"
+    tmp_dir: "/var/lib/nginx/tmp/"
+  services:
+    nginx:
+      name: nginx
+      reload: "sudo systemctl reload nginx"
+  fixes:
+    tmp_permissions:
+      commands:
+        - "sudo chown -R ${user}:${user} /var/lib/nginx/tmp/"
+
+selinux:
+  enabled: true
+  booleans:
+    - "httpd_can_network_connect on"
+    - "httpd_read_user_content on"
+  contexts:
+    - path: "${mageboxDir}/run"
+      type: "httpd_var_run_t"
+
+sudoers:
+  enabled: true
+  file: "/etc/sudoers.d/magebox"
+  rules:
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-php-fpm"
+```
+
+### Available Variables
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `${user}` | `jakub` | Current user |
+| `${homeDir}` | `/home/jakub` | User home directory |
+| `${mageboxDir}` | `/home/jakub/.magebox` | MageBox directory |
+| `${phpVersion}` | `8.2` | PHP version being installed |
+| `${versionNoDot}` | `82` | PHP version without dots |
+| `${phpPrefix}` | `php82` | Computed from version_format |
+| `${tld}` | `test` | Top-level domain from config |
+| `${osVersion}` | `42` | OS version number |
+
+### View Current Configuration
+
+Use `mbox lib show` to see the resolved configuration for your platform:
+
+```bash
+mbox lib show fedora
+```
+
+This displays package names, paths, and commands with all variables expanded.
+
 ## Adding Support for a New Distribution
 
-To add support for a new Linux distribution:
+To add support for a new Linux distribution, you can now simply create a YAML configuration file.
 
-### 1. Create the Installer File
+### Option 1: YAML Configuration Only
+
+Create a new YAML file in the configuration library:
+
+```yaml
+# ~/.magebox/yaml/installers/opensuse.yaml
+schema_version: "1.0"
+
+meta:
+  platform: linux
+  distro: opensuse
+  display_name: "openSUSE"
+  supported_versions: ["15.5", "15.6", "tumbleweed"]
+
+package_manager:
+  name: zypper
+  install: "sudo zypper install -y"
+  update: "sudo zypper update -y"
+
+php:
+  version_format: "php${versionNoDot}"
+  versions: ["8.2", "8.3"]
+  packages:
+    core:
+      - "php${versionNoDot}"
+      - "php${versionNoDot}-fpm"
+    extensions:
+      - "php${versionNoDot}-mysql"
+      - "php${versionNoDot}-xml"
+      # ... more packages
+  paths:
+    binary: "/usr/bin/php${versionNoDot}"
+    ini: "/etc/php${versionNoDot}/php.ini"
+  services:
+    fpm:
+      name: "php${versionNoDot}-fpm"
+
+nginx:
+  packages: ["nginx"]
+  paths:
+    config: "/etc/nginx/nginx.conf"
+
+sudoers:
+  enabled: true
+  file: "/etc/sudoers.d/magebox"
+  rules:
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
+```
+
+### Option 2: Go Implementation (Advanced)
+
+For distributions requiring special logic, create a Go installer file:
 
 Create a new file in `internal/bootstrap/installer/`, e.g., `opensuse.go`:
 

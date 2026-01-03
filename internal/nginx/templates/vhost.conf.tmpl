@@ -1,5 +1,11 @@
 # MageBox generated vhost for {{.ProjectName}} - {{.Domain}}
 # Do not edit manually - regenerated on magebox start
+#
+# Configuration files:
+#   Main config:  {{.ProjectPath}}/.magebox.yaml
+#   Local config: {{.ProjectPath}}/.magebox.local.yaml
+#
+# Modify domains, ssl, services in the above files, then run: mbox restart
 
 {{if .SSLEnabled}}
 {{if .UseVarnish}}

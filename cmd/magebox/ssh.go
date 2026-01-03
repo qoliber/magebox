@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/cli"
 	"github.com/spf13/cobra"
 )
 

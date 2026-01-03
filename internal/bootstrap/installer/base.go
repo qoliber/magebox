@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 // BaseInstaller provides common functionality for all platform installers

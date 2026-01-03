@@ -10,11 +10,17 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/hosts-section.tmpl
-var hostsSectionTemplate string
+var hostsSectionTemplateEmbed string
+
+func init() {
+	// Register embedded template as fallback
+	lib.RegisterFallbackTemplate(lib.TemplateDNS, "hosts-section.tmpl", hostsSectionTemplateEmbed)
+}
 
 // HostsSectionData contains data for the hosts section template
 type HostsSectionData struct {
@@ -243,7 +249,20 @@ func GenerateMageBoxSection(domains []string) string {
 		return ""
 	}
 
-	tmpl, err := template.New("hosts-section").Parse(hostsSectionTemplate)
+	// Load template from lib (with embedded fallback)
+	tmplContent, err := lib.GetTemplate(lib.TemplateDNS, "hosts-section.tmpl")
+	if err != nil {
+		// Fallback to simple generation if template fails
+		var sb strings.Builder
+		sb.WriteString(MageBoxStartMarker + "\n")
+		for _, domain := range domains {
+			sb.WriteString(fmt.Sprintf("127.0.0.1 %s\n", domain))
+		}
+		sb.WriteString(MageBoxEndMarker + "\n")
+		return sb.String()
+	}
+
+	tmpl, err := template.New("hosts-section").Parse(tmplContent)
 	if err != nil {
 		// Fallback to simple generation if template fails
 		var sb strings.Builder

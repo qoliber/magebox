@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/platform"
 )
 
 var installCmd = &cobra.Command{

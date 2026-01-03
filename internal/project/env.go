@@ -11,11 +11,17 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/lib"
 )
 
 //go:embed templates/env.php.tmpl
-var envPHPTemplate string
+var envPHPTemplateEmbed string
+
+func init() {
+	// Register embedded template as fallback
+	lib.RegisterFallbackTemplate(lib.TemplateProject, "env.php.tmpl", envPHPTemplateEmbed)
+}
 
 // EnvPHPData contains all variables available in env.php.tmpl
 type EnvPHPData struct {
@@ -162,7 +168,13 @@ func (g *envGenerator) getDatabasePort() string {
 
 // renderTemplate renders the env.php template with the given data
 func (g *envGenerator) renderTemplate(data EnvPHPData) (string, error) {
-	tmpl, err := template.New("env.php").Parse(envPHPTemplate)
+	// Load template from lib (with embedded fallback)
+	tmplContent, err := lib.GetTemplate(lib.TemplateProject, "env.php.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to load env.php template: %w", err)
+	}
+
+	tmpl, err := template.New("env.php").Parse(tmplContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %w", err)
 	}

@@ -11,13 +11,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/nginx"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/project"
-	"github.com/qoliber/magebox/internal/templates"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/nginx"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/project"
+	"qoliber/magebox/internal/templates"
 )
 
 var newCmd = &cobra.Command{

@@ -10,11 +10,17 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/not-installed-error.tmpl
-var notInstalledErrorTemplate string
+var notInstalledErrorTemplateEmbed string
+
+func init() {
+	// Register embedded template as fallback
+	lib.RegisterFallbackTemplate(lib.TemplateSSL, "not-installed-error.tmpl", notInstalledErrorTemplateEmbed)
+}
 
 // NotInstalledErrorData contains data for the not-installed error template
 type NotInstalledErrorData struct {
@@ -250,7 +256,14 @@ func (e *MkcertNotInstalledError) Error() string {
 		InstallCommand: e.Platform.MkcertInstallCommand(),
 	}
 
-	tmpl, err := template.New("not-installed-error").Parse(notInstalledErrorTemplate)
+	// Load template from lib (with embedded fallback)
+	tmplContent, err := lib.GetTemplate(lib.TemplateSSL, "not-installed-error.tmpl")
+	if err != nil {
+		// Fallback to simple message
+		return fmt.Sprintf("mkcert is not installed\n\nInstall it with:\n  %s\n\nThen run: magebox ssl:trust\n", e.Platform.MkcertInstallCommand())
+	}
+
+	tmpl, err := template.New("not-installed-error").Parse(tmplContent)
 	if err != nil {
 		// Fallback to simple message
 		return fmt.Sprintf("mkcert is not installed\n\nInstall it with:\n  %s\n\nThen run: magebox ssl:trust\n", e.Platform.MkcertInstallCommand())

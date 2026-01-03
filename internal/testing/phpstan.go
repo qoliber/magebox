@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/config"
 )
 
 // PHPStanRunner handles PHPStan static analysis

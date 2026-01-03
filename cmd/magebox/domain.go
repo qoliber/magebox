@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/dns"
-	"github.com/qoliber/magebox/internal/nginx"
-	"github.com/qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/dns"
+	"qoliber/magebox/internal/nginx"
+	"qoliber/magebox/internal/ssl"
 )
 
 var domainCmd = &cobra.Command{

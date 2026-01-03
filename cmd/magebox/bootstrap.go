@@ -13,19 +13,19 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/bootstrap"
-	"github.com/qoliber/magebox/internal/bootstrap/installer"
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/dns"
-	"github.com/qoliber/magebox/internal/docker"
-	"github.com/qoliber/magebox/internal/nginx"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/phpwrapper"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/portforward"
-	"github.com/qoliber/magebox/internal/ssl"
-	"github.com/qoliber/magebox/internal/verbose"
+	"qoliber/magebox/internal/bootstrap"
+	"qoliber/magebox/internal/bootstrap/installer"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/dns"
+	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/nginx"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/phpwrapper"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/portforward"
+	"qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/verbose"
 )
 
 var bootstrapCmd = &cobra.Command{
@@ -90,7 +90,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println("    - Arch Linux (pacman)")
 			fmt.Println()
 			cli.PrintInfo("If your distro is based on one of these, please report this at:")
-			fmt.Println("  https://github.com/qoliber/magebox/issues")
+			fmt.Println("  https://qoliber/magebox/issues")
 			return fmt.Errorf("unsupported distribution")
 		}
 
@@ -99,7 +99,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 			cli.PrintWarning("MageBox has not been tested on %s", p.DistroName)
 			fmt.Println("  It should work since it's based on " + string(p.LinuxDistro) + ", but you may encounter issues.")
-			fmt.Println("  Please report any problems at: https://github.com/qoliber/magebox/issues")
+			fmt.Println("  Please report any problems at: https://qoliber/magebox/issues")
 			fmt.Println()
 
 			// Ask user if they want to continue

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/config"
 )
 
 func TestNewEnvGenerator(t *testing.T) {

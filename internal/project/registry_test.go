@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 func TestNewProjectDiscovery(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 // Manager handles testing tool operations

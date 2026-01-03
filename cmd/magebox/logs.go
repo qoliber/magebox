@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/platform"
 )
 
 var logsCmd = &cobra.Command{

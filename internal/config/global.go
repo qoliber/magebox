@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/qoliber/magebox/internal/remote"
+	"qoliber/magebox/internal/remote"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,6 +34,9 @@ type GlobalConfig struct {
 
 	// DockerProvider specifies which Docker provider to use: "auto", "desktop", "colima", "orbstack", "rancher", "lima"
 	DockerProvider string `yaml:"docker_provider,omitempty"`
+
+	// LibPath is the custom path to the lib directory (overrides default ~/.magebox/yaml)
+	LibPath string `yaml:"lib_path,omitempty"`
 
 	// Profiling contains credentials for profiling tools (Blackfire, Tideways)
 	Profiling ProfilingConfig `yaml:"profiling,omitempty"`

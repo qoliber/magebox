@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/varnish"
-	"github.com/qoliber/magebox/internal/verbose"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/varnish"
+	"qoliber/magebox/internal/verbose"
 	"gopkg.in/yaml.v3"
 )
 

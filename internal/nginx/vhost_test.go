@@ -7,9 +7,9 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/ssl"
 )
 
 func setupTestGenerator(t *testing.T) (*VhostGenerator, string) {
@@ -306,7 +306,7 @@ func TestSanitizeDomain(t *testing.T) {
 
 func TestUpstreamTemplateValidity(t *testing.T) {
 	// Test that the upstream template parses correctly
-	tmpl, err := template.New("upstream").Parse(upstreamTemplate)
+	tmpl, err := template.New("upstream").Parse(upstreamTemplateEmbed)
 	if err != nil {
 		t.Fatalf("Upstream template parsing failed: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestUpstreamTemplateValidity(t *testing.T) {
 	}
 
 	for _, section := range expectedSections {
-		if !strings.Contains(upstreamTemplate, section) {
+		if !strings.Contains(upstreamTemplateEmbed, section) {
 			t.Errorf("Upstream template should contain section: %s", section)
 		}
 	}
@@ -330,7 +330,7 @@ func TestUpstreamTemplateValidity(t *testing.T) {
 
 func TestVhostTemplateValidity(t *testing.T) {
 	// Test that the embedded template parses correctly
-	tmpl, err := template.New("vhost").Parse(vhostTemplate)
+	tmpl, err := template.New("vhost").Parse(vhostTemplateEmbed)
 	if err != nil {
 		t.Fatalf("Vhost template parsing failed: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestVhostTemplateValidity(t *testing.T) {
 	}
 
 	// Verify template contains expected sections (upstream is now in separate template)
-	templateStr := vhostTemplate
+	templateStr := vhostTemplateEmbed
 	expectedSections := []string{
 		"server_name {{.Domain}}",
 		"root $MAGE_ROOT",

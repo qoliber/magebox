@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/ssl"
 )
 
 var sslCmd = &cobra.Command{

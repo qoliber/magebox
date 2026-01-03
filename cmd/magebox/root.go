@@ -6,11 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/verbose"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/verbose"
 )
 
-var version = "1.0.5"
+var version = "1.1.0"
 
 // verbosity is the count of -v flags
 var verbosity int

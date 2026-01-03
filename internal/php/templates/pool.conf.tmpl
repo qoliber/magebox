@@ -1,5 +1,12 @@
 ; MageBox generated pool for {{.ProjectName}}
 ; Do not edit manually - regenerated on magebox start
+;
+; Configuration files:
+;   Main config:  {{.ProjectPath}}/.magebox.yaml
+;   Local config: {{.ProjectPath}}/.magebox.local.yaml
+;
+; Modify php_ini in the above files, then run: mbox restart
+; Or use: mbox php ini set <key> <value>
 
 [{{.ProjectName}}]
 
@@ -34,18 +41,6 @@ php_value[max_input_vars] = 10000
 php_value[post_max_size] = 64M
 php_value[upload_max_filesize] = 64M
 php_value[session.gc_maxlifetime] = 86400
-
-; OPcache settings
-php_admin_value[opcache.enable] = 1
-php_admin_value[opcache.memory_consumption] = 512
-php_admin_value[opcache.max_accelerated_files] = 130986
-php_admin_value[opcache.validate_timestamps] = 1
-php_admin_value[opcache.consistency_checks] = 0
-php_admin_value[opcache.interned_strings_buffer] = 20
-
-; Realpath cache
-php_admin_value[realpath_cache_size] = 10M
-php_admin_value[realpath_cache_ttl] = 7200
 {{if .HasMailpit}}
 
 ; Mailpit email configuration
@@ -55,7 +50,7 @@ php_admin_value[SMTP] = 127.0.0.1
 php_admin_value[smtp_port] = 1025
 {{end}}
 
-; Custom PHP INI overrides from .magebox
+; PHP INI settings (defaults merged with .magebox.yaml php_ini overrides)
 {{range $key, $value := .PHPINI}}
 php_admin_value[{{$key}}] = {{$value}}
 {{end}}

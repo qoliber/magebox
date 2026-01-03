@@ -11,9 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/testing"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/testing"
 )
 
 // Test command flags

@@ -2,6 +2,80 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.1.0] - 2026-01-03
+
+### Added
+
+- **New `mbox lib` Command** - Manage declarative installer configurations:
+  - `mbox lib list` - List available installer configurations
+  - `mbox lib show <platform>` - Show detailed installer config for a platform
+  - `mbox lib templates` - List all available templates
+  - `mbox lib status` - Show library status and version
+  - `mbox lib update` - Update configuration library
+  - `mbox lib reset` - Reset library to upstream defaults
+
+- **New `mbox php ini` Commands** - CLI-based PHP INI management per project:
+  - `mbox php ini set <key> <value>` - Set PHP INI value for current project
+  - `mbox php ini get <key>` - Get current PHP INI value
+  - `mbox php ini list` - List all PHP INI settings (defaults + custom)
+  - `mbox php ini unset <key>` - Remove a custom PHP INI override
+  - Settings are stored in `.magebox.yaml` and applied to PHP-FPM pool
+
+- **New `mbox php opcache` Commands** - Manage OPcache per project:
+  - `mbox php opcache status` - Show current OPcache settings
+  - `mbox php opcache enable` - Enable OPcache (sets `opcache.enable=1`)
+  - `mbox php opcache disable` - Disable OPcache (sets `opcache.enable=0`)
+  - `mbox php opcache clear` - Clear OPcache by reloading PHP-FPM
+
+- **Config File Paths in Status** - `mbox status` now shows configuration file locations:
+  - Project config path (`.magebox.yaml`)
+  - PHP-FPM pool config path (`~/.magebox/php/pools/{version}/{project}.conf`)
+  - Nginx vhost config paths (`~/.magebox/nginx/vhosts/{project}-*.conf`)
+
+- **Installer YAML Templates** - Declarative installer configurations:
+  - `lib/templates/installers/fedora.yaml` - Fedora/RHEL with Remi PHP
+  - `lib/templates/installers/ubuntu.yaml` - Ubuntu/Debian with Ondrej PPA
+  - `lib/templates/installers/arch.yaml` - Arch Linux with pacman
+  - `lib/templates/installers/darwin.yaml` - macOS with Homebrew
+
+- **Config Path Comments** - Generated files now show which config to edit:
+  - PHP-FPM pool.conf includes path to `.magebox.yaml` and `.magebox.local.yaml`
+  - Nginx vhost.conf includes same config path comments
+  - Makes it clear where to customize settings
+
+### Fixed
+
+- **PHP-FPM Bootstrap Permission Errors** - Fixed "Permission denied" on default socket:
+  - Bootstrap now disables default `www.conf` pool (which tries to create socket in restricted directory)
+  - Adds MageBox pools include to `php-fpm.conf` automatically
+  - Creates `~/.magebox/php/pools/{version}/` directory structure
+  - Applied to Fedora, Ubuntu, and Arch Linux installers
+
+- **SELinux Context for Remi PHP-FPM** - Fixed PHP-FPM PID file permission errors on Fedora:
+  - Sets proper SELinux context (`httpd_var_run_t`) on `/var/opt/remi/php*/run/` directories
+  - Uses correct `/opt/remi/...` path for semanage due to Fedora's equivalency rules
+  - Prevents "Unable to create the PID file: Permission denied" errors
+
+- **Nginx Tmp Directory Permissions** - Fixed "Permission denied" on fastcgi temp files:
+  - Bootstrap now sets ownership of entire `/var/lib/nginx/` to current user
+  - Restores SELinux context after ownership change
+  - Prevents errors when PHP-FPM sends large responses
+
+### Technical Notes
+
+- **PHP-FPM Management** - Platform-specific approach:
+  - **Fedora/RHEL**: Direct process management (avoids SELinux `httpd_t` context issues)
+  - **Debian/Ubuntu/Mint**: Uses systemd (AppArmor is permissive)
+  - **Arch Linux**: Direct process management (single PHP version)
+  - **macOS**: Direct process management (no systemd)
+
+  Direct management paths:
+  - Config: `~/.magebox/php/php-fpm-{version}.conf`
+  - Pools: `~/.magebox/php/pools/{version}/*.conf`
+  - Sockets: `~/.magebox/run/{project}-php{version}.sock`
+
+---
+
 ## [1.0.5] - 2025-12-30
 
 ### Fixed

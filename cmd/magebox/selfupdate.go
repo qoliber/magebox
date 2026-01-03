@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/updater"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/updater"
 )
 
 var selfUpdateCmd = &cobra.Command{
@@ -61,7 +61,7 @@ func runSelfUpdate(cmd *cobra.Command, args []string) error {
 	if result.DownloadURL == "" {
 		cli.PrintError("No binary available for your platform (%s)", updater.GetPlatformInfo())
 		fmt.Println()
-		cli.PrintInfo("You can build from source: %s", cli.Command("go install github.com/qoliber/magebox@latest"))
+		cli.PrintInfo("You can build from source: %s", cli.Command("go install qoliber/magebox@latest"))
 		return nil
 	}
 

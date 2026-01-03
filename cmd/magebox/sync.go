@@ -13,9 +13,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/progress"
-	"github.com/qoliber/magebox/internal/team"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/progress"
+	"qoliber/magebox/internal/team"
 )
 
 var syncCmd = &cobra.Command{

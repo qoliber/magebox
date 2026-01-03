@@ -11,12 +11,18 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/systemd-resolved.conf.tmpl
-var systemdResolvedTemplate string
+var systemdResolvedTemplateEmbed string
+
+func init() {
+	// Register embedded template as fallback
+	lib.RegisterFallbackTemplate(lib.TemplateDNS, "systemd-resolved.conf.tmpl", systemdResolvedTemplateEmbed)
+}
 
 // SystemdResolvedConfig contains data for systemd-resolved configuration
 type SystemdResolvedConfig struct {
@@ -34,7 +40,13 @@ func DefaultSystemdResolvedConfig(tld string) SystemdResolvedConfig {
 
 // GenerateSystemdResolvedConfig generates systemd-resolved configuration from template
 func GenerateSystemdResolvedConfig(cfg SystemdResolvedConfig) (string, error) {
-	tmpl, err := template.New("systemd-resolved").Parse(systemdResolvedTemplate)
+	// Load template from lib (with embedded fallback)
+	tmplContent, err := lib.GetTemplate(lib.TemplateDNS, "systemd-resolved.conf.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to load systemd-resolved template: %w", err)
+	}
+
+	tmpl, err := template.New("systemd-resolved").Parse(tmplContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse systemd-resolved template: %w", err)
 	}

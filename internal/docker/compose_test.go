@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
 	"gopkg.in/yaml.v3"
 )
 

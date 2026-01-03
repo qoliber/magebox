@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/php"
 )
 
 var runCmd = &cobra.Command{

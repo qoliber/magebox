@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/team"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/team"
 )
 
 var cloneCmd = &cobra.Command{

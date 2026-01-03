@@ -6,7 +6,7 @@
 package bootstrap
 
 import (
-	"github.com/qoliber/magebox/internal/bootstrap/installer"
+	"qoliber/magebox/internal/bootstrap/installer"
 )
 
 // Re-export types from installer package for convenience

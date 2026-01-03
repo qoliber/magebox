@@ -7,8 +7,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
 )
 
 func setupTestVCLGenerator(t *testing.T) (*VCLGenerator, string) {
@@ -378,7 +378,7 @@ func TestVCLTemplate_StaticContent(t *testing.T) {
 
 func TestVCLTemplateValidity(t *testing.T) {
 	// Test that the embedded template parses correctly
-	tmpl, err := template.New("vcl").Parse(vclTemplate)
+	tmpl, err := template.New("vcl").Parse(vclTemplateEmbed)
 	if err != nil {
 		t.Fatalf("VCL template parsing failed: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestVCLTemplateValidity(t *testing.T) {
 	}
 
 	// Verify template contains expected sections
-	templateStr := vclTemplate
+	templateStr := vclTemplateEmbed
 	expectedSections := []string{
 		"vcl 4.1",
 		"{{range .Backends}}",

@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
 )
 
 // UbuntuInstaller handles installation on Ubuntu/Debian
@@ -173,8 +173,47 @@ func (u *UbuntuInstaller) InstallSodium(version string) error {
 
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
 func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
+	// Get home directory for MageBox pools path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
 	for _, v := range versions {
 		serviceName := fmt.Sprintf("php%s-fpm", v)
+		fpmConfPath := fmt.Sprintf("/etc/php/%s/fpm/php-fpm.conf", v)
+		wwwConfPath := fmt.Sprintf("/etc/php/%s/fpm/pool.d/www.conf", v)
+		mageboxPoolsInclude := fmt.Sprintf("include=%s/.magebox/php/pools/%s/*.conf", homeDir, v)
+
+		// Disable default www.conf pool - MageBox manages its own pools
+		// This prevents "Permission denied" errors on the default socket path
+		if u.FileExists(wwwConfPath) {
+			disabledPath := wwwConfPath + ".disabled"
+			if !u.FileExists(disabledPath) {
+				if err := u.RunSudo("mv", wwwConfPath, disabledPath); err != nil {
+					// Non-fatal, just warn
+					fmt.Printf("  Warning: could not disable default www.conf pool: %v\n", err)
+				}
+			}
+		}
+
+		// Add MageBox pools include to php-fpm.conf if not already present
+		if u.FileExists(fpmConfPath) {
+			// Check if include already exists
+			checkCmd := exec.Command("grep", "-q", mageboxPoolsInclude, fpmConfPath)
+			if checkCmd.Run() != nil {
+				// Include not found, add it
+				if err := u.RunSudo("sh", "-c", fmt.Sprintf("echo '%s' >> %s", mageboxPoolsInclude, fpmConfPath)); err != nil {
+					return fmt.Errorf("failed to add MageBox pools include to %s: %w", fpmConfPath, err)
+				}
+			}
+		}
+
+		// Create MageBox pools directory if it doesn't exist
+		poolsDir := fmt.Sprintf("%s/.magebox/php/pools/%s", homeDir, v)
+		if err := os.MkdirAll(poolsDir, 0755); err != nil {
+			return fmt.Errorf("failed to create pools directory %s: %w", poolsDir, err)
+		}
 
 		// Enable and start service
 		// Note: We use default log paths to avoid permission issues

@@ -9,17 +9,25 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/php.sh
-var phpWrapperScript string
+var phpWrapperScriptEmbed string
 
 //go:embed templates/composer.sh
-var composerWrapperScript string
+var composerWrapperScriptEmbed string
 
 //go:embed templates/blackfire.sh
-var blackfireWrapperScript string
+var blackfireWrapperScriptEmbed string
+
+func init() {
+	// Register embedded templates as fallbacks
+	lib.RegisterFallbackTemplate(lib.TemplateWrapper, "php.sh", phpWrapperScriptEmbed)
+	lib.RegisterFallbackTemplate(lib.TemplateWrapper, "composer.sh", composerWrapperScriptEmbed)
+	lib.RegisterFallbackTemplate(lib.TemplateWrapper, "blackfire.sh", blackfireWrapperScriptEmbed)
+}
 
 const (
 	WrapperScriptName          = "php"
@@ -44,7 +52,12 @@ func (m *Manager) GetWrapperPath() string {
 
 // GenerateWrapper returns the PHP wrapper script content
 func (m *Manager) GenerateWrapper() string {
-	return phpWrapperScript
+	// Load from lib (with embedded fallback)
+	content, err := lib.GetTemplate(lib.TemplateWrapper, "php.sh")
+	if err != nil {
+		return phpWrapperScriptEmbed
+	}
+	return content
 }
 
 // Install creates and installs the PHP wrapper script
@@ -114,7 +127,12 @@ func (m *Manager) GetComposerWrapperPath() string {
 
 // GenerateComposerWrapper returns the Composer wrapper script content
 func (m *Manager) GenerateComposerWrapper() string {
-	return composerWrapperScript
+	// Load from lib (with embedded fallback)
+	content, err := lib.GetTemplate(lib.TemplateWrapper, "composer.sh")
+	if err != nil {
+		return composerWrapperScriptEmbed
+	}
+	return content
 }
 
 // InstallComposer creates and installs the Composer wrapper script
@@ -160,7 +178,12 @@ func (m *Manager) GetBlackfireWrapperPath() string {
 
 // GenerateBlackfireWrapper returns the Blackfire wrapper script content
 func (m *Manager) GenerateBlackfireWrapper() string {
-	return blackfireWrapperScript
+	// Load from lib (with embedded fallback)
+	content, err := lib.GetTemplate(lib.TemplateWrapper, "blackfire.sh")
+	if err != nil {
+		return blackfireWrapperScriptEmbed
+	}
+	return content
 }
 
 // InstallBlackfire creates and installs the Blackfire wrapper script

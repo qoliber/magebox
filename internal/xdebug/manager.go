@@ -14,11 +14,17 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/platform"
 )
 
 //go:embed templates/xdebug.ini.tmpl
-var xdebugIniTemplate string
+var xdebugIniTemplateEmbed string
+
+func init() {
+	// Register embedded template as fallback
+	lib.RegisterFallbackTemplate(lib.TemplateXdebug, "xdebug.ini.tmpl", xdebugIniTemplateEmbed)
+}
 
 // XdebugConfig contains configuration for Xdebug
 type XdebugConfig struct {
@@ -207,7 +213,13 @@ func (m *Manager) findXdebugSo(phpVersion string) string {
 
 // GenerateXdebugConfig generates Xdebug configuration from template
 func GenerateXdebugConfig(cfg XdebugConfig) (string, error) {
-	tmpl, err := template.New("xdebug.ini").Parse(xdebugIniTemplate)
+	// Load template from lib (with embedded fallback)
+	tmplContent, err := lib.GetTemplate(lib.TemplateXdebug, "xdebug.ini.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to load xdebug template: %w", err)
+	}
+
+	tmpl, err := template.New("xdebug.ini").Parse(tmplContent)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse xdebug template: %w", err)
 	}

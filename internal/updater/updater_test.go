@@ -106,7 +106,7 @@ func TestGitHubRelease(t *testing.T) {
 		Assets: []ReleaseAsset{
 			{
 				Name:               "magebox-linux-amd64",
-				BrowserDownloadURL: "https://github.com/qoliber/magebox/releases/download/v0.2.0/magebox-linux-amd64",
+				BrowserDownloadURL: "https://qoliber/magebox/releases/download/v0.2.0/magebox-linux-amd64",
 				Size:               10000000,
 			},
 		},

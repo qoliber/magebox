@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/xdebug"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/xdebug"
 )
 
 // Manager handles Tideways installation and configuration

@@ -32,7 +32,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/commands' },
       { text: 'About', link: '/about' },
       {
-        text: 'v1.0.5',
+        text: 'v1.1.0',
         items: [
           { text: 'Changelog', link: '/changelog' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -74,7 +74,8 @@ export default defineConfig({
             { text: 'Project Config (.magebox.yaml)', link: '/guide/project-config' },
             { text: 'Global Config', link: '/guide/global-config' },
             { text: 'Local Overrides', link: '/guide/local-overrides' },
-            { text: 'PHP INI Settings', link: '/guide/php-ini' }
+            { text: 'PHP INI Settings', link: '/guide/php-ini' },
+            { text: 'Configuration Library', link: '/guide/configuration-library' }
           ]
         },
         {
@@ -186,7 +187,8 @@ export default defineConfig({
             { text: 'Project Config (.magebox.yaml)', link: '/guide/project-config' },
             { text: 'Global Config', link: '/guide/global-config' },
             { text: 'Local Overrides', link: '/guide/local-overrides' },
-            { text: 'PHP INI Settings', link: '/guide/php-ini' }
+            { text: 'PHP INI Settings', link: '/guide/php-ini' },
+            { text: 'Configuration Library', link: '/guide/configuration-library' }
           ]
         },
         {

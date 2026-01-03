@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/remote"
-	"github.com/qoliber/magebox/internal/teamserver"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/remote"
+	"qoliber/magebox/internal/teamserver"
 	"github.com/spf13/cobra"
 )
 

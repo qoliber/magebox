@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/config"
 )
 
 // IntegrationDBManager manages MySQL containers for integration testing

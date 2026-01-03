@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/config"
 )
 
 // PHPCSRunner handles PHP_CodeSniffer code style checking

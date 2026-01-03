@@ -841,6 +841,129 @@ magebox config set portainer true
 - `editor` - Preferred editor
 - `auto_start` - Auto-start services (true/false)
 
+## Library Commands
+
+Commands for managing the MageBox configuration library.
+
+### `magebox lib status`
+
+Show library status.
+
+```bash
+magebox lib status
+```
+
+Displays:
+- Current library version
+- Git branch and commit
+- Local modifications
+- Available updates
+- Custom path (if configured)
+
+---
+
+### `magebox lib update`
+
+Update the configuration library.
+
+```bash
+magebox lib update
+```
+
+Pulls the latest configuration files from the magebox-lib repository.
+
+---
+
+### `magebox lib path`
+
+Show library path.
+
+```bash
+magebox lib path
+```
+
+Displays the filesystem path to the configuration library.
+
+---
+
+### `magebox lib list`
+
+List available installers.
+
+```bash
+magebox lib list
+```
+
+Shows all available platform installer configurations.
+
+---
+
+### `magebox lib templates`
+
+List available templates.
+
+```bash
+magebox lib templates
+```
+
+Lists all configuration templates organized by category (nginx, php, varnish, etc.).
+
+---
+
+### `magebox lib show [platform]`
+
+Show installer configuration details.
+
+```bash
+magebox lib show           # Auto-detect platform
+magebox lib show fedora    # Show specific platform
+```
+
+Displays the installer configuration with variable expansion.
+
+---
+
+### `magebox lib set <path>`
+
+Set a custom library path.
+
+```bash
+magebox lib set ~/my-magebox-configs
+magebox lib set /path/to/custom/lib
+```
+
+Use your own templates and installer configurations. The path should contain:
+- `templates/` - Template files organized by category
+- `installers/` - Platform-specific YAML configuration files
+
+---
+
+### `magebox lib unset`
+
+Remove custom library path.
+
+```bash
+magebox lib unset
+```
+
+Reverts to using the default `~/.magebox/yaml` directory.
+
+---
+
+### `magebox lib reset`
+
+Reset library to upstream.
+
+```bash
+magebox lib reset
+```
+
+Discards all local changes and resets to the upstream version.
+
+::: tip
+See the [Configuration Library](/guide/configuration-library) guide for detailed information about customizing templates and installers.
+:::
+
 ## Update Commands
 
 ### `magebox self-update`

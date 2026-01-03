@@ -4,7 +4,7 @@
 package installer
 
 import (
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 // SupportedVersions defines the OS versions supported by MageBox

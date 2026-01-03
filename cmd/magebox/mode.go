@@ -8,11 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/blackfire"
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/xdebug"
+	"qoliber/magebox/internal/blackfire"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/xdebug"
 )
 
 var devCmd = &cobra.Command{
@@ -126,7 +126,7 @@ func runDevMode(cmd *cobra.Command, args []string) error {
 
 	fmt.Print("Regenerating PHP-FPM pool... ")
 	poolGen := php.NewPoolGenerator(p)
-	if err := poolGen.Generate(cfg.Name, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
+	if err := poolGen.Generate(cfg.Name, cwd, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
 		fmt.Println(cli.Error("failed"))
 		return fmt.Errorf("failed to regenerate pool: %w", err)
 	}
@@ -233,7 +233,7 @@ func runProdMode(cmd *cobra.Command, args []string) error {
 
 	fmt.Print("Regenerating PHP-FPM pool... ")
 	poolGen := php.NewPoolGenerator(p)
-	if err := poolGen.Generate(cfg.Name, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
+	if err := poolGen.Generate(cfg.Name, cwd, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
 		fmt.Println(cli.Error("failed"))
 		return fmt.Errorf("failed to regenerate pool: %w", err)
 	}

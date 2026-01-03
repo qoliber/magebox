@@ -7,7 +7,7 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/platform"
 )
 
 func setupTestPoolGenerator(t *testing.T) (*PoolGenerator, string) {
@@ -74,7 +74,7 @@ func TestPoolGenerator_Generate(t *testing.T) {
 
 	phpIni := map[string]string{}
 
-	err := g.Generate("mystore", "8.2", env, phpIni, false)
+	err := g.Generate("mystore", "/tmp/mystore", "8.2", env, phpIni, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestPoolGenerator_Generate(t *testing.T) {
 func TestPoolGenerator_GenerateWithoutEnv(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
-	err := g.Generate("mystore", "8.3", nil, nil, false)
+	err := g.Generate("mystore", "/tmp/mystore", "8.3", nil, nil, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestPoolGenerator_Remove(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Generate pool first
-	if err := g.Generate("mystore", "8.2", nil, nil, false); err != nil {
+	if err := g.Generate("mystore", "/tmp/mystore", "8.2", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -158,10 +158,10 @@ func TestPoolGenerator_ListPools(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Create some pool files
-	if err := g.Generate("project1", "8.2", nil, nil, false); err != nil {
+	if err := g.Generate("project1", "/tmp/project1", "8.2", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	if err := g.Generate("project2", "8.3", nil, nil, false); err != nil {
+	if err := g.Generate("project2", "/tmp/project2", "8.3", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -195,7 +195,7 @@ func TestPoolConfig_Defaults(t *testing.T) {
 	g, _ := setupTestPoolGenerator(t)
 
 	// Generate and read back to verify defaults
-	if err := g.Generate("testproject", "8.2", nil, nil, false); err != nil {
+	if err := g.Generate("testproject", "/tmp/testproject", "8.2", nil, nil, false); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -252,7 +252,7 @@ func TestGetCurrentGroup(t *testing.T) {
 
 func TestPoolTemplateValidity(t *testing.T) {
 	// Test that the embedded template parses correctly
-	tmpl, err := template.New("pool").Parse(poolTemplate)
+	tmpl, err := template.New("pool").Parse(poolTemplateEmbed)
 	if err != nil {
 		t.Fatalf("Pool template parsing failed: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestPoolTemplateValidity(t *testing.T) {
 	}
 
 	// Verify template contains expected sections
-	templateStr := poolTemplate
+	templateStr := poolTemplateEmbed
 	expectedSections := []string{
 		"[{{.ProjectName}}]",
 		"listen = {{.SocketPath}}",
@@ -365,7 +365,7 @@ func TestGenerate_WithPHPINI(t *testing.T) {
 		"display_errors": "On",
 	}
 
-	err := g.Generate("testproject", "8.2", nil, phpIni, false)
+	err := g.Generate("testproject", "/tmp/testproject", "8.2", nil, phpIni, false)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestGenerate_WithPHPINI(t *testing.T) {
 func TestGenerate_WithMailpit(t *testing.T) {
 	g, tmpDir := setupTestPoolGenerator(t)
 
-	err := g.Generate("testproject", "8.2", nil, nil, true)
+	err := g.Generate("testproject", "/tmp/testproject", "8.2", nil, nil, true)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}

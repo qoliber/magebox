@@ -12,11 +12,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/blackfire"
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/xdebug"
+	"qoliber/magebox/internal/blackfire"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/xdebug"
 )
 
 var blackfireCmd = &cobra.Command{

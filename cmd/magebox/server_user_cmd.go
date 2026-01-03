@@ -23,8 +23,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/teamserver"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/teamserver"
 )
 
 // validateServerURL validates that the URL is safe to connect to

@@ -6,16 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/blackfire"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/dns"
-	"github.com/qoliber/magebox/internal/docker"
-	"github.com/qoliber/magebox/internal/nginx"
-	"github.com/qoliber/magebox/internal/php"
-	"github.com/qoliber/magebox/internal/platform"
-	"github.com/qoliber/magebox/internal/ssl"
-	"github.com/qoliber/magebox/internal/testmode"
-	"github.com/qoliber/magebox/internal/xdebug"
+	"qoliber/magebox/internal/blackfire"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/dns"
+	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/nginx"
+	"qoliber/magebox/internal/php"
+	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/testmode"
+	"qoliber/magebox/internal/xdebug"
 )
 
 // Manager manages project lifecycle
@@ -90,7 +90,7 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 
 	// Generate PHP-FPM pool (Mailpit always enabled for local dev safety)
 	// This prevents accidental emails to real addresses during development
-	if err := m.poolGenerator.Generate(cfg.Name, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
+	if err := m.poolGenerator.Generate(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
 	}
 
@@ -311,6 +311,18 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 		IsRunning: blackfireEnabled,
 	}
 
+	// Populate config paths
+	status.ConfigPaths = ConfigPaths{
+		ProjectConfig: filepath.Join(projectPath, config.ConfigFileName),
+		PHPFPMPool:    filepath.Join(m.platform.MageBoxDir(), "php", "pools", cfg.PHP, cfg.Name+".conf"),
+	}
+
+	// Find nginx vhosts for this project
+	vhostsPattern := filepath.Join(m.platform.MageBoxDir(), "nginx", "vhosts", cfg.Name+"-*.conf")
+	if vhosts, err := filepath.Glob(vhostsPattern); err == nil {
+		status.ConfigPaths.NginxVhosts = vhosts
+	}
+
 	return status, nil
 }
 
@@ -412,13 +424,21 @@ func (m *Manager) getStartedServices(cfg *config.Config) []string {
 	return services
 }
 
+// ConfigPaths contains paths to generated configuration files
+type ConfigPaths struct {
+	ProjectConfig string // .magebox.yaml
+	PHPFPMPool    string // ~/.magebox/php/pools/{version}/{project}.conf
+	NginxVhosts   []string // ~/.magebox/nginx/vhosts/{project}-*.conf
+}
+
 // ProjectStatus represents the status of a project
 type ProjectStatus struct {
-	Name       string
-	Path       string
-	PHPVersion string
-	Domains    []string
-	Services   map[string]ServiceStatus
+	Name        string
+	Path        string
+	PHPVersion  string
+	Domains     []string
+	Services    map[string]ServiceStatus
+	ConfigPaths ConfigPaths
 }
 
 // ServiceStatus represents the status of a service
@@ -465,6 +485,27 @@ services:
 `, projectName, domain)
 
 	return os.WriteFile(configPath, []byte(content), 0644)
+}
+
+// RegenerateConfigs regenerates PHP-FPM pool and Nginx vhost configs
+// without restarting services (useful for applying config changes)
+func (m *Manager) RegenerateConfigs(projectPath string) error {
+	cfg, err := config.LoadFromPath(projectPath)
+	if err != nil {
+		return err
+	}
+
+	// Regenerate PHP-FPM pool
+	if err := m.poolGenerator.Generate(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
+		return fmt.Errorf("failed to regenerate PHP-FPM pool: %w", err)
+	}
+
+	// Regenerate Nginx vhost
+	if err := m.vhostGenerator.Generate(cfg, projectPath); err != nil {
+		return fmt.Errorf("failed to regenerate nginx vhost: %w", err)
+	}
+
+	return nil
 }
 
 // ValidateConfig validates a project configuration

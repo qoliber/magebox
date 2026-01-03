@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/platform"
 )
 
 // FedoraInstaller handles installation on Fedora/RHEL/CentOS
@@ -175,9 +175,48 @@ func (f *FedoraInstaller) InstallSodium(version string) error {
 
 // ConfigurePHPFPM configures PHP-FPM on Fedora
 func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
+	// Get home directory for MageBox pools path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
 	for _, v := range versions {
 		remiVersion := strings.ReplaceAll(v, ".", "")
 		serviceName := fmt.Sprintf("php%s-php-fpm", remiVersion)
+		fpmConfPath := fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.conf", remiVersion)
+		wwwConfPath := fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.d/www.conf", remiVersion)
+		mageboxPoolsInclude := fmt.Sprintf("include=%s/.magebox/php/pools/%s/*.conf", homeDir, v)
+
+		// Disable default www.conf pool - MageBox manages its own pools
+		// This prevents "Permission denied" errors on the default socket path
+		if f.FileExists(wwwConfPath) {
+			disabledPath := wwwConfPath + ".disabled"
+			if !f.FileExists(disabledPath) {
+				if err := f.RunSudo("mv", wwwConfPath, disabledPath); err != nil {
+					// Non-fatal, just warn
+					fmt.Printf("  Warning: could not disable default www.conf pool: %v\n", err)
+				}
+			}
+		}
+
+		// Add MageBox pools include to php-fpm.conf if not already present
+		if f.FileExists(fpmConfPath) {
+			// Check if include already exists
+			checkCmd := exec.Command("grep", "-q", mageboxPoolsInclude, fpmConfPath)
+			if checkCmd.Run() != nil {
+				// Include not found, add it
+				if err := f.RunSudo("sh", "-c", fmt.Sprintf("echo '%s' >> %s", mageboxPoolsInclude, fpmConfPath)); err != nil {
+					return fmt.Errorf("failed to add MageBox pools include to %s: %w", fpmConfPath, err)
+				}
+			}
+		}
+
+		// Create MageBox pools directory if it doesn't exist
+		poolsDir := fmt.Sprintf("%s/.magebox/php/pools/%s", homeDir, v)
+		if err := os.MkdirAll(poolsDir, 0755); err != nil {
+			return fmt.Errorf("failed to create pools directory %s: %w", poolsDir, err)
+		}
 
 		// Enable and start service
 		// Note: We use default Remi log paths to avoid SELinux/permission issues
@@ -205,6 +244,18 @@ func (f *FedoraInstaller) ConfigureNginx() error {
 		nginxConf := "/etc/nginx/nginx.conf"
 		if err := f.RunSudo("sed", "-i", fmt.Sprintf("s/^user .*/user %s;/", currentUser), nginxConf); err != nil {
 			return fmt.Errorf("failed to configure nginx user: %w", err)
+		}
+	}
+
+	// Fix nginx directory permissions for client body uploads and caching
+	// This prevents "Permission denied" errors when uploading files via POST
+	// Since nginx runs as current user, it needs ownership of the entire nginx lib directory
+	if currentUser != "" {
+		_ = f.RunSudo("chown", "-R", currentUser+":"+currentUser, "/var/lib/nginx/")
+		_ = f.RunSudo("chmod", "-R", "755", "/var/lib/nginx/")
+		// Restore SELinux context after changing ownership
+		if f.CommandExists("restorecon") {
+			_ = f.RunSudo("restorecon", "-Rv", "/var/lib/nginx/")
 		}
 	}
 
@@ -254,6 +305,14 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 		// Allow httpd to access certs in ~/.magebox/certs
 		_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_config_t", mageboxDir+"/certs(/.*)?")
 		_ = f.RunSudo("restorecon", "-Rv", mageboxDir+"/certs")
+
+		// Fix Remi PHP-FPM run directories (use /opt path due to Fedora equivalency rule)
+		// This allows PHP-FPM to create PID files in /var/opt/remi/php*/run/
+		for _, v := range []string{"81", "82", "83", "84"} {
+			remiRunPath := fmt.Sprintf("/opt/remi/php%s/run(/.*)?", v)
+			_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_var_run_t", remiRunPath)
+			_ = f.RunSudo("restorecon", "-Rv", fmt.Sprintf("/var/opt/remi/php%s/run", v))
+		}
 	} else if f.CommandExists("chcon") {
 		// Fallback to chcon if semanage not available (temporary, won't survive restorecon)
 		_ = f.RunSudo("chcon", "-R", "-t", "httpd_var_run_t", mageboxDir+"/run")

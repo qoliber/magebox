@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/qoliber/magebox/internal/cli"
-	"github.com/qoliber/magebox/internal/config"
-	"github.com/qoliber/magebox/internal/docker"
-	"github.com/qoliber/magebox/internal/nginx"
-	"github.com/qoliber/magebox/internal/ssl"
-	"github.com/qoliber/magebox/internal/varnish"
+	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/nginx"
+	"qoliber/magebox/internal/ssl"
+	"qoliber/magebox/internal/varnish"
 )
 
 var varnishCmd = &cobra.Command{
