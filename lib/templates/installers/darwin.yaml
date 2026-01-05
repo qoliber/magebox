@@ -1,0 +1,128 @@
+# MageBox Installer Configuration for macOS
+# Schema version: 1.0
+#
+# Note: macOS uses Homebrew for package management.
+# Homebrew services run as the current user, no sudo needed.
+#
+# Variables available:
+#   ${user}         - Current username
+#   ${homeDir}      - User home directory
+#   ${mageboxDir}   - MageBox directory (~/.magebox)
+#   ${phpVersion}   - PHP version (e.g., 8.2)
+#   ${tld}          - Top-level domain from config
+#   ${brewPrefix}   - Homebrew prefix (/opt/homebrew or /usr/local)
+
+schema_version: "1.0"
+
+meta:
+  platform: darwin
+  display_name: "macOS"
+  supported_versions: ["12", "13", "14", "15"]
+  codenames:
+    "12": "Monterey"
+    "13": "Ventura"
+    "14": "Sonoma"
+    "15": "Sequoia"
+
+package_manager:
+  name: brew
+  install: "brew install"
+  update: "brew update"
+  prerequisites:
+    check: "command -v brew"
+    error: "Homebrew is not installed, install from https://brew.sh"
+
+prerequisites:
+  packages: []  # Homebrew handles everything
+
+php:
+  version_format: "php@${phpVersion}"
+  packages:
+    core:
+      - "php@${phpVersion}"
+    extensions: []  # Homebrew PHP includes most extensions
+  optional:
+    xdebug:
+      pecl_install: "${brewPrefix}/opt/php@${phpVersion}/bin/pecl install xdebug"
+    imagick:
+      brew_install: "brew install imagemagick"
+      pecl_install: "${brewPrefix}/opt/php@${phpVersion}/bin/pecl install imagick"
+    sodium:
+      bundled: true  # Included in Homebrew PHP by default
+  paths:
+    binary: "${brewPrefix}/opt/php@${phpVersion}/bin/php"
+    pecl: "${brewPrefix}/opt/php@${phpVersion}/bin/pecl"
+    ini: "${brewPrefix}/etc/php/${phpVersion}/php.ini"
+  services:
+    fpm:
+      name: "php@${phpVersion}"
+      start: "brew services start php@${phpVersion}"
+      stop: "brew services stop php@${phpVersion}"
+      restart: "brew services restart php@${phpVersion}"
+  configure_fpm:
+    # Homebrew services run as current user, no default pool issues
+    disable_default_pool: false
+  ini_defaults:
+    memory_limit: "-1"
+    max_execution_time: "18000"
+  ini_sed_flags: "-i ''"  # macOS sed requires empty string for in-place
+
+nginx:
+  packages:
+    - nginx
+  paths:
+    config: "${brewPrefix}/etc/nginx/nginx.conf"
+    conf_d: "${brewPrefix}/etc/nginx/servers"
+  services:
+    nginx:
+      name: nginx
+      start: "brew services start nginx"
+      stop: "brew services stop nginx"
+      restart: "brew services restart nginx"
+  configure:
+    # Homebrew nginx runs as current user, no user directive needed
+    set_user: false
+
+mkcert:
+  packages:
+    - mkcert
+    - nss
+
+dnsmasq:
+  packages:
+    - dnsmasq
+  paths:
+    resolver_dir: "/etc/resolver"
+  config_template: |
+    nameserver 127.0.0.1
+  resolver_path: "/etc/resolver/${tld}"
+
+multitail:
+  packages:
+    - multitail
+
+docker:
+  install_instructions: "brew install --cask docker"
+
+sudoers:
+  # Not needed on macOS - Homebrew services run as current user
+  enabled: false
+
+selinux:
+  enabled: false
+
+blackfire:
+  tap: "blackfireio/homebrew-blackfire"
+  packages:
+    - blackfire
+  pecl_install: "${brewPrefix}/opt/php@${phpVersion}/bin/pecl install blackfire"
+
+tideways:
+  pecl_install: "${brewPrefix}/opt/php@${phpVersion}/bin/pecl install tideways"
+
+platform_detection:
+  apple_silicon:
+    check: "test -d /opt/homebrew"
+    brew_prefix: "/opt/homebrew"
+  intel:
+    brew_prefix: "/usr/local"

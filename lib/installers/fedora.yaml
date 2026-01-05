@@ -1,0 +1,244 @@
+# MageBox Installer Configuration for Fedora Linux
+# https://github.com/qoliber/magebox
+schema_version: "1.0"
+
+meta:
+  platform: linux
+  distro: fedora
+  display_name: "Fedora Linux"
+  supported_versions: ["38", "39", "40", "41", "42", "43"]
+
+package_manager:
+  name: dnf
+  install: "sudo dnf install -y"
+  update: "sudo dnf update -y"
+
+prerequisites:
+  packages:
+    - curl
+    - git
+    - unzip
+
+repositories:
+  remi:
+    name: "Remi PHP Repository"
+    check: "/etc/yum.repos.d/remi.repo"
+    install: "sudo dnf install -y https://rpms.remirepo.net/fedora/remi-release-${osVersion}.rpm"
+
+php:
+  version_format: "php${versionNoDot}"
+  versions: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+
+  packages:
+    core:
+      - "${phpPrefix}-php-fpm"
+      - "${phpPrefix}-php-cli"
+      - "${phpPrefix}-php-common"
+    extensions:
+      - "${phpPrefix}-php-mysqlnd"
+      - "${phpPrefix}-php-xml"
+      - "${phpPrefix}-php-mbstring"
+      - "${phpPrefix}-php-zip"
+      - "${phpPrefix}-php-gd"
+      - "${phpPrefix}-php-intl"
+      - "${phpPrefix}-php-bcmath"
+      - "${phpPrefix}-php-soap"
+      - "${phpPrefix}-php-opcache"
+      - "${phpPrefix}-php-sodium"
+      - "${phpPrefix}-php-pecl-imagick-im7"
+
+  optional:
+    xdebug: "${phpPrefix}-php-xdebug"
+    imagick: "${phpPrefix}-php-pecl-imagick-im7"
+    sodium: "${phpPrefix}-php-sodium"
+
+  paths:
+    binary: "/usr/bin/php${versionNoDot}"
+    fpm_binary: "/opt/remi/php${versionNoDot}/root/usr/sbin/php-fpm"
+    ini: "/etc/opt/remi/php${versionNoDot}/php.ini"
+    fpm_config: "/etc/opt/remi/php${versionNoDot}/php-fpm.d"
+
+  ini_settings:
+    memory_limit: "-1"
+    max_execution_time: "18000"
+
+  services:
+    fpm:
+      name: "php${versionNoDot}-php-fpm"
+      enable: "sudo systemctl enable ${serviceName}"
+      start: "sudo systemctl start ${serviceName}"
+      stop: "sudo systemctl stop ${serviceName}"
+      restart: "sudo systemctl restart ${serviceName}"
+      reload: "sudo systemctl reload ${serviceName}"
+
+nginx:
+  packages:
+    - nginx
+
+  paths:
+    binary: "/usr/sbin/nginx"
+    config: "/etc/nginx/nginx.conf"
+    tmp_dir: "/var/lib/nginx/tmp/"
+
+  services:
+    nginx:
+      name: nginx
+      enable: "sudo systemctl enable nginx"
+      start: "sudo systemctl start nginx"
+      stop: "sudo systemctl stop nginx"
+      restart: "sudo systemctl restart nginx"
+      reload: "sudo systemctl reload nginx"
+      test: "sudo nginx -t"
+
+  configuration:
+    # Set nginx to run as current user
+    set_user: "sudo sed -i 's/^user .*/user ${user};/' /etc/nginx/nginx.conf"
+
+  fixes:
+    tmp_permissions:
+      description: "Fix nginx tmp directory permissions for file uploads"
+      commands:
+        - "sudo chown -R ${user}:${user} /var/lib/nginx/tmp/"
+        - "sudo restorecon -Rv /var/lib/nginx/tmp/"
+
+tools:
+  mkcert:
+    packages:
+      - mkcert
+      - nss-tools
+
+  dnsmasq:
+    packages:
+      - dnsmasq
+
+  multitail:
+    packages:
+      - multitail
+
+  docker:
+    # Docker requires manual installation steps
+    install_instructions: |
+      sudo dnf install -y dnf-plugins-core
+      sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+      sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      sudo systemctl enable --now docker
+      sudo usermod -aG docker $USER
+
+dns:
+  dnsmasq:
+    config_dir: "/etc/dnsmasq.d"
+    main_config: "/etc/dnsmasq.conf"
+
+    setup:
+      - description: "Enable conf-dir in dnsmasq.conf"
+        command: "sudo sed -i 's|#conf-dir=/etc/dnsmasq.d|conf-dir=/etc/dnsmasq.d|' /etc/dnsmasq.conf"
+      - description: "Create config directory"
+        command: "sudo mkdir -p /etc/dnsmasq.d"
+
+    config_template: |
+      # MageBox - Resolve *.${tld} to localhost
+      address=/${tld}/127.0.0.1
+      listen-address=127.0.0.2
+      port=53
+      bind-interfaces
+
+    services:
+      enable: "sudo systemctl enable dnsmasq"
+      restart: "sudo systemctl restart dnsmasq"
+
+  systemd_resolved:
+    check: "systemctl is-active systemd-resolved"
+    config_dir: "/etc/systemd/resolved.conf.d"
+    config_template: |
+      [Resolve]
+      DNS=127.0.0.2
+      Domains=~${tld}
+    restart: "sudo systemctl restart systemd-resolved"
+
+selinux:
+  enabled: true
+  check: "command -v getenforce"
+
+  booleans:
+    - name: "httpd_can_network_connect"
+      value: "on"
+      command: "sudo setsebool -P httpd_can_network_connect on"
+    - name: "httpd_read_user_content"
+      value: "on"
+      command: "sudo setsebool -P httpd_read_user_content on"
+
+  contexts:
+    - path: "${mageboxDir}/run"
+      type: "httpd_var_run_t"
+      pattern: "${mageboxDir}/run(/.*)?"
+    - path: "${mageboxDir}/nginx"
+      type: "httpd_config_t"
+      pattern: "${mageboxDir}/nginx(/.*)?"
+    - path: "${mageboxDir}/certs"
+      type: "httpd_config_t"
+      pattern: "${mageboxDir}/certs(/.*)?"
+
+  commands:
+    semanage: "sudo semanage fcontext -a -t ${type} '${pattern}'"
+    restorecon: "sudo restorecon -Rv ${path}"
+    chcon_fallback: "sudo chcon -R -t ${type} ${path}"
+
+sudoers:
+  enabled: true
+  file: "/etc/sudoers.d/magebox"
+  permissions: "0440"
+
+  rules:
+    # Nginx control
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx -s reload"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx -t"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx"
+    # PHP-FPM control
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php*-php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-php-fpm"
+    # Nginx config management
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/ln -s *"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/sed -i *"
+    # DNS / hosts management
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/tee -a /etc/hosts"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/sed -i * /etc/hosts"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-hosts-* /etc/hosts"
+    # Blackfire profiler
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/dnf install -y blackfire*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/dnf install -y tideways*"
+
+profiling:
+  blackfire:
+    gpg_key: "https://packages.blackfire.io/gpg.key"
+    gpg_import: "sudo rpm --import https://packages.blackfire.io/gpg.key"
+    repository:
+      url: "https://packages.blackfire.io/fedora/blackfire.repo"
+      install: "sudo curl -sSL https://packages.blackfire.io/fedora/blackfire.repo -o /etc/yum.repos.d/blackfire.repo"
+    packages:
+      - blackfire
+      - blackfire-php
+
+  tideways:
+    gpg_key: "https://packages.tideways.com/key.gpg"
+    gpg_import: "sudo rpm --import https://packages.tideways.com/key.gpg"
+    # Direct RPM URLs (dnf5 has issues with cloudsmith repos)
+    packages:
+      php: "https://packages.tideways.com/rpm-packages/x86_64/tideways-php-5.0.44-1.x86_64.rpm"
+      daemon: "https://packages.tideways.com/rpm-packages/x86_64/tideways-daemon-1.9.48-1.x86_64.rpm"
+      cli: "https://packages.tideways.com/rpm-packages/x86_64/tideways-cli-1.3.24-1.x86_64.rpm"
+    install: "sudo dnf install -y -q ${packages}"

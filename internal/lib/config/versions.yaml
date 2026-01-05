@@ -1,0 +1,74 @@
+# MageBox - Magento/MageOS Version Registry
+# This file defines available versions for the `mbox new` command
+# Update this file to add new versions as they are released
+
+schema_version: "1.0"
+
+# Default versions for quick install
+defaults:
+  php: "8.3"
+  mysql: "8.0"
+  opensearch: "2.19.4"
+  distribution: "mageos"  # mageos or magento
+
+# Magento Open Source versions
+# Source: https://experienceleague.adobe.com/en/docs/commerce-operations/release/versions
+magento:
+  package: "magento/project-community-edition"
+  versions:
+    - version: "2.4.8-p3"
+      name: "Magento 2.4.8-p3 (Latest)"
+      php: ["8.4", "8.3", "8.2"]
+      default: true
+    - version: "2.4.8-p2"
+      name: "Magento 2.4.8-p2"
+      php: ["8.4", "8.3", "8.2"]
+    - version: "2.4.8-p1"
+      name: "Magento 2.4.8-p1"
+      php: ["8.4", "8.3", "8.2"]
+    - version: "2.4.8"
+      name: "Magento 2.4.8"
+      php: ["8.4", "8.3", "8.2"]
+    - version: "2.4.7-p4"
+      name: "Magento 2.4.7-p4"
+      php: ["8.3", "8.2"]
+    - version: "2.4.7-p3"
+      name: "Magento 2.4.7-p3"
+      php: ["8.3", "8.2"]
+    - version: "2.4.6-p8"
+      name: "Magento 2.4.6-p8"
+      php: ["8.2", "8.1"]
+    - version: "2.4.6-p7"
+      name: "Magento 2.4.6-p7"
+      php: ["8.2", "8.1"]
+
+# MageOS versions (Community Fork)
+# Source: https://mage-os.org/releases/
+mageos:
+  package: "mage-os/project-community-edition"
+  versions:
+    - version: "2.0.0"
+      name: "MageOS 2.0.0 (Latest)"
+      php: ["8.4", "8.3", "8.2"]
+      default: true
+      base: "2.4.8"
+    - version: "1.3.1"
+      name: "MageOS 1.3.1"
+      php: ["8.4", "8.3", "8.2"]
+      base: "2.4.8-p2"
+    - version: "1.3.0"
+      name: "MageOS 1.3.0"
+      php: ["8.4", "8.3", "8.2"]
+      base: "2.4.8-p2"
+    - version: "1.2.0"
+      name: "MageOS 1.2.0"
+      php: ["8.3", "8.2"]
+      base: "2.4.8"
+    - version: "1.1.0"
+      name: "MageOS 1.1.0"
+      php: ["8.3", "8.2"]
+      base: "2.4.7"
+    - version: "1.0.5"
+      name: "MageOS 1.0.5"
+      php: ["8.3", "8.2"]
+      base: "2.4.6"

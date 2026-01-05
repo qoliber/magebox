@@ -1,0 +1,187 @@
+# MageBox Installer Configuration for Ubuntu/Debian Linux
+# Schema version: 1.0
+#
+# Variables available:
+#   ${user}         - Current username
+#   ${homeDir}      - User home directory
+#   ${mageboxDir}   - MageBox directory (~/.magebox)
+#   ${phpVersion}   - PHP version (e.g., 8.2)
+#   ${versionNoDot} - PHP version without dots (e.g., 82)
+#   ${tld}          - Top-level domain from config
+#   ${osVersion}    - OS version number
+
+schema_version: "1.0"
+
+meta:
+  platform: linux
+  distro: ubuntu
+  display_name: "Ubuntu/Debian Linux"
+  supported_versions:
+    ubuntu: ["20.04", "22.04", "24.04"]
+    debian: ["11", "12"]
+
+package_manager:
+  name: apt
+  install: "sudo apt install -y"
+  update: "sudo apt update"
+
+prerequisites:
+  packages:
+    - curl
+    - git
+    - unzip
+    - software-properties-common
+  ondrej_ppa:
+    command: "sudo add-apt-repository -y ppa:ondrej/php"
+    post_update: true
+
+php:
+  version_format: "php${phpVersion}"
+  packages:
+    core:
+      - "php${phpVersion}-fpm"
+      - "php${phpVersion}-cli"
+      - "php${phpVersion}-common"
+    extensions:
+      - "php${phpVersion}-opcache"
+      - "php${phpVersion}-zip"
+      - "php${phpVersion}-curl"
+      - "php${phpVersion}-mbstring"
+      - "php${phpVersion}-xml"
+      - "php${phpVersion}-bcmath"
+      - "php${phpVersion}-gd"
+      - "php${phpVersion}-intl"
+      - "php${phpVersion}-mysql"
+      - "php${phpVersion}-soap"
+      - "php${phpVersion}-imagick"
+  optional:
+    xdebug: "php${phpVersion}-xdebug"
+    imagick: "php${phpVersion}-imagick"
+    sodium: "php${phpVersion}-sodium"
+  paths:
+    binary: "/usr/bin/php${phpVersion}"
+    ini_cli: "/etc/php/${phpVersion}/cli/php.ini"
+    ini_fpm: "/etc/php/${phpVersion}/fpm/php.ini"
+    fpm_conf: "/etc/php/${phpVersion}/fpm/php-fpm.conf"
+    fpm_pool_dir: "/etc/php/${phpVersion}/fpm/pool.d"
+    default_pool: "/etc/php/${phpVersion}/fpm/pool.d/www.conf"
+  services:
+    fpm:
+      name: "php${phpVersion}-fpm"
+      enable: "sudo systemctl enable ${serviceName}"
+      start: "sudo systemctl start ${serviceName}"
+      stop: "sudo systemctl stop ${serviceName}"
+      restart: "sudo systemctl restart ${serviceName}"
+      reload: "sudo systemctl reload ${serviceName}"
+  configure_fpm:
+    disable_default_pool: true
+    add_magebox_include: true
+    include_pattern: "include=${mageboxDir}/php/pools/${phpVersion}/*.conf"
+  ini_defaults:
+    memory_limit: "-1"
+    max_execution_time: "18000"
+
+nginx:
+  packages:
+    - nginx
+  paths:
+    config: "/etc/nginx/nginx.conf"
+    conf_d: "/etc/nginx/conf.d"
+    sites_enabled: "/etc/nginx/sites-enabled"
+    sites_available: "/etc/nginx/sites-available"
+  services:
+    nginx:
+      name: nginx
+      enable: "sudo systemctl enable nginx"
+      start: "sudo systemctl start nginx"
+      stop: "sudo systemctl stop nginx"
+      restart: "sudo systemctl restart nginx"
+      reload: "sudo systemctl reload nginx"
+  configure:
+    set_user: true
+    user_directive: "user ${user};"
+
+mkcert:
+  packages:
+    - mkcert
+    - libnss3-tools
+
+dnsmasq:
+  packages:
+    - dnsmasq
+  paths:
+    config: "/etc/dnsmasq.conf"
+    conf_d: "/etc/dnsmasq.d"
+  config_template: |
+    # MageBox - Resolve *.${tld} to localhost
+    address=/${tld}/127.0.0.1
+    listen-address=127.0.0.2
+    port=53
+    bind-interfaces
+  systemd_resolved:
+    check: "systemctl is-active systemd-resolved"
+    config_dir: "/etc/systemd/resolved.conf.d"
+    config_template: |
+      [Resolve]
+      DNS=127.0.0.2
+      Domains=~${tld}
+
+multitail:
+  packages:
+    - multitail
+
+docker:
+  install_instructions: "curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER"
+
+sudoers:
+  enabled: true
+  file: "/etc/sudoers.d/magebox"
+  mode: "0440"
+  rules:
+    # Nginx control
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t"
+    # PHP-FPM control
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php*-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-fpm"
+    # Nginx config management
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/ln -s *"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/sed -i *"
+    # Blackfire profiler
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/apt install -y blackfire*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/apt install -y tideways*"
+
+selinux:
+  enabled: false
+
+blackfire:
+  gpg_key: "https://packages.blackfire.io/gpg.key"
+  gpg_keyring: "/usr/share/keyrings/blackfire-archive-keyring.gpg"
+  repository:
+    line: "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/blackfire-archive-keyring.gpg] https://packages.blackfire.io/debian any main"
+    path: "/etc/apt/sources.list.d/blackfire.list"
+  packages:
+    agent: "blackfire"
+    php: "blackfire-php${versionNoDot}"
+
+tideways:
+  gpg_key: "https://packages.tideways.com/key.gpg"
+  gpg_keyring: "/usr/share/keyrings/tideways-archive-keyring.gpg"
+  repository:
+    line: "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/tideways-archive-keyring.gpg] https://packages.tideways.com/apt-packages any-version main"
+    path: "/etc/apt/sources.list.d/tideways.list"
+  packages:
+    php: "tideways-php-${phpVersion}"

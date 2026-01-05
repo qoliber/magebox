@@ -1,0 +1,152 @@
+# MageBox Installer Configuration for macOS
+# https://github.com/qoliber/magebox
+schema_version: "1.0"
+
+meta:
+  platform: darwin
+  display_name: "macOS"
+  supported_versions:
+    - version: "12"
+      codename: "Monterey"
+    - version: "13"
+      codename: "Ventura"
+    - version: "14"
+      codename: "Sonoma"
+    - version: "15"
+      codename: "Sequoia"
+
+package_manager:
+  name: brew
+  install: "brew install"
+  update: "brew update"
+  check: "command -v brew"
+  not_installed_message: "Homebrew is not installed, install from https://brew.sh"
+
+# Homebrew paths differ on Apple Silicon vs Intel
+paths:
+  apple_silicon:
+    prefix: "/opt/homebrew"
+    php: "/opt/homebrew/opt/php@${phpVersion}"
+    pecl: "/opt/homebrew/opt/php@${phpVersion}/bin/pecl"
+  intel:
+    prefix: "/usr/local"
+    php: "/usr/local/opt/php@${phpVersion}"
+    pecl: "/usr/local/opt/php@${phpVersion}/bin/pecl"
+
+prerequisites:
+  check: "command -v brew"
+  install_message: "Please install Homebrew from https://brew.sh"
+  packages: []  # No packages needed, just brew update
+
+php:
+  version_format: "php@${phpVersion}"
+  versions: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+
+  packages:
+    # On macOS, PHP is a single Homebrew formula with all extensions
+    formula: "php@${phpVersion}"
+
+  optional:
+    xdebug:
+      install_method: "pecl"
+      install: "${peclBin} install xdebug"
+      check_extension: "xdebug"
+    imagick:
+      install_method: "pecl"
+      dependencies: ["imagemagick"]
+      install: "${peclBin} install imagick"
+      check_extension: "imagick"
+    sodium:
+      # Sodium is bundled with Homebrew PHP by default
+      bundled: true
+
+  paths:
+    binary: "${brewPrefix}/opt/php@${phpVersion}/bin/php"
+    ini: "${brewPrefix}/etc/php/${phpVersion}/php.ini"
+    fpm_config: "${brewPrefix}/etc/php/${phpVersion}/php-fpm.d"
+
+  ini_settings:
+    memory_limit: "-1"
+    max_execution_time: "18000"
+    # macOS uses BSD sed syntax (different from GNU sed)
+    sed_inplace: "sed -i ''"
+
+  services:
+    fpm:
+      name: "php@${phpVersion}"
+      # Homebrew services (no sudo needed)
+      start: "brew services start php@${phpVersion}"
+      stop: "brew services stop php@${phpVersion}"
+      restart: "brew services restart php@${phpVersion}"
+
+nginx:
+  packages:
+    - nginx
+
+  paths:
+    binary: "${brewPrefix}/opt/nginx/bin/nginx"
+    config: "${brewPrefix}/etc/nginx/nginx.conf"
+
+  services:
+    nginx:
+      name: nginx
+      # Homebrew services (no sudo needed)
+      start: "brew services start nginx"
+      stop: "brew services stop nginx"
+      restart: "brew services restart nginx"
+      reload: "brew services reload nginx"
+
+  configuration:
+    # On macOS with Homebrew, nginx runs as current user by default
+    # No special configuration needed
+
+tools:
+  mkcert:
+    packages:
+      - mkcert
+      - nss
+
+  dnsmasq:
+    packages:
+      - dnsmasq
+
+  multitail:
+    packages:
+      - multitail
+
+  docker:
+    install_instructions: |
+      brew install --cask docker
+
+dns:
+  # macOS uses /etc/resolver for DNS routing
+  resolver:
+    config_dir: "/etc/resolver"
+    config_file: "/etc/resolver/${tld}"
+    config_template: |
+      nameserver 127.0.0.1
+    setup:
+      - command: "sudo mkdir -p /etc/resolver"
+
+selinux:
+  # SELinux is Linux-only
+  enabled: false
+
+sudoers:
+  # On macOS, Homebrew services run as current user, no sudo needed
+  enabled: false
+
+profiling:
+  blackfire:
+    tap: "blackfireio/homebrew-blackfire"
+    tap_install: "brew tap blackfireio/homebrew-blackfire"
+    packages:
+      agent: "blackfire"
+    php_extension:
+      install_method: "pecl"
+      install: "${peclBin} install blackfire"
+
+  tideways:
+    php_extension:
+      install_method: "pecl"
+      install: "${peclBin} install tideways"

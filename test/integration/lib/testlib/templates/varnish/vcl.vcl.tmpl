@@ -1,0 +1,10 @@
+# Custom test Varnish VCL template
+# This template is used for testing custom lib loading
+# TEST MARKER: CUSTOM_LIB_VARNISH_TEMPLATE
+
+vcl 4.0;
+
+backend default {
+    .host = "{{ .BackendHost }}";
+    .port = "{{ .BackendPort }}";
+}

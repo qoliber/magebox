@@ -1,0 +1,32 @@
+# Custom test Fedora installer
+# This file is used for testing custom lib loading
+# TEST MARKER: CUSTOM_LIB_INSTALLER
+
+schema_version: "1.0"
+
+meta:
+  platform: linux
+  distro: fedora
+  display_name: "Custom Test Fedora"
+  supported_versions: ["40", "41", "42"]
+
+package_manager:
+  name: dnf
+  install: "sudo dnf install -y"
+  update: "sudo dnf update -y"
+
+php:
+  version_format: "php${versionNoDot}"
+  versions: ["8.2", "8.3"]
+  packages:
+    core:
+      - "${phpPrefix}-php-fpm"
+      - "${phpPrefix}-php-cli"
+  paths:
+    binary: "/usr/bin/php${versionNoDot}"
+  services:
+    fpm:
+      name: "php${versionNoDot}-php-fpm"
+
+nginx:
+  packages: ["nginx"]

@@ -1,0 +1,11 @@
+; MageBox PHP-FPM Configuration for PHP {{.PHPVersion}}
+; Do not edit manually - regenerated on magebox start
+
+[global]
+pid = {{.PIDPath}}
+error_log = {{.ErrorLogPath}}
+log_level = warning
+daemonize = yes
+
+; Include pool configurations
+include = {{.PoolsDir}}/*.conf

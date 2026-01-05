@@ -1,0 +1,60 @@
+; MageBox generated pool for {{.ProjectName}}
+; Do not edit manually - regenerated on magebox start
+;
+; Configuration files:
+;   Main config:  {{.ProjectPath}}/.magebox.yaml
+;   Local config: {{.ProjectPath}}/.magebox.local.yaml
+;
+; Modify php_ini in the above files, then run: mbox restart
+; Or use: mbox php ini set <key> <value>
+
+[{{.ProjectName}}]
+
+user = {{.User}}
+group = {{.Group}}
+
+listen = {{.SocketPath}}
+listen.owner = {{.User}}
+listen.group = {{.Group}}
+listen.mode = 0666
+
+pm = dynamic
+pm.max_children = {{.MaxChildren}}
+pm.start_servers = {{.StartServers}}
+pm.min_spare_servers = {{.MinSpareServers}}
+pm.max_spare_servers = {{.MaxSpareServers}}
+pm.max_requests = {{.MaxRequests}}
+
+pm.status_path = /status
+
+catch_workers_output = yes
+decorate_workers_output = no
+
+php_admin_value[error_log] = {{.LogPath}}
+php_admin_flag[log_errors] = on
+
+; Magento recommended settings
+php_value[memory_limit] = 768M
+php_value[max_execution_time] = 18000
+php_value[max_input_time] = 600
+php_value[max_input_vars] = 10000
+php_value[post_max_size] = 64M
+php_value[upload_max_filesize] = 64M
+php_value[session.gc_maxlifetime] = 86400
+{{if .HasMailpit}}
+
+; Mailpit email configuration
+; Routes PHP mail() to Mailpit SMTP server at {{.SendmailPath}}
+php_admin_value[sendmail_path] = {{.SendmailPath}}
+php_admin_value[SMTP] = 127.0.0.1
+php_admin_value[smtp_port] = 1025
+{{end}}
+
+; PHP INI settings (defaults merged with .magebox.yaml php_ini overrides)
+{{range $key, $value := .PHPINI}}
+php_admin_value[{{$key}}] = {{$value}}
+{{end}}
+
+{{range $key, $value := .Env}}
+env[{{$key}}] = {{$value}}
+{{end}}

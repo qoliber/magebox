@@ -1,0 +1,13 @@
+; Custom test PHP-FPM pool template
+; This template is used for testing custom lib loading
+; TEST MARKER: CUSTOM_LIB_PHP_TEMPLATE
+
+[{{ .Name }}]
+user = {{ .User }}
+group = {{ .Group }}
+listen = {{ .SocketPath }}
+pm = dynamic
+pm.max_children = 5
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3

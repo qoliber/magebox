@@ -1,0 +1,183 @@
+# MageBox Installer Configuration for Arch Linux
+# https://github.com/qoliber/magebox
+schema_version: "1.0"
+
+meta:
+  platform: linux
+  distro: arch
+  display_name: "Arch Linux"
+  # Arch is rolling release - always supported
+  supported_versions: ["rolling"]
+  notes:
+    - "Arch Linux is a rolling release - ensure system is up-to-date"
+    - "Only one PHP version available in official repos"
+    - "For multiple PHP versions, use AUR packages (php74, php81, etc.)"
+
+package_manager:
+  name: pacman
+  install: "sudo pacman -S --noconfirm"
+  update: "sudo pacman -Sy"
+
+prerequisites:
+  packages:
+    - curl
+    - git
+    - unzip
+    - base-devel
+
+php:
+  # Arch only has single PHP version in official repos
+  version_format: "php"
+  versions: ["current"]  # Single version in Arch
+  single_version: true
+
+  packages:
+    core:
+      - php
+      - php-fpm
+    extensions:
+      - php-gd
+      - php-intl
+      - php-sodium
+      - php-imagick
+
+  optional:
+    xdebug: "xdebug"
+    imagick: "php-imagick"
+    sodium: "php-sodium"
+
+  paths:
+    binary: "/usr/bin/php"
+    ini: "/etc/php/php.ini"
+    fpm_config: "/etc/php/php-fpm.d"
+
+  ini_settings:
+    memory_limit: "-1"
+    max_execution_time: "18000"
+
+  services:
+    fpm:
+      name: "php-fpm"
+      enable: "sudo systemctl enable php-fpm"
+      start: "sudo systemctl start php-fpm"
+      stop: "sudo systemctl stop php-fpm"
+      restart: "sudo systemctl restart php-fpm"
+      reload: "sudo systemctl reload php-fpm"
+
+nginx:
+  packages:
+    - nginx
+
+  paths:
+    binary: "/usr/bin/nginx"
+    config: "/etc/nginx/nginx.conf"
+
+  services:
+    nginx:
+      name: nginx
+      enable: "sudo systemctl enable nginx"
+      start: "sudo systemctl start nginx"
+      stop: "sudo systemctl stop nginx"
+      restart: "sudo systemctl restart nginx"
+      reload: "sudo systemctl reload nginx"
+      test: "sudo nginx -t"
+
+  configuration:
+    set_user: "sudo sed -i 's/^user .*/user ${user};/' /etc/nginx/nginx.conf"
+
+tools:
+  mkcert:
+    packages:
+      - mkcert
+      - nss
+
+  dnsmasq:
+    packages:
+      - dnsmasq
+
+  multitail:
+    packages:
+      - multitail
+
+  docker:
+    install_instructions: |
+      sudo pacman -S docker docker-compose
+      sudo systemctl enable --now docker
+      sudo usermod -aG docker $USER
+
+dns:
+  dnsmasq:
+    config_dir: "/etc/dnsmasq.d"
+    main_config: "/etc/dnsmasq.conf"
+
+    setup:
+      - description: "Create config directory"
+        command: "sudo mkdir -p /etc/dnsmasq.d"
+      - description: "Enable conf-dir in dnsmasq.conf"
+        command: "grep -q 'conf-dir=/etc/dnsmasq.d' /etc/dnsmasq.conf || echo 'conf-dir=/etc/dnsmasq.d' | sudo tee -a /etc/dnsmasq.conf"
+
+    config_template: |
+      # MageBox - Resolve *.${tld} to localhost
+      address=/${tld}/127.0.0.1
+      listen-address=127.0.0.2
+      port=53
+      bind-interfaces
+
+    services:
+      enable: "sudo systemctl enable dnsmasq"
+      restart: "sudo systemctl restart dnsmasq"
+
+  systemd_resolved:
+    check: "systemctl is-active systemd-resolved"
+    config_dir: "/etc/systemd/resolved.conf.d"
+    config_template: |
+      [Resolve]
+      DNS=127.0.0.2
+      Domains=~${tld}
+    restart: "sudo systemctl restart systemd-resolved"
+
+selinux:
+  enabled: false
+
+sudoers:
+  enabled: true
+  file: "/etc/sudoers.d/magebox"
+  permissions: "0440"
+
+  rules:
+    # Nginx control
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx -s reload"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx -t"
+    # PHP-FPM control (single version on Arch)
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php-fpm"
+    # Nginx config management
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/ln -s *"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/sed -i *"
+    # Blackfire profiler
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *blackfire*"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *tideways*"
+
+profiling:
+  blackfire:
+    notes:
+      - "Blackfire agent must be installed from AUR (blackfire-agent) or manually"
+    install_method: "pecl"
+    install: "pecl install blackfire"
+
+  tideways:
+    install_method: "pecl"
+    install: "pecl install tideways"

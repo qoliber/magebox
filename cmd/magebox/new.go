@@ -13,6 +13,7 @@ import (
 
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
+	libconfig "qoliber/magebox/internal/lib/config"
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
@@ -36,9 +37,8 @@ This command will guide you through:
 
 Quick Mode (--quick):
   Skip all questions and install MageOS with sensible defaults:
-  - MageOS 1.0.5 (latest stable, no auth required)
-  - PHP 8.3
-  - MySQL 8.0, Redis, OpenSearch
+  - MageOS (latest stable, no auth required)
+  - PHP 8.3, MySQL 8.0, Redis, OpenSearch
   - Sample data included
   - Domain: {directory}.test
 
@@ -122,23 +122,39 @@ const (
 	RabbitMQDefaultPass = "guest"
 )
 
-// Available Magento versions
-var magentoVersions = []MagentoVersion{
-	{Name: "Magento 2.4.7-p3 (Latest)", Version: "2.4.7-p3", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
-	{Name: "Magento 2.4.7-p2", Version: "2.4.7-p2", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
-	{Name: "Magento 2.4.7-p1", Version: "2.4.7-p1", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
-	{Name: "Magento 2.4.7", Version: "2.4.7", Package: "magento/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
-	{Name: "Magento 2.4.6-p7", Version: "2.4.6-p7", Package: "magento/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
-	{Name: "Magento 2.4.6-p6", Version: "2.4.6-p6", Package: "magento/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
-	{Name: "Magento 2.4.5-p9", Version: "2.4.5-p9", Package: "magento/project-community-edition", PHPVersions: []string{"8.1"}},
+// loadVersions loads and converts versions from the config
+func loadVersions(p *platform.Platform) (*libconfig.VersionsConfig, error) {
+	return libconfig.LoadVersions(p.MageBoxDir())
 }
 
-// Available MageOS versions
-var mageosVersions = []MagentoVersion{
-	{Name: "MageOS 1.0.5 (Latest)", Version: "1.0.5", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}, Default: true},
-	{Name: "MageOS 1.0.3", Version: "1.0.3", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
-	{Name: "MageOS 1.0.2", Version: "1.0.2", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.3", "8.2"}},
-	{Name: "MageOS 1.0.1", Version: "1.0.1", Package: "mage-os/project-community-edition", PHPVersions: []string{"8.2", "8.1"}},
+// getMagentoVersions returns Magento versions from config
+func getMagentoVersions(cfg *libconfig.VersionsConfig) []MagentoVersion {
+	var versions []MagentoVersion
+	for _, v := range cfg.GetMagentoVersions() {
+		versions = append(versions, MagentoVersion{
+			Name:        v.Name,
+			Version:     v.Version,
+			Package:     cfg.GetMagentoPackage(),
+			PHPVersions: v.PHP,
+			Default:     v.Default,
+		})
+	}
+	return versions
+}
+
+// getMageOSVersions returns MageOS versions from config
+func getMageOSVersions(cfg *libconfig.VersionsConfig) []MagentoVersion {
+	var versions []MagentoVersion
+	for _, v := range cfg.GetMageOSVersions() {
+		versions = append(versions, MagentoVersion{
+			Name:        v.Name,
+			Version:     v.Version,
+			Package:     cfg.GetMageOSPackage(),
+			PHPVersions: v.PHP,
+			Default:     v.Default,
+		})
+	}
+	return versions
 }
 
 // findRealComposer finds the real composer binary, skipping our wrapper
@@ -229,6 +245,12 @@ func runNew(cmd *cobra.Command, args []string) error {
 		return runNewQuick(targetDir, p)
 	}
 
+	// Load versions from config
+	versionsCfg, err := loadVersions(p)
+	if err != nil {
+		return fmt.Errorf("failed to load versions config: %w", err)
+	}
+
 	cli.PrintTitle("Create New Magento/MageOS Project")
 	fmt.Println()
 
@@ -250,11 +272,11 @@ func runNew(cmd *cobra.Command, args []string) error {
 	var versions []MagentoVersion
 	if distChoice == "2" {
 		distribution = DistMageOS
-		versions = mageosVersions
+		versions = getMageOSVersions(versionsCfg)
 		fmt.Println("  → MageOS selected")
 	} else {
 		distribution = DistMagento
-		versions = magentoVersions
+		versions = getMagentoVersions(versionsCfg)
 		fmt.Println("  → Magento Open Source selected")
 	}
 	fmt.Println()
@@ -800,11 +822,29 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	globalCfg, _ := config.LoadGlobalConfig(homeDir)
 	tld := globalCfg.GetTLD()
 
-	// Defaults for quick mode
-	selectedVersion := mageosVersions[0] // MageOS 1.0.5 (latest)
-	selectedPHP := DefaultPHPVersion
-	dbVersion := DefaultMySQLVersion
-	searchVersion := DefaultOpenSearchVersion
+	// Load versions from config
+	versionsCfg, err := loadVersions(p)
+	if err != nil {
+		return fmt.Errorf("failed to load versions config: %w", err)
+	}
+
+	// Get default MageOS version
+	mageosVersions := getMageOSVersions(versionsCfg)
+	if len(mageosVersions) == 0 {
+		return fmt.Errorf("no MageOS versions available")
+	}
+
+	// Defaults for quick mode - use config defaults
+	selectedVersion := mageosVersions[0] // First version (should have default: true)
+	for _, v := range mageosVersions {
+		if v.Default {
+			selectedVersion = v
+			break
+		}
+	}
+	selectedPHP := versionsCfg.Defaults.PHP
+	dbVersion := versionsCfg.Defaults.MySQL
+	searchVersion := versionsCfg.Defaults.OpenSearch
 
 	// Determine project name and directory
 	var projectName string

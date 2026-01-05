@@ -1,0 +1,14 @@
+# Custom test nginx vhost template
+# This template is used for testing custom lib loading
+
+server {
+    listen 80;
+    server_name {{ .Domain }};
+    root {{ .DocumentRoot }};
+
+    # TEST MARKER: CUSTOM_LIB_NGINX_TEMPLATE
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+}
