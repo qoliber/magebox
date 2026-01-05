@@ -2,6 +2,22 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.1.1] - 2026-01-05
+
+### Added
+
+- **YAML-Based Version Config** - Magento/MageOS versions now loaded from `versions.yaml`:
+  - No longer hardcoded in Go source code
+  - Easy to update versions without recompiling
+  - Custom versions via `~/.magebox/yaml/config/versions.yaml`
+
+- **Latest Versions** - Updated to latest Magento and MageOS releases:
+  - Magento 2.4.8-p3 (Latest), 2.4.8-p2, 2.4.8-p1, 2.4.8
+  - Magento 2.4.7-p4, 2.4.7-p3, 2.4.6-p8, 2.4.6-p7
+  - MageOS 2.0.0 (Latest), 1.3.1, 1.3.0, 1.2.0, 1.1.0, 1.0.5
+
+- **PHP 8.4 Support** - Latest Magento/MageOS versions now support PHP 8.4
+
 ## [1.1.0] - 2026-01-03
 
 ### Added
