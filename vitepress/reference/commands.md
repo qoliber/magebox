@@ -165,6 +165,104 @@ Opens a new shell where:
 
 ---
 
+### `magebox php ini set <key> <value>`
+
+Set a PHP INI value for the current project.
+
+```bash
+magebox php ini set memory_limit 512M
+magebox php ini set max_execution_time 300
+magebox php ini set display_errors On
+```
+
+Settings are stored in `.magebox.yaml` and applied to the project's PHP-FPM pool.
+
+---
+
+### `magebox php ini get <key>`
+
+Get the current value of a PHP INI setting.
+
+```bash
+magebox php ini get memory_limit
+```
+
+Shows the effective value from pool configuration.
+
+---
+
+### `magebox php ini list`
+
+List all PHP INI settings for the project.
+
+```bash
+magebox php ini list
+```
+
+Shows both default values and custom overrides.
+
+---
+
+### `magebox php ini unset <key>`
+
+Remove a custom PHP INI override.
+
+```bash
+magebox php ini unset memory_limit
+```
+
+Reverts the setting to its default value.
+
+---
+
+### `magebox php opcache status`
+
+Show OPcache status for the project.
+
+```bash
+magebox php opcache status
+```
+
+Displays current OPcache configuration (enabled/disabled).
+
+---
+
+### `magebox php opcache enable`
+
+Enable OPcache for the project.
+
+```bash
+magebox php opcache enable
+```
+
+Sets `opcache.enable=1` in the project's PHP configuration.
+
+---
+
+### `magebox php opcache disable`
+
+Disable OPcache for the project.
+
+```bash
+magebox php opcache disable
+```
+
+Sets `opcache.enable=0` - useful during development for immediate code changes.
+
+---
+
+### `magebox php opcache clear`
+
+Clear OPcache by reloading PHP-FPM.
+
+```bash
+magebox php opcache clear
+```
+
+Forces PHP-FPM to reload, clearing the OPcache.
+
+---
+
 ### Running Magento CLI
 
 Use the MageBox PHP wrapper or project shell to run Magento commands:
