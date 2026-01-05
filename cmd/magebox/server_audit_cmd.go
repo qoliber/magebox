@@ -115,7 +115,7 @@ func runServerAudit(cmd *cobra.Command, args []string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp teamserver.ErrorResponse
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return fmt.Errorf("failed to get audit log: %s", errResp.Error)
 	}
 
@@ -235,7 +235,7 @@ func runServerAuditVerify(cmd *cobra.Command, args []string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp teamserver.ErrorResponse
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return fmt.Errorf("failed to get audit log: %s", errResp.Error)
 	}
 

@@ -520,13 +520,11 @@ func (c *FPMController) Reload() error {
 		// Use systemctl reload on Linux
 		serviceName := c.getSystemdServiceName()
 		cmd := exec.Command("sudo", "systemctl", "reload", serviceName)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
+		if output, err := cmd.CombinedOutput(); err != nil {
 			// If reload fails, try restart
 			cmd = exec.Command("sudo", "systemctl", "restart", serviceName)
-			output, err = cmd.CombinedOutput()
-			if err != nil {
-				return fmt.Errorf("failed to reload php-fpm: %w\nOutput: %s", err, output)
+			if restartOutput, restartErr := cmd.CombinedOutput(); restartErr != nil {
+				return fmt.Errorf("failed to reload php-fpm: %w\nReload output: %s\nRestart output: %s", restartErr, output, restartOutput)
 			}
 		}
 		return nil

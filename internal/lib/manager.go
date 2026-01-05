@@ -187,8 +187,8 @@ func (m *Manager) GetStatus() *Status {
 	if output, err := revListCmd.Output(); err == nil {
 		parts := strings.Fields(strings.TrimSpace(string(output)))
 		if len(parts) == 2 {
-			fmt.Sscanf(parts[0], "%d", &status.AheadOfRemote)
-			fmt.Sscanf(parts[1], "%d", &status.BehindRemote)
+			_, _ = fmt.Sscanf(parts[0], "%d", &status.AheadOfRemote)
+			_, _ = fmt.Sscanf(parts[1], "%d", &status.BehindRemote)
 		}
 	}
 

@@ -33,8 +33,8 @@ type VersionDefaults struct {
 
 // DistroConfig contains configuration for a distribution (Magento or MageOS)
 type DistroConfig struct {
-	Package  string           `yaml:"package"`
-	Versions []VersionEntry   `yaml:"versions"`
+	Package  string         `yaml:"package"`
+	Versions []VersionEntry `yaml:"versions"`
 }
 
 // VersionEntry represents a single version of Magento/MageOS

@@ -93,7 +93,7 @@ type PHPConfig struct {
 
 // PHPPackages defines PHP packages to install
 type PHPPackages struct {
-	Formula    string   `yaml:"formula"`    // macOS
+	Formula    string   `yaml:"formula"` // macOS
 	Core       []string `yaml:"core"`
 	Extensions []string `yaml:"extensions"`
 }
@@ -124,11 +124,11 @@ type ServiceCommands struct {
 
 // NginxConfig defines Nginx installation settings
 type NginxConfig struct {
-	Packages      []string                `yaml:"packages"`
-	Paths         NginxPaths              `yaml:"paths"`
-	Services      NginxServices           `yaml:"services"`
-	Configuration NginxConfiguration      `yaml:"configuration"`
-	Fixes         map[string]NginxFix     `yaml:"fixes"`
+	Packages      []string            `yaml:"packages"`
+	Paths         NginxPaths          `yaml:"paths"`
+	Services      NginxServices       `yaml:"services"`
+	Configuration NginxConfiguration  `yaml:"configuration"`
+	Fixes         map[string]NginxFix `yaml:"fixes"`
 }
 
 // NginxPaths defines Nginx path locations
@@ -177,11 +177,11 @@ type DNSConfig struct {
 
 // DnsmasqConfig defines dnsmasq configuration
 type DnsmasqConfig struct {
-	ConfigDir      string              `yaml:"config_dir"`
-	MainConfig     string              `yaml:"main_config"`
-	Setup          []SetupStep         `yaml:"setup"`
-	ConfigTemplate string              `yaml:"config_template"`
-	Services       DnsmasqServices     `yaml:"services"`
+	ConfigDir      string          `yaml:"config_dir"`
+	MainConfig     string          `yaml:"main_config"`
+	Setup          []SetupStep     `yaml:"setup"`
+	ConfigTemplate string          `yaml:"config_template"`
+	Services       DnsmasqServices `yaml:"services"`
 }
 
 // SetupStep defines a setup command
@@ -214,11 +214,11 @@ type ResolverConfig struct {
 
 // SELinuxConfig defines SELinux configuration
 type SELinuxConfig struct {
-	Enabled   bool              `yaml:"enabled"`
-	Check     string            `yaml:"check"`
-	Booleans  []SELinuxBoolean  `yaml:"booleans"`
-	Contexts  []SELinuxContext  `yaml:"contexts"`
-	Commands  SELinuxCommands   `yaml:"commands"`
+	Enabled  bool             `yaml:"enabled"`
+	Check    string           `yaml:"check"`
+	Booleans []SELinuxBoolean `yaml:"booleans"`
+	Contexts []SELinuxContext `yaml:"contexts"`
+	Commands SELinuxCommands  `yaml:"commands"`
 }
 
 // SELinuxBoolean defines an SELinux boolean setting
@@ -237,9 +237,9 @@ type SELinuxContext struct {
 
 // SELinuxCommands defines SELinux command templates
 type SELinuxCommands struct {
-	Semanage       string `yaml:"semanage"`
-	Restorecon     string `yaml:"restorecon"`
-	ChconFallback  string `yaml:"chcon_fallback"`
+	Semanage      string `yaml:"semanage"`
+	Restorecon    string `yaml:"restorecon"`
+	ChconFallback string `yaml:"chcon_fallback"`
 }
 
 // SudoersConfig defines sudoers configuration
@@ -261,9 +261,9 @@ type BlackfireConfig struct {
 	GPGKey       string              `yaml:"gpg_key"`
 	GPGImport    string              `yaml:"gpg_import"`
 	Repository   BlackfireRepository `yaml:"repository"`
-	Packages     interface{}         `yaml:"packages"` // Can be []string or map[string]string
-	Tap          string              `yaml:"tap"`          // macOS
-	TapInstall   string              `yaml:"tap_install"`  // macOS
+	Packages     interface{}         `yaml:"packages"`      // Can be []string or map[string]string
+	Tap          string              `yaml:"tap"`           // macOS
+	TapInstall   string              `yaml:"tap_install"`   // macOS
 	PHPExtension PHPExtension        `yaml:"php_extension"` // macOS
 }
 

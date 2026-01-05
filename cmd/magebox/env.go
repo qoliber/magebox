@@ -377,7 +377,7 @@ func runEnvSync(_ *cobra.Command, _ []string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp teamserver.ErrorResponse
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return fmt.Errorf("failed to fetch environments: %s", errResp.Error)
 	}
 

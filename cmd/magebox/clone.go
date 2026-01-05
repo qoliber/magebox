@@ -130,7 +130,7 @@ func runClone(cmd *cobra.Command, args []string) error {
 		if err := os.Chdir(destPath); err != nil {
 			return fmt.Errorf("failed to change to project directory: %w", err)
 		}
-		defer os.Chdir(originalDir)
+		defer func() { _ = os.Chdir(originalDir) }()
 
 		// Build paths
 		dbPath := fmt.Sprintf("%s/%s.sql.gz", projectName, projectName)

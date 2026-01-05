@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"strings"
 
-	"qoliber/magebox/internal/lib"
 	"gopkg.in/yaml.v3"
+	"qoliber/magebox/internal/lib"
 )
 
 // Loader loads and parses installer configurations
@@ -92,19 +92,19 @@ func (l *Loader) detectLinuxDistro() string {
 
 	// Check for known distros
 	if strings.Contains(content, "ID=fedora") ||
-	   strings.Contains(content, "ID=\"fedora\"") {
+		strings.Contains(content, "ID=\"fedora\"") {
 		return "fedora"
 	}
 	if strings.Contains(content, "ID=ubuntu") ||
-	   strings.Contains(content, "ID=\"ubuntu\"") {
+		strings.Contains(content, "ID=\"ubuntu\"") {
 		return "ubuntu"
 	}
 	if strings.Contains(content, "ID=debian") ||
-	   strings.Contains(content, "ID=\"debian\"") {
+		strings.Contains(content, "ID=\"debian\"") {
 		return "ubuntu" // Use Ubuntu config for Debian
 	}
 	if strings.Contains(content, "ID=arch") ||
-	   strings.Contains(content, "ID=\"arch\"") {
+		strings.Contains(content, "ID=\"arch\"") {
 		return "arch"
 	}
 	if strings.Contains(content, "ID=manjaro") {
