@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 
+	"gopkg.in/yaml.v3"
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/platform"
 	"qoliber/magebox/internal/varnish"
 	"qoliber/magebox/internal/verbose"
-	"gopkg.in/yaml.v3"
 )
 
 // composeCommand stores whether to use "docker compose" (V2) or "docker-compose" (standalone)

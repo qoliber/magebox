@@ -85,11 +85,11 @@ type PoolConfig struct {
 func defaultPHPINI() map[string]string {
 	return map[string]string{
 		// OPcache settings
-		"opcache.enable":                 "1",
-		"opcache.memory_consumption":     "512",
-		"opcache.max_accelerated_files":  "130986",
-		"opcache.validate_timestamps":    "1",
-		"opcache.consistency_checks":     "0",
+		"opcache.enable":                  "1",
+		"opcache.memory_consumption":      "512",
+		"opcache.max_accelerated_files":   "130986",
+		"opcache.validate_timestamps":     "1",
+		"opcache.consistency_checks":      "0",
 		"opcache.interned_strings_buffer": "20",
 		// Realpath cache
 		"realpath_cache_size": "10M",
@@ -175,11 +175,11 @@ func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, en
 		LogPath:         filepath.Join(logsDir, projectName+"-error.log"),
 		User:            getCurrentUser(),
 		Group:           getCurrentGroup(),
-		MaxChildren:     10,
-		StartServers:    2,
-		MinSpareServers: 1,
-		MaxSpareServers: 3,
-		MaxRequests:     500,
+		MaxChildren:     25,
+		StartServers:    4,
+		MinSpareServers: 2,
+		MaxSpareServers: 6,
+		MaxRequests:     1000,
 		Env:             env,
 		PHPINI:          mergePHPINI(phpIni),
 		HasMailpit:      hasMailpit,
@@ -465,6 +465,23 @@ func (c *FPMController) getBinaryPath() string {
 	return c.platform.PHPFPMBinary(c.version)
 }
 
+// cleanupStaleSockets removes stale socket files for this PHP version
+// This prevents "Another FPM instance seems to already listen" errors when
+// PHP-FPM was killed without cleaning up its sockets
+func (c *FPMController) cleanupStaleSockets() {
+	runDir := filepath.Join(c.platform.MageBoxDir(), "run")
+	pattern := filepath.Join(runDir, fmt.Sprintf("*-php%s.sock", c.version))
+
+	sockets, err := filepath.Glob(pattern)
+	if err != nil {
+		return
+	}
+
+	for _, sock := range sockets {
+		_ = os.Remove(sock)
+	}
+}
+
 // GenerateConfig generates the master php-fpm.conf for MageBox
 func (c *FPMController) GenerateConfig() error {
 	// Ensure directories exist
@@ -573,6 +590,10 @@ func (c *FPMController) Start() error {
 	if err := c.GenerateConfig(); err != nil {
 		return fmt.Errorf("failed to generate php-fpm config: %w", err)
 	}
+
+	// Clean up stale socket files before starting
+	// This prevents "Another FPM instance seems to already listen" errors
+	c.cleanupStaleSockets()
 
 	// Start php-fpm with our custom config
 	binary := c.getBinaryPath()

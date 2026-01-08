@@ -31,10 +31,10 @@ Examples:
 }
 
 var (
-	fetchMedia   bool
-	fetchDryRun  bool
-	fetchBackup  bool
-	fetchTeam    string
+	fetchMedia  bool
+	fetchDryRun bool
+	fetchBackup bool
+	fetchTeam   string
 )
 
 func init() {
@@ -100,9 +100,9 @@ func runFetch(cmd *cobra.Command, args []string) error {
 
 	// Create fetcher and execute
 	options := team.FetchOptions{
-		DryRun:    fetchDryRun,
-		NoMedia:   !fetchMedia,
-		DestPath:  cwd,
+		DryRun:   fetchDryRun,
+		NoMedia:  !fetchMedia,
+		DestPath: cwd,
 	}
 
 	fetcher := team.NewAssetFetcher(t, projectName, dbPath, mediaPath, options)

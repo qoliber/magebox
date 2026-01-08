@@ -426,8 +426,8 @@ func (m *Manager) getStartedServices(cfg *config.Config) []string {
 
 // ConfigPaths contains paths to generated configuration files
 type ConfigPaths struct {
-	ProjectConfig string // .magebox.yaml
-	PHPFPMPool    string // ~/.magebox/php/pools/{version}/{project}.conf
+	ProjectConfig string   // .magebox.yaml
+	PHPFPMPool    string   // ~/.magebox/php/pools/{version}/{project}.conf
 	NginxVhosts   []string // ~/.magebox/nginx/vhosts/{project}-*.conf
 }
 

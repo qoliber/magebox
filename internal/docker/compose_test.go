@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/platform"
-	"gopkg.in/yaml.v3"
 )
 
 func setupTestComposeGenerator(t *testing.T) (*ComposeGenerator, string) {

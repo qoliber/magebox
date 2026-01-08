@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"qoliber/magebox/internal/remote"
 	"gopkg.in/yaml.v3"
+	"qoliber/magebox/internal/remote"
 )
 
 // GlobalConfig represents the global MageBox configuration stored in ~/.magebox/config.yaml

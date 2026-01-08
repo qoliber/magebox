@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/remote"
 	"qoliber/magebox/internal/teamserver"
-	"github.com/spf13/cobra"
 )
 
 var envCmd = &cobra.Command{

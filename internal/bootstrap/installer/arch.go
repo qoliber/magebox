@@ -218,6 +218,9 @@ func (a *ArchInstaller) ConfigureNginx() error {
 		if err := a.RunSudo("sed", "-i", fmt.Sprintf("s/^user .*/user %s;/", currentUser), nginxConf); err != nil {
 			return fmt.Errorf("failed to configure nginx user: %w", err)
 		}
+
+		// Increase worker_connections for better performance (default 1024 is too low for Magento)
+		_ = a.RunSudo("sed", "-i", "s/worker_connections.*/worker_connections 4096;/", nginxConf)
 	}
 
 	// Enable nginx on boot

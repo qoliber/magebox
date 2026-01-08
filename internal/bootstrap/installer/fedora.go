@@ -245,6 +245,9 @@ func (f *FedoraInstaller) ConfigureNginx() error {
 		if err := f.RunSudo("sed", "-i", fmt.Sprintf("s/^user .*/user %s;/", currentUser), nginxConf); err != nil {
 			return fmt.Errorf("failed to configure nginx user: %w", err)
 		}
+
+		// Increase worker_connections for better performance (default 1024 is too low for Magento)
+		_ = f.RunSudo("sed", "-i", "s/worker_connections.*/worker_connections 4096;/", nginxConf)
 	}
 
 	// Fix nginx directory permissions for client body uploads and caching
