@@ -343,15 +343,16 @@ func NewController(p *platform.Platform) *Controller {
 func (c *Controller) Reload() error {
 	switch c.platform.Type {
 	case platform.Darwin:
-		// On macOS, use brew services to reload nginx (no sudo required)
-		cmd := exec.Command("brew", "services", "reload", "nginx")
+		// On macOS, use nginx -s reload directly (more reliable than brew services)
+		cmd := exec.Command("nginx", "-s", "reload")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to reload nginx: %w\nOutput: %s", err, output)
 		}
 		return nil
 	case platform.Linux:
-		cmd := exec.Command("sudo", "systemctl", "reload", "nginx")
+		// Use nginx -s reload directly (more reliable than systemctl reload)
+		cmd := exec.Command("sudo", "nginx", "-s", "reload")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to reload nginx: %w\nOutput: %s", err, output)
