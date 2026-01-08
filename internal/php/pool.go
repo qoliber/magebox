@@ -89,8 +89,8 @@ func defaultPHPINI() map[string]string {
 		"opcache.memory_consumption":      "512",
 		"opcache.max_accelerated_files":   "130986",
 		"opcache.validate_timestamps":     "1",
-		"opcache.consistency_checks":      "0",
 		"opcache.interned_strings_buffer": "20",
+		// Note: opcache.consistency_checks was removed in PHP 8.3
 		// Realpath cache
 		"realpath_cache_size": "10M",
 		"realpath_cache_ttl":  "7200",
