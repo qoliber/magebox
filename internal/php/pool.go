@@ -59,6 +59,17 @@ type PoolGenerator struct {
 	platform     *platform.Platform
 	basePoolsDir string // Base pools directory (version subdirs will be created)
 	runDir       string
+	systemINIMgr *SystemINIManager
+}
+
+// GenerateResult contains the result of pool generation
+type GenerateResult struct {
+	PoolPath         string            // Path to generated pool config
+	SystemINIPath    string            // Path to system INI (if system settings were written)
+	SystemSettings   map[string]string // System settings that were applied
+	PoolSettings     map[string]string // Pool settings that were applied
+	PreviousOwner    *SystemINIOwner   // Previous owner if system settings were overwritten
+	SystemINIChanged bool              // True if system INI was modified
 }
 
 // PoolConfig contains all data needed to generate a PHP-FPM pool
@@ -125,7 +136,13 @@ func NewPoolGenerator(p *platform.Platform) *PoolGenerator {
 		platform:     p,
 		basePoolsDir: filepath.Join(p.MageBoxDir(), "php", "pools"),
 		runDir:       filepath.Join(p.MageBoxDir(), "run"),
+		systemINIMgr: NewSystemINIManager(p),
 	}
+}
+
+// GetSystemINIManager returns the system INI manager
+func (g *PoolGenerator) GetSystemINIManager() *SystemINIManager {
+	return g.systemINIMgr
 }
 
 // getVersionPoolsDir returns the version-specific pools directory
@@ -134,20 +151,30 @@ func (g *PoolGenerator) getVersionPoolsDir(phpVersion string) string {
 }
 
 // Generate generates a PHP-FPM pool configuration for a project
+// This is a convenience wrapper around GenerateWithResult that discards the detailed result
 func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool) error {
+	_, err := g.GenerateWithResult(projectName, projectPath, phpVersion, env, phpIni, hasMailpit)
+	return err
+}
+
+// GenerateWithResult generates a PHP-FPM pool configuration and returns detailed results
+// including information about system INI settings and ownership changes
+func (g *PoolGenerator) GenerateWithResult(projectName, projectPath, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool) (*GenerateResult, error) {
+	result := &GenerateResult{}
+
 	// Ensure version-specific pools directory exists
 	versionPoolsDir := g.getVersionPoolsDir(phpVersion)
 	if err := os.MkdirAll(versionPoolsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create pools directory: %w", err)
+		return nil, fmt.Errorf("failed to create pools directory: %w", err)
 	}
 	if err := os.MkdirAll(g.runDir, 0755); err != nil {
-		return fmt.Errorf("failed to create run directory: %w", err)
+		return nil, fmt.Errorf("failed to create run directory: %w", err)
 	}
 
 	// Create logs directory
 	logsDir := filepath.Join(g.platform.MageBoxDir(), "logs", "php-fpm")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create logs directory: %w", err)
+		return nil, fmt.Errorf("failed to create logs directory: %w", err)
 	}
 
 	// Setup Mailpit sendmail wrapper if Mailpit is enabled
@@ -156,7 +183,7 @@ func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, en
 		var err error
 		sendmailPath, err = g.setupMailpitSendmail()
 		if err != nil {
-			return fmt.Errorf("failed to setup mailpit sendmail: %w", err)
+			return nil, fmt.Errorf("failed to setup mailpit sendmail: %w", err)
 		}
 
 		// Add Mailpit environment variables
@@ -165,6 +192,23 @@ func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, en
 		}
 		env["MAILPIT_HOST"] = MailpitSMTPHost
 		env["MAILPIT_PORT"] = fmt.Sprintf("%d", MailpitSMTPPort)
+	}
+
+	// Merge with defaults and separate system vs pool settings
+	mergedINI := mergePHPINI(phpIni)
+	systemSettings, poolSettings := SeparateSettings(mergedINI)
+	result.SystemSettings = systemSettings
+	result.PoolSettings = poolSettings
+
+	// Handle PHP_INI_SYSTEM settings (global, affects all projects)
+	if len(systemSettings) > 0 {
+		previousOwner, err := g.systemINIMgr.WriteSystemINI(phpVersion, projectName, projectPath, systemSettings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write system INI: %w", err)
+		}
+		result.SystemINIPath = g.systemINIMgr.GetSystemINIPath(phpVersion)
+		result.PreviousOwner = previousOwner
+		result.SystemINIChanged = previousOwner != nil
 	}
 
 	cfg := PoolConfig{
@@ -181,20 +225,21 @@ func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, en
 		MaxSpareServers: 6,
 		MaxRequests:     1000,
 		Env:             env,
-		PHPINI:          mergePHPINI(phpIni),
+		PHPINI:          poolSettings, // Only pool-level settings go in pool config
 		HasMailpit:      hasMailpit,
 		SendmailPath:    sendmailPath,
 	}
 
 	content, err := g.renderPool(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to render pool config: %w", err)
+		return nil, fmt.Errorf("failed to render pool config: %w", err)
 	}
 
 	poolFile := filepath.Join(versionPoolsDir, fmt.Sprintf("%s.conf", projectName))
 	if err := os.WriteFile(poolFile, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write pool file: %w", err)
+		return nil, fmt.Errorf("failed to write pool file: %w", err)
 	}
+	result.PoolPath = poolFile
 
 	// Clean up old pool configs from other PHP versions (project can only use one version)
 	if err := g.removeOldVersionPools(projectName, phpVersion); err != nil {
@@ -202,7 +247,7 @@ func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, en
 		fmt.Printf("[WARN] Failed to remove old version pool configs: %v\n", err)
 	}
 
-	return nil
+	return result, nil
 }
 
 // removeOldVersionPools removes pool configs for a project from other PHP version directories

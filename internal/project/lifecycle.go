@@ -45,13 +45,16 @@ func NewManager(p *platform.Platform) *Manager {
 
 // StartResult contains the result of a start operation
 type StartResult struct {
-	Config      *config.Config
-	ProjectPath string
-	Domains     []string
-	PHPVersion  string
-	Services    []string
-	Errors      []error
-	Warnings    []string
+	Config           *config.Config
+	ProjectPath      string
+	Domains          []string
+	PHPVersion       string
+	Services         []string
+	Errors           []error
+	Warnings         []string
+	SystemINIInfo    string              // Instructions for system INI settings (if any)
+	SystemSettings   map[string]string   // PHP_INI_SYSTEM settings that were configured
+	PreviousINIOwner *php.SystemINIOwner // Previous owner if system settings were overwritten
 }
 
 // Start starts a project
@@ -90,8 +93,25 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 
 	// Generate PHP-FPM pool (Mailpit always enabled for local dev safety)
 	// This prevents accidental emails to real addresses during development
-	if err := m.poolGenerator.Generate(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
+	poolResult, err := m.poolGenerator.GenerateWithResult(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true)
+	if err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
+	} else if poolResult != nil {
+		// Track system INI settings info
+		result.SystemSettings = poolResult.SystemSettings
+		result.PreviousINIOwner = poolResult.PreviousOwner
+
+		// Generate activation instructions if there are system settings
+		if len(poolResult.SystemSettings) > 0 {
+			sysMgr := m.poolGenerator.GetSystemINIManager()
+			result.SystemINIInfo = sysMgr.FormatActivationInstructions(cfg.PHP, poolResult.SystemSettings)
+
+			// Add warning if settings were taken over from another project
+			if poolResult.PreviousOwner != nil {
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("PHP system settings taken over from project '%s'", poolResult.PreviousOwner.ProjectName))
+			}
+		}
 	}
 
 	// Start or reload PHP-FPM to pick up new pool configuration

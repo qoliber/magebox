@@ -100,6 +100,11 @@ func startProject(mgr *project.Manager, projectPath string, verbose bool) error 
 		if len(result.Errors) == 0 {
 			cli.PrintSuccess("Project started successfully!")
 		}
+
+		// Show system INI instructions if there are system settings
+		if result.SystemINIInfo != "" {
+			fmt.Println(result.SystemINIInfo)
+		}
 	}
 
 	return nil

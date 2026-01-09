@@ -83,6 +83,11 @@ func runRestart(cmd *cobra.Command, args []string) error {
 		cli.PrintSuccess("Project restarted successfully!")
 	}
 
+	// Show system INI instructions if there are system settings
+	if result.SystemINIInfo != "" {
+		fmt.Println(result.SystemINIInfo)
+	}
+
 	return nil
 }
 
