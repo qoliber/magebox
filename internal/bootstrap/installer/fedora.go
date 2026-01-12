@@ -407,10 +407,11 @@ func (f *FedoraInstaller) SetupDNS() error {
 
 	mageboxConf := fmt.Sprintf(`# MageBox - Resolve *.%s to localhost
 address=/%s/127.0.0.1
+address=/%s/::1
 listen-address=127.0.0.2
 port=53
 bind-interfaces
-`, tld, tld)
+`, tld, tld, tld)
 	if err := f.WriteFile("/etc/dnsmasq.d/magebox.conf", mageboxConf); err != nil {
 		return err
 	}
