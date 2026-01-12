@@ -207,13 +207,13 @@ func TestPoolConfig_Defaults(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Check default values
+	// Check default values (updated for better Magento performance)
 	checks := []string{
-		"pm.max_children = 10",
-		"pm.start_servers = 2",
-		"pm.min_spare_servers = 1",
-		"pm.max_spare_servers = 3",
-		"pm.max_requests = 500",
+		"pm.max_children = 25",
+		"pm.start_servers = 4",
+		"pm.min_spare_servers = 2",
+		"pm.max_spare_servers = 6",
+		"pm.max_requests = 1000",
 		"memory_limit] = 768M",
 	}
 
