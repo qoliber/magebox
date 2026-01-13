@@ -263,6 +263,56 @@ Forces PHP-FPM to reload, clearing the OPcache.
 
 ---
 
+### `magebox php system`
+
+View PHP system-level settings (PHP_INI_SYSTEM) and their activation status.
+
+```bash
+magebox php system
+```
+
+Shows which project owns the system settings, their values, and whether they're active.
+
+::: info PHP_INI_SYSTEM Settings
+Some PHP settings like `opcache.preload`, `opcache.jit`, and `opcache.memory_consumption` can only be set in php.ini (not per-pool). These settings apply to ALL projects using the same PHP version.
+:::
+
+---
+
+### `magebox php system enable`
+
+Enable PHP system settings by creating a symlink.
+
+```bash
+magebox php system enable
+```
+
+Creates a symlink from your MageBox system INI to the PHP scan directory. Requires sudo.
+
+---
+
+### `magebox php system disable`
+
+Disable PHP system settings by removing the symlink.
+
+```bash
+magebox php system disable
+```
+
+---
+
+### `magebox php system list`
+
+List all PHP_INI_SYSTEM setting names.
+
+```bash
+magebox php system list
+```
+
+Shows all PHP settings that can only be set globally (opcache.preload, opcache.jit, etc.).
+
+---
+
 ### Running Magento CLI
 
 Use the MageBox PHP wrapper or project shell to run Magento commands:
