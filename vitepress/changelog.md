@@ -2,6 +2,76 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.0] - 2026-01-13
+
+### IPv6 DNS Resolution Fix
+
+MageBox now includes IPv6 support in dnsmasq configuration, fixing the 30+ second DNS resolution delays that occurred on `.test` domains:
+
+```bash
+# dnsmasq now responds to both IPv4 and IPv6 queries
+address=/test/127.0.0.1   # A record (IPv4)
+address=/test/::1         # AAAA record (IPv6)
+```
+
+**Why this matters:**
+- Modern browsers and curl make parallel IPv4 (A) and IPv6 (AAAA) DNS queries
+- Without IPv6 configured, AAAA queries would timeout (usually 5-30 seconds)
+- Now both queries return immediately, making `.test` domains resolve in milliseconds
+
+### New `magebox php system` Commands
+
+Manage system-wide PHP INI settings that apply to the PHP-FPM master process:
+
+```bash
+# List current system PHP settings
+mbox php system list
+
+# Set system-wide PHP settings (requires PHP-FPM restart)
+mbox php system set opcache.memory_consumption 512
+mbox php system set opcache.jit tracing
+
+# Get current value
+mbox php system get opcache.enable
+
+# Remove override (restore default)
+mbox php system unset opcache.jit
+```
+
+**When to use `php system` vs `php ini`:**
+
+| Command | Scope | Settings | Example |
+|---------|-------|----------|---------|
+| `mbox php ini` | Per-project pool | PHP_INI_PERDIR | `memory_limit`, `max_execution_time` |
+| `mbox php system` | PHP-FPM master | PHP_INI_SYSTEM | `opcache.memory_consumption`, `opcache.jit` |
+
+### Improved PHP-FPM Pool Defaults
+
+Updated default pool settings for better Magento performance:
+
+| Setting | Old | New | Reason |
+|---------|-----|-----|--------|
+| `pm.max_children` | 10 | 25 | Handle more concurrent requests |
+| `pm.start_servers` | 2 | 4 | Faster startup response |
+| `pm.min_spare_servers` | 1 | 2 | Better availability |
+| `pm.max_spare_servers` | 3 | 6 | Handle traffic spikes |
+| `pm.max_requests` | 500 | 1000 | Reduce worker recycling |
+
+### Upgrade Notes
+
+If you're upgrading from 1.1.x, run bootstrap to apply the IPv6 DNS fix:
+
+```bash
+# Apply IPv6 DNS configuration
+echo "address=/test/::1" | sudo tee -a /etc/dnsmasq.d/magebox.conf
+sudo systemctl restart dnsmasq
+
+# Or re-run bootstrap for full update
+mbox bootstrap
+```
+
+---
+
 ## [1.1.1] - 2026-01-05
 
 ### Added

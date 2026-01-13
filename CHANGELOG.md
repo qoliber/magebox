@@ -5,6 +5,49 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-13
+
+### Added
+
+- **IPv6 Support for DNS Resolution** - dnsmasq now responds to both IPv4 and IPv6 (AAAA) queries:
+  - Fixes 30+ second DNS resolution delays on `.test` domains
+  - Added `address=/test/::1` alongside existing `address=/test/127.0.0.1`
+  - Applied to runtime dnsmasq configuration and all bootstrap installers (Fedora, Ubuntu, Arch)
+  - Prevents IPv6 AAAA query timeouts that caused slow domain resolution
+
+- **New `magebox php system` Commands** - Manage system-wide PHP INI settings (PHP_INI_SYSTEM):
+  - `mbox php system list` - List current system PHP settings
+  - `mbox php system set <key> <value>` - Set a system-wide PHP INI value
+  - `mbox php system get <key>` - Get current value of a system PHP setting
+  - `mbox php system unset <key>` - Remove a system PHP INI override
+  - These settings apply to the PHP-FPM master process (opcache, JIT, preload, etc.)
+
+### Changed
+
+- **Improved PHP-FPM Pool Defaults** - Updated default pool settings for better Magento performance:
+  - `pm.max_children`: 10 → 25 (handle more concurrent requests)
+  - `pm.start_servers`: 2 → 4 (faster startup response)
+  - `pm.min_spare_servers`: 1 → 2 (better availability)
+  - `pm.max_spare_servers`: 3 → 6 (handle traffic spikes)
+  - `pm.max_requests`: 500 → 1000 (reduce worker recycling overhead)
+
+### Fixed
+
+- **DNS Resolution Speed** - Resolves the issue where `.test` domains took 6+ seconds to resolve after periods of inactivity due to IPv6 AAAA query timeouts
+
+### Technical Notes
+
+- **PHP_INI_SYSTEM vs Pool Settings**: Pool-level `php_admin_value` directives only work for PHP_INI_PERDIR settings. True system-level settings (opcache.memory_consumption, opcache.jit, opcache.preload) require PHP-FPM master process configuration, which is now managed via `magebox php system` commands.
+
+## [1.1.3] - 2026-01-10
+
+### Added
+
+- **Separated PHP_INI_SYSTEM Settings** - System-level PHP settings now managed separately from pool settings:
+  - Pool configs use `php_admin_value` for per-request settings
+  - System settings (opcache, preload) require master process configuration
+  - Clearer separation between project-specific and system-wide PHP configuration
+
 ## [1.0.5] - 2025-12-30
 
 ### Fixed
