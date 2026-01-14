@@ -12,6 +12,7 @@ import (
 
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/lib"
+	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
 	"qoliber/magebox/internal/ssl"
 )
@@ -200,7 +201,14 @@ func (g *VhostGenerator) Remove(projectName string) error {
 }
 
 // getPHPSocketPath returns the PHP-FPM socket path for a project
+// If the project has isolation enabled, returns the isolated socket path
 func (g *VhostGenerator) getPHPSocketPath(projectName, phpVersion string) string {
+	// Check if project has isolation enabled
+	isolatedController := php.NewIsolatedFPMController(g.platform)
+	if isolatedController.IsIsolated(projectName) {
+		return isolatedController.GetSocketPath(projectName, phpVersion)
+	}
+	// Default to shared pool socket
 	return filepath.Join(g.platform.MageBoxDir(), "run", fmt.Sprintf("%s-php%s.sock", projectName, phpVersion))
 }
 

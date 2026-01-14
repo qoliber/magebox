@@ -313,6 +313,88 @@ Shows all PHP settings that can only be set globally (opcache.preload, opcache.j
 
 ---
 
+## PHP Isolation Commands
+
+Isolated PHP-FPM masters allow you to configure PHP_INI_SYSTEM settings (like opcache.memory_consumption, opcache.jit, opcache.preload) independently for each project.
+
+### `magebox php isolate`
+
+Enable a dedicated PHP-FPM master process for the current project.
+
+```bash
+# Enable isolation with opcache disabled (default for development)
+magebox php isolate
+
+# Enable with custom opcache settings
+magebox php isolate --opcache-memory=512 --jit=tracing
+
+# Enable with preload script
+magebox php isolate --preload=/path/to/preload.php
+```
+
+**Options:**
+- `--opcache-memory`: OPcache memory consumption in MB (e.g., 512)
+- `--jit`: OPcache JIT mode (off, tracing, function)
+- `--preload`: Path to preload script
+
+---
+
+### `magebox php isolate status`
+
+Show isolation status for the current project.
+
+```bash
+magebox php isolate status
+```
+
+Displays:
+- Whether project is using isolated or shared PHP-FPM
+- Socket path, PID file, and config path
+- PHP_INI_SYSTEM settings configured
+- Running status
+
+---
+
+### `magebox php isolate disable`
+
+Disable isolation and return to shared PHP-FPM pool.
+
+```bash
+magebox php isolate disable
+```
+
+---
+
+### `magebox php isolate list`
+
+List all projects with isolated PHP-FPM masters.
+
+```bash
+magebox php isolate list
+```
+
+---
+
+### `magebox php isolate restart`
+
+Restart the isolated PHP-FPM master for the current project.
+
+```bash
+magebox php isolate restart
+```
+
+::: tip When to Use Isolation
+Use `php isolate` when you need:
+- **Different opcache memory** per project
+- **JIT compilation** for specific projects only
+- **Preload scripts** that are project-specific
+- **Complete PHP setting isolation** from other projects
+
+For simple settings like `memory_limit` or `max_execution_time`, use `php ini` instead - those work at the pool level without isolation.
+:::
+
+---
+
 ### Running Magento CLI
 
 Use the MageBox PHP wrapper or project shell to run Magento commands:
