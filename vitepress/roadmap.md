@@ -12,6 +12,11 @@ The following features have been implemented:
 
 | Feature | Version | Description |
 |---------|---------|-------------|
+| IPv6 DNS Support | v1.2.0 | dnsmasq responds to AAAA queries, fixing 30s DNS delays |
+| PHP System Commands | v1.2.0 | `magebox php system` for PHP_INI_SYSTEM settings management |
+| Improved Pool Defaults | v1.2.0 | Better PHP-FPM defaults for Magento (25/4/2/6/1000) |
+| PHP INI Commands | v1.1.0 | `magebox php ini set/get/list/unset` for per-project PHP settings |
+| OPcache Commands | v1.1.0 | `magebox php opcache enable/disable/status/clear` |
 | Configurable TLD | v0.16.0 | `magebox config set tld <value>` for custom top-level domains |
 | Verbose Logging | v0.15.0 | `-v`, `-vv`, `-vvv` flags for debugging |
 | Testing & Code Quality | v0.14.0 | `magebox test` commands for PHPUnit, PHPStan, PHPCS, PHPMD |
@@ -45,20 +50,52 @@ magebox logs mysql    # MySQL query logs
 magebox logs redis    # Redis logs
 ```
 
-### PHP INI Customization
+### Isolated PHP-FPM Masters (`php isolate`)
 
-Allow users to customize PHP INI settings via `.magebox.yaml`:
+Run dedicated PHP-FPM master processes per project for true PHP_INI_SYSTEM isolation:
 
-```yaml
-# .magebox.yaml
-php: "8.2"
-php_ini:
-  memory_limit: "2G"
-  max_execution_time: 3600
-  upload_max_filesize: "128M"
+```bash
+# Enable isolation for current project
+magebox php isolate
+
+# Enable with custom opcache/JIT settings
+magebox php isolate --opcache-memory=512 --jit=tracing --preload=/path/to/preload.php
+
+# Check isolation status
+magebox php isolate status
+
+# Disable isolation (back to shared pool)
+magebox php isolate disable
+
+# List all isolated projects
+magebox php isolate list
 ```
 
-Settings would apply to both CLI wrapper and FPM pool.
+**Why isolated masters?**
+
+Some PHP settings (opcache.memory_consumption, opcache.jit, opcache.preload) are PHP_INI_SYSTEM level and can only be set per PHP-FPM master process - not per pool. With isolated masters:
+
+- Each project gets its own PHP-FPM master process
+- Independent opcache memory allocation
+- Project-specific preload scripts
+- Separate JIT configuration
+- No conflicts between projects
+
+**Architecture:**
+
+```
+Shared mode (default):
+  PHP-FPM master (php8.3) → pool: project-a, pool: project-b, pool: project-c
+
+Isolated mode:
+  PHP-FPM master (project-a) → single pool with custom opcache/JIT
+  PHP-FPM master (project-b) → single pool with different preload
+  PHP-FPM master (shared)    → pool: project-c (uses shared defaults)
+```
+
+**Socket management:**
+- Shared: `~/.magebox/run/{project}-php{version}.sock`
+- Isolated: `~/.magebox/run/{project}-master-php{version}.sock`
 
 ### Performance Profiling Dashboard
 
