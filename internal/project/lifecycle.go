@@ -91,40 +91,68 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("SSL: %v", err))
 	}
 
-	// Generate PHP-FPM pool (Mailpit always enabled for local dev safety)
-	// This prevents accidental emails to real addresses during development
-	poolResult, err := m.poolGenerator.GenerateWithResult(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
-	} else if poolResult != nil {
-		// Track system INI settings info
-		result.SystemSettings = poolResult.SystemSettings
-		result.PreviousINIOwner = poolResult.PreviousOwner
+	// Check if project uses isolated PHP-FPM master
+	isolatedController := php.NewIsolatedFPMController(m.platform)
 
-		// Generate activation instructions if there are system settings
-		if len(poolResult.SystemSettings) > 0 {
-			sysMgr := m.poolGenerator.GetSystemINIManager()
-			result.SystemINIInfo = sysMgr.FormatActivationInstructions(cfg.PHP, poolResult.SystemSettings)
+	if cfg.Isolated {
+		// Enable isolated PHP-FPM master for this project
+		settings := cfg.PHPINI
+		if settings == nil {
+			settings = make(map[string]string)
+		}
+		// Default: disable opcache for isolated development projects if not specified
+		if _, hasOpcache := settings["opcache.enable"]; !hasOpcache {
+			settings["opcache.enable"] = "0"
+		}
 
-			// Add warning if settings were taken over from another project
-			if poolResult.PreviousOwner != nil {
-				result.Warnings = append(result.Warnings,
-					fmt.Sprintf("PHP system settings taken over from project '%s'", poolResult.PreviousOwner.ProjectName))
+		_, err := isolatedController.Enable(cfg.Name, projectPath, cfg.PHP, settings)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("isolated PHP-FPM: %w", err))
+		}
+		result.Warnings = append(result.Warnings, "Using isolated PHP-FPM master")
+	} else {
+		// Disable isolation if it was previously enabled but config changed
+		if isolatedController.IsIsolated(cfg.Name) {
+			if err := isolatedController.Disable(cfg.Name); err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("Failed to disable isolation: %v", err))
 			}
 		}
-	}
 
-	// Start or reload PHP-FPM to pick up new pool configuration
-	fpmController := php.NewFPMController(m.platform, cfg.PHP)
-	if fpmController.IsRunning() {
-		// Reload to pick up new pool
-		if err := fpmController.Reload(); err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM reload: %w", err))
+		// Generate PHP-FPM pool (Mailpit always enabled for local dev safety)
+		// This prevents accidental emails to real addresses during development
+		poolResult, err := m.poolGenerator.GenerateWithResult(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
+		} else if poolResult != nil {
+			// Track system INI settings info
+			result.SystemSettings = poolResult.SystemSettings
+			result.PreviousINIOwner = poolResult.PreviousOwner
+
+			// Generate activation instructions if there are system settings
+			if len(poolResult.SystemSettings) > 0 {
+				sysMgr := m.poolGenerator.GetSystemINIManager()
+				result.SystemINIInfo = sysMgr.FormatActivationInstructions(cfg.PHP, poolResult.SystemSettings)
+
+				// Add warning if settings were taken over from another project
+				if poolResult.PreviousOwner != nil {
+					result.Warnings = append(result.Warnings,
+						fmt.Sprintf("PHP system settings taken over from project '%s'", poolResult.PreviousOwner.ProjectName))
+				}
+			}
 		}
-	} else {
-		// Start PHP-FPM
-		if err := fpmController.Start(); err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM: %w", err))
+
+		// Start or reload shared PHP-FPM to pick up new pool configuration
+		fpmController := php.NewFPMController(m.platform, cfg.PHP)
+		if fpmController.IsRunning() {
+			// Reload to pick up new pool
+			if err := fpmController.Reload(); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM reload: %w", err))
+			}
+		} else {
+			// Start PHP-FPM
+			if err := fpmController.Start(); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM: %w", err))
+			}
 		}
 	}
 
