@@ -256,6 +256,19 @@ func (f *FedoraInstaller) ConfigureNginx() error {
 	if currentUser != "" {
 		_ = f.RunSudo("chown", "-R", currentUser+":"+currentUser, "/var/lib/nginx/")
 		_ = f.RunSudo("chmod", "-R", "755", "/var/lib/nginx/")
+
+		// Create tmpfiles.d config for persistent permissions across reboots/restarts
+		// Without this, systemd recreates /var/lib/nginx/tmp with wrong permissions
+		tmpfilesContent := fmt.Sprintf(`d /var/lib/nginx/tmp 0755 %s %s -
+d /var/lib/nginx/tmp/client_body 0755 %s %s -
+d /var/lib/nginx/tmp/fastcgi 0755 %s %s -
+d /var/lib/nginx/tmp/proxy 0755 %s %s -
+d /var/lib/nginx/tmp/scgi 0755 %s %s -
+d /var/lib/nginx/tmp/uwsgi 0755 %s %s -
+`, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser)
+		_ = f.WriteFile("/etc/tmpfiles.d/nginx-magebox.conf", tmpfilesContent)
+		_ = f.RunSudo("systemd-tmpfiles", "--create", "/etc/tmpfiles.d/nginx-magebox.conf")
+
 		// Restore SELinux context after changing ownership
 		if f.CommandExists("restorecon") {
 			_ = f.RunSudo("restorecon", "-Rv", "/var/lib/nginx/")
