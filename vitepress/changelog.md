@@ -2,6 +2,20 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.2] - 2026-01-20
+
+### Bug Fixes
+
+- **Bootstrap Nginx Warning** - Fixed false "Nginx is not installed" warning that appeared even after successful nginx installation during bootstrap
+
+## [1.2.1] - 2026-01-20
+
+### Bug Fixes
+
+- **Ubuntu PHP-FPM Installation** - Fixed installation failure on Ubuntu with Sury PPA (ondrej/php):
+  - Handles www.conf socket conflict that caused exit code 78 (configuration error)
+  - Auto-recovers by disabling conflicting default pool and completing package configuration
+
 ## [1.2.0] - 2026-01-13
 
 ### IPv6 DNS Resolution Fix

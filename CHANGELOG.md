@@ -5,6 +5,14 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-01-20
+
+### Fixed
+
+- **Bootstrap Nginx Warning Fix** - Fixed false "Nginx is not installed" warning:
+  - Error message was shown even after successful nginx installation during bootstrap
+  - Removed premature error that was added before offering to install nginx
+
 ## [1.2.1] - 2026-01-20
 
 ### Fixed
