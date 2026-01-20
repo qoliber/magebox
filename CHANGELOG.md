@@ -5,6 +5,15 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-01-20
+
+### Fixed
+
+- **Ubuntu PHP-FPM Installation Failure** - Fixed installation failure on Ubuntu with Sury PPA:
+  - Handles www.conf socket conflict that caused exit code 78 (configuration error)
+  - Auto-recovers by disabling conflicting www.conf and completing package configuration
+  - Applies to all PHP versions installed via ondrej/php PPA
+
 ## [1.2.0] - 2026-01-13
 
 ### Added
