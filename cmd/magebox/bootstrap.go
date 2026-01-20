@@ -169,9 +169,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	nginxInstalled := p.IsNginxInstalled()
 	verbose.Debug("Nginx installed: %v (binary: %s)", nginxInstalled, p.NginxBinary())
 	fmt.Printf("  %-15s %s\n", "Nginx:", cli.StatusInstalled(nginxInstalled))
-	if !nginxInstalled {
-		errors = append(errors, "Nginx is not installed. Install: "+p.NginxInstallCommand())
-	}
+	// Note: Don't add to errors here - we'll check again after potential installation
 
 	// Check mkcert
 	verbose.Debug("Checking mkcert installation...")
