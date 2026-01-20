@@ -126,7 +126,29 @@ func (u *UbuntuInstaller) InstallPHP(version string) error {
 	}
 
 	args := append([]string{"apt", "install", "-y"}, packages...)
-	return u.RunSudo(args...)
+	err := u.RunSudo(args...)
+
+	// PHP-FPM may fail to start during installation due to www.conf socket conflicts
+	// This is expected - we disable www.conf in ConfigurePHPFPM and restart
+	if err != nil {
+		// Check if the packages were installed despite the service failure
+		wwwConfPath := fmt.Sprintf("/etc/php/%s/fpm/pool.d/www.conf", version)
+		if u.FileExists(wwwConfPath) {
+			// Disable conflicting www.conf and fix dpkg state
+			disabledPath := wwwConfPath + ".disabled"
+			_ = u.RunSudo("mv", wwwConfPath, disabledPath)
+			_ = u.RunSudo("dpkg", "--configure", "-a")
+			// Try to start the service now
+			serviceName := fmt.Sprintf("php%s-fpm", version)
+			if startErr := u.RunSudo("systemctl", "start", serviceName); startErr == nil {
+				// Service started successfully after disabling www.conf
+				fmt.Printf("  Note: Disabled default www.conf pool to resolve socket conflict\n")
+				return nil
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 // InstallNginx installs Nginx
