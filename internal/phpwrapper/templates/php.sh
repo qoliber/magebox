@@ -2,6 +2,14 @@
 # MageBox PHP version wrapper
 # Automatically uses the correct PHP version based on .magebox.yaml
 
+# Detect recursion (prevents infinite loop if /usr/local/bin/php symlinks to this script)
+SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+if [[ -n "$MAGEBOX_PHP_WRAPPER" ]]; then
+    echo "Error: MageBox PHP wrapper recursion detected. Check for circular symlinks." >&2
+    exit 1
+fi
+export MAGEBOX_PHP_WRAPPER="$SCRIPT_PATH"
+
 find_project_dir() {
     local dir="$PWD"
     while [[ "$dir" != "/" ]]; do

@@ -5,6 +5,15 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-01-21
+
+### Fixed
+
+- **PHP Wrapper Recursion Loop** - Fixed infinite loop when `/usr/local/bin/php` symlinks to MageBox wrapper:
+  - Added recursion detection using `MAGEBOX_PHP_WRAPPER` environment variable
+  - Removed problematic symlink recommendation from documentation
+  - Wrapper now errors clearly instead of hanging forever
+
 ## [1.2.2] - 2026-01-20
 
 ### Fixed

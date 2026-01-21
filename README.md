@@ -1297,15 +1297,11 @@ sudo nginx -t
 If `which php` in PhpStorm terminal shows `/usr/bin/php` instead of MageBox wrapper:
 
 1. **Check PhpStorm Settings** → Tools → Terminal - uncheck any "Add PHP interpreter to PATH" option
-2. **Create symlink** (recommended for Fedora/RHEL):
+2. **Ensure MageBox bin is first in PATH** - add to `~/.zshenv` (or `~/.bashrc`):
    ```bash
-   sudo ln -sf ~/.magebox/bin/php /usr/local/bin/php
+   export PATH="$HOME/.magebox/bin:$PATH"
    ```
-3. **Add to `~/.zshenv`**:
-   ```bash
-   export PATH="/usr/local/bin:$PATH"
-   ```
-4. **Fully restart PhpStorm** (not just terminal tab)
+3. **Fully restart PhpStorm** (not just terminal tab)
 
 See [CLI Wrappers documentation](docs/cli-wrappers.md) for detailed troubleshooting.
 

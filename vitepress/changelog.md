@@ -2,6 +2,12 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.3] - 2026-01-21
+
+### Bug Fixes
+
+- **PHP Wrapper Recursion Loop** - Fixed infinite loop when `/usr/local/bin/php` was symlinked to the MageBox wrapper. Added recursion detection and removed problematic symlink recommendation from docs.
+
 ## [1.2.2] - 2026-01-20
 
 ### Bug Fixes

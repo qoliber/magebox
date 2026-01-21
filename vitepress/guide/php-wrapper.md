@@ -301,15 +301,15 @@ PhpStorm's built-in terminal may ignore your shell PATH and use its own configur
 
 Go to **Settings → Tools → Terminal** and uncheck any option like "Add PHP interpreter to PATH" or similar.
 
-**Solution 2: Create a symlink at `/usr/local/bin`**
+**Solution 2: Ensure MageBox bin is first in PATH**
+
+Add to `~/.zshenv` (loaded by all zsh sessions including GUI apps):
 
 ```bash
-# Create symlink that takes precedence
-sudo ln -sf ~/.magebox/bin/php /usr/local/bin/php
-
-# Add /usr/local/bin first in PATH (in ~/.zshenv)
-export PATH="/usr/local/bin:$PATH"
+export PATH="$HOME/.magebox/bin:$PATH"
 ```
+
+Then fully restart PhpStorm (not just the terminal tab).
 
 **Solution 3: Configure PhpStorm to use MageBox wrapper**
 

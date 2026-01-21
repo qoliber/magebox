@@ -4,7 +4,7 @@
 class Magebox < Formula
   desc "Fast, native Magento development environment"
   homepage "https://magebox.dev"
-  version "1.2.2"
+  version "1.2.3"
   license "MIT"
 
   on_macos do
