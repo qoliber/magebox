@@ -5,6 +5,35 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-01-24
+
+### Fixed
+
+- **MariaDB Port Mapping** - Fixed env.php port mapping to match docker-compose:
+  - MariaDB 10.6 now correctly uses port 33106 (was incorrectly 33110)
+  - MariaDB 11.4 now correctly uses port 33114 (was incorrectly 33111)
+  - All port mappings now use explicit maps instead of string manipulation
+
+- **Docker Compose Service Drift** - Fixed "last project wins" bug:
+  - `magebox start` now aggregates services from ALL registered projects
+  - Prevents services required by other projects from being dropped
+  - Each project start regenerates compose with full service set
+
+- **Admin Command MariaDB Support** - Fixed fallback database config:
+  - Now uses sanitized database name (hyphens → underscores)
+  - Added MariaDB port mapping support in admin password/list commands
+
+- **Isolated PHP-FPM Stop** - Fixed isolated masters not stopping:
+  - `magebox stop` now properly stops isolated PHP-FPM master processes
+  - Correctly handles both isolated and shared pool configurations
+
+- **Dry-Run Accuracy** - Fixed misleading `--dry-run` output:
+  - No longer claims Docker containers would be stopped
+  - Accurately reflects that shared services remain running
+
+- **Exit Code on Errors** - Fixed start/stop returning success on failure:
+  - Commands now return proper error codes for automation reliability
+
 ## [1.2.3] - 2026-01-21
 
 ### Fixed

@@ -2,6 +2,17 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.4] - 2026-01-24
+
+### Bug Fixes
+
+- **MariaDB Port Mapping** - Fixed env.php to use correct ports matching docker-compose (10.6→33106, 11.4→33114)
+- **Docker Compose Service Drift** - Fixed "last project wins" bug where starting one project could drop another project's services
+- **Admin Command MariaDB Support** - Fixed database config fallback to support MariaDB ports and sanitized names
+- **Isolated PHP-FPM Stop** - Fixed `magebox stop` to properly stop isolated PHP-FPM masters
+- **Dry-Run Accuracy** - Fixed misleading output that claimed Docker containers would be stopped
+- **Exit Code on Errors** - Fixed start/stop to return proper error codes for CI/automation
+
 ## [1.2.3] - 2026-01-21
 
 ### Bug Fixes
