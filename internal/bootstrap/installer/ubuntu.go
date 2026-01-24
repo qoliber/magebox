@@ -139,13 +139,8 @@ func (u *UbuntuInstaller) InstallPHP(version string) error {
 			disabledPath := wwwConfPath + ".disabled"
 			_ = u.RunSudo("mv", wwwConfPath, disabledPath)
 			_ = u.RunSudo("dpkg", "--configure", "-a")
-			// Try to start the service now
-			serviceName := fmt.Sprintf("php%s-fpm", version)
-			if startErr := u.RunSudo("systemctl", "start", serviceName); startErr == nil {
-				// Service started successfully after disabling www.conf
-				fmt.Printf("  Note: Disabled default www.conf pool to resolve socket conflict\n")
-				return nil
-			}
+			fmt.Printf("  Note: Disabled default www.conf pool to resolve socket conflict\n")
+			return nil
 		}
 		return err
 	}
@@ -202,6 +197,14 @@ func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
+	currentUser := os.Getenv("USER")
+	if currentUser == "" {
+		currentUser = os.Getenv("LOGNAME")
+	}
+	if currentUser == "" {
+		currentUser = "www-data"
+	}
+
 	for _, v := range versions {
 		serviceName := fmt.Sprintf("php%s-fpm", v)
 		fpmConfPath := fmt.Sprintf("/etc/php/%s/fpm/php-fpm.conf", v)
@@ -250,7 +253,7 @@ listen = /tmp/magebox-placeholder-%s.sock
 pm = ondemand
 pm.max_children = 1
 pm.process_idle_timeout = 1s
-`, os.Getenv("USER"), v)
+`, currentUser, v)
 			if err := os.WriteFile(placeholderPool, []byte(placeholderContent), 0644); err != nil {
 				// Non-fatal, just warn
 				fmt.Printf("  Warning: could not create placeholder pool: %v\n", err)

@@ -528,19 +528,62 @@ func (c *Controller) addIncludeToNginxConf(includeDirective string) error {
 		return nil // Already configured
 	}
 
-	// Find the http { block and add include after the last existing include in conf.d
-	// We'll add it right after "include /etc/nginx/conf.d/*.conf;"
-	marker := "include /etc/nginx/conf.d/*.conf;"
-	if !strings.Contains(string(content), marker) {
-		return fmt.Errorf("could not find conf.d include in nginx.conf")
+	var newContent string
+	contentStr := string(content)
+
+	// Try multiple markers in order of preference
+	markers := []string{
+		"include /etc/nginx/conf.d/*.conf;",
+		"include /etc/nginx/sites-enabled/*;",
+		"include sites-enabled/*;",
 	}
 
-	newContent := strings.Replace(
-		string(content),
-		marker,
-		marker+"\n    "+includeDirective+" # MageBox vhosts",
-		1,
-	)
+	found := false
+	for _, marker := range markers {
+		if strings.Contains(contentStr, marker) {
+			newContent = strings.Replace(
+				contentStr,
+				marker,
+				marker+"\n    "+includeDirective+" # MageBox vhosts",
+				1,
+			)
+			found = true
+			break
+		}
+	}
+
+	// Fallback: find http block closing brace and add before it
+	if !found {
+		// Look for the last } in the http block
+		httpStart := strings.Index(contentStr, "http {")
+		if httpStart == -1 {
+			httpStart = strings.Index(contentStr, "http{")
+		}
+		if httpStart != -1 {
+			// Find the matching closing brace by counting
+			depth := 0
+			lastBrace := -1
+			for i := httpStart; i < len(contentStr); i++ {
+				if contentStr[i] == '{' {
+					depth++
+				} else if contentStr[i] == '}' {
+					depth--
+					if depth == 0 {
+						lastBrace = i
+						break
+					}
+				}
+			}
+			if lastBrace != -1 {
+				newContent = contentStr[:lastBrace] + "\n    " + includeDirective + " # MageBox vhosts\n" + contentStr[lastBrace:]
+				found = true
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("could not find suitable location in nginx.conf to add MageBox include. Please add manually:\n    %s", includeDirective)
+	}
 
 	// Write to temp file (use magebox- prefix to match sudoers whitelist)
 	tmpFile, err := os.CreateTemp("", "magebox-nginx-*")
