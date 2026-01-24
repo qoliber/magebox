@@ -54,7 +54,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 	if err := mgr.Stop(cwd); err != nil {
 		cli.PrintError("%v", err)
-		return nil
+		return err
 	}
 
 	cli.PrintSuccess("Project stopped successfully!")
@@ -73,30 +73,17 @@ func stopDryRunSingle(cwd string) error {
 	fmt.Printf("Project: %s\n", cli.Highlight(cfg.Name))
 	fmt.Printf("Path:    %s\n", cli.Path(cwd))
 	fmt.Println()
-	fmt.Println("Services that would be stopped:")
-	fmt.Printf("  %s PHP-FPM %s\n", cli.Bullet(""), cfg.PHP)
-	fmt.Printf("  %s Nginx vhosts\n", cli.Bullet(""))
-	if cfg.Services.HasMySQL() {
-		fmt.Printf("  %s MySQL container\n", cli.Bullet(""))
+	fmt.Println("Would be removed/stopped:")
+	fmt.Printf("  %s Nginx vhost configuration\n", cli.Bullet(""))
+	if cfg.Isolated {
+		fmt.Printf("  %s Isolated PHP-FPM %s master process\n", cli.Bullet(""), cfg.PHP)
+	} else {
+		fmt.Printf("  %s PHP-FPM %s pool configuration\n", cli.Bullet(""), cfg.PHP)
 	}
-	if cfg.Services.HasMariaDB() {
-		fmt.Printf("  %s MariaDB container\n", cli.Bullet(""))
-	}
-	if cfg.Services.HasRedis() {
-		fmt.Printf("  %s Redis container\n", cli.Bullet(""))
-	}
-	if cfg.Services.HasOpenSearch() {
-		fmt.Printf("  %s OpenSearch container\n", cli.Bullet(""))
-	}
-	if cfg.Services.HasElasticsearch() {
-		fmt.Printf("  %s Elasticsearch container\n", cli.Bullet(""))
-	}
-	if cfg.Services.HasRabbitMQ() {
-		fmt.Printf("  %s RabbitMQ container\n", cli.Bullet(""))
-	}
-	if cfg.Services.HasMailpit() {
-		fmt.Printf("  %s Mailpit container\n", cli.Bullet(""))
-	}
+	fmt.Printf("  %s DNS entries (if using hosts mode)\n", cli.Bullet(""))
+	fmt.Println()
+	fmt.Println("Note: Docker services (MySQL, Redis, etc.) remain running")
+	fmt.Println("      as they are shared across all MageBox projects.")
 	if cfg.Services.HasVarnish() {
 		fmt.Printf("  %s Varnish container\n", cli.Bullet(""))
 	}

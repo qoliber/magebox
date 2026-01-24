@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"qoliber/magebox/internal/config"
@@ -142,23 +141,33 @@ func (g *envGenerator) getMageMode() string {
 }
 
 // getDatabasePort returns the appropriate database port based on service config
+// Port mappings must match internal/docker/compose.go
 func (g *envGenerator) getDatabasePort() string {
 	if g.config.Services.HasMySQL() {
 		version := g.config.Services.MySQL.Version
-		// Map version to port: 8.0 -> 33080, 8.4 -> 33084
-		versionNoDots := strings.ReplaceAll(version, ".", "")
-		if len(versionNoDots) >= 2 {
-			return fmt.Sprintf("330%s", versionNoDots[:2])
+		mysqlPorts := map[string]string{
+			"5.7": "33057",
+			"8.0": "33080",
+			"8.4": "33084",
+		}
+		if port, ok := mysqlPorts[version]; ok {
+			return port
 		}
 		return "33080" // Default MySQL 8.0 port
 	}
 
 	if g.config.Services.HasMariaDB() {
 		version := g.config.Services.MariaDB.Version
-		versionNoDots := strings.ReplaceAll(version, ".", "")
-		// MariaDB ports: 10.6 -> 33110, 11.4 -> 33111
-		if len(versionNoDots) >= 2 {
-			return fmt.Sprintf("331%s", versionNoDots[:2])
+		mariadbPorts := map[string]string{
+			"10.4":  "33104",
+			"10.5":  "33105",
+			"10.6":  "33106",
+			"10.11": "33111",
+			"11.0":  "33110",
+			"11.4":  "33114",
+		}
+		if port, ok := mariadbPorts[version]; ok {
+			return port
 		}
 		return "33106" // Default MariaDB port
 	}

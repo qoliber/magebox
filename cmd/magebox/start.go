@@ -54,7 +54,7 @@ func startProject(mgr *project.Manager, projectPath string, verbose bool) error 
 	cfg, warnings, err := mgr.ValidateConfig(projectPath)
 	if err != nil {
 		cli.PrintError("%v", err)
-		return nil
+		return err
 	}
 
 	// Show warnings
@@ -66,7 +66,7 @@ func startProject(mgr *project.Manager, projectPath string, verbose bool) error 
 	result, err := mgr.Start(projectPath)
 	if err != nil {
 		cli.PrintError("%v", err)
-		return nil
+		return err
 	}
 
 	if verbose {

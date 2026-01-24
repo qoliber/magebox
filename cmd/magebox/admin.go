@@ -133,13 +133,15 @@ func runAdminPassword(cmd *cobra.Command, args []string) error {
 	if dbHost == "" {
 		// Fall back to standard MageBox config
 		dbHost = "127.0.0.1"
-		dbName = cfg.Name
+		dbName = cfg.DatabaseName() // Use sanitized name (hyphens -> underscores)
 		dbUser = "root"
 		dbPass = "magebox"
 
 		// Determine port from config
 		if cfg.Services.HasMySQL() {
 			dbHost = fmt.Sprintf("127.0.0.1:%d", getMySQLPortForVersion(cfg.Services.MySQL.Version))
+		} else if cfg.Services.HasMariaDB() {
+			dbHost = fmt.Sprintf("127.0.0.1:%d", getMariaDBPortForVersion(cfg.Services.MariaDB.Version))
 		}
 	}
 
@@ -280,12 +282,14 @@ func runAdminList(cmd *cobra.Command, args []string) error {
 	dbHost, dbName, dbUser, dbPass := getMagentoDatabaseConfig(cwd)
 	if dbHost == "" {
 		dbHost = "127.0.0.1"
-		dbName = cfg.Name
+		dbName = cfg.DatabaseName() // Use sanitized name (hyphens -> underscores)
 		dbUser = "root"
 		dbPass = "magebox"
 
 		if cfg.Services.HasMySQL() {
 			dbHost = fmt.Sprintf("127.0.0.1:%d", getMySQLPortForVersion(cfg.Services.MySQL.Version))
+		} else if cfg.Services.HasMariaDB() {
+			dbHost = fmt.Sprintf("127.0.0.1:%d", getMariaDBPortForVersion(cfg.Services.MariaDB.Version))
 		}
 	}
 
@@ -470,6 +474,21 @@ func getMySQLPortForVersion(version string) int {
 		return port
 	}
 	return 33080
+}
+
+func getMariaDBPortForVersion(version string) int {
+	ports := map[string]int{
+		"10.4":  33104,
+		"10.5":  33105,
+		"10.6":  33106,
+		"10.11": 33111,
+		"11.0":  33110,
+		"11.4":  33114,
+	}
+	if port, ok := ports[version]; ok {
+		return port
+	}
+	return 33106
 }
 
 // truncate truncates a string to max length

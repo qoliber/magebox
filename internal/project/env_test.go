@@ -121,8 +121,8 @@ func TestEnvGenerator_GetDatabasePort_MariaDB(t *testing.T) {
 		version      string
 		expectedPort string
 	}{
-		{"10.6", "33110"},
-		{"11.4", "33111"},
+		{"10.6", "33106"},
+		{"11.4", "33114"},
 	}
 
 	for _, tt := range tests {
@@ -458,9 +458,9 @@ func TestEnvGenerator_RenderTemplate_MariaDB(t *testing.T) {
 		t.Fatalf("renderTemplate failed: %v", err)
 	}
 
-	// MariaDB 10.6 should use port 33110
-	if !strings.Contains(content, "33110") {
-		t.Error("env.php should contain MariaDB 10.6 port 33110")
+	// MariaDB 10.6 should use port 33106
+	if !strings.Contains(content, "33106") {
+		t.Error("env.php should contain MariaDB 10.6 port 33106")
 	}
 }
 

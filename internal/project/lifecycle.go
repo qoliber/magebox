@@ -222,14 +222,25 @@ func (m *Manager) Stop(projectPath string) error {
 	nginxController := nginx.NewController(m.platform)
 	_ = nginxController.Reload()
 
-	// Remove PHP-FPM pool
-	if err := m.poolGenerator.Remove(cfg.Name); err != nil {
-		return fmt.Errorf("failed to remove php-fpm pool: %w", err)
+	// Stop isolated PHP-FPM master if project uses isolation
+	isolatedController := php.NewIsolatedFPMController(m.platform)
+	if isolatedController.IsIsolated(cfg.Name) {
+		_ = isolatedController.Stop(cfg.Name)
 	}
 
-	// Reload PHP-FPM to unload the pool
-	fpmController := php.NewFPMController(m.platform, cfg.PHP)
-	_ = fpmController.Reload()
+	// Remove PHP-FPM pool (for non-isolated projects)
+	if err := m.poolGenerator.Remove(cfg.Name); err != nil {
+		// Non-fatal for isolated projects (they don't have shared pools)
+		if !cfg.Isolated {
+			return fmt.Errorf("failed to remove php-fpm pool: %w", err)
+		}
+	}
+
+	// Reload PHP-FPM to unload the pool (only for shared FPM)
+	if !cfg.Isolated {
+		fpmController := php.NewFPMController(m.platform, cfg.PHP)
+		_ = fpmController.Reload()
+	}
 
 	// Remove domains from /etc/hosts only if using hosts mode (not dnsmasq)
 	// Skip in test mode
@@ -396,14 +407,50 @@ func (m *Manager) startDockerServices(cfg *config.Config) error {
 		return nil
 	}
 
-	// Generate compose file with this project's requirements
-	if err := m.composeGen.GenerateGlobalServices([]*config.Config{cfg}); err != nil {
+	// Collect configs from ALL projects to avoid overwriting other projects' services
+	allConfigs := m.collectAllProjectConfigs(cfg)
+
+	// Generate compose file with all projects' requirements
+	if err := m.composeGen.GenerateGlobalServices(allConfigs); err != nil {
 		return err
 	}
 
 	// Start the services
 	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
 	return dockerController.Up()
+}
+
+// collectAllProjectConfigs gathers configs from all registered projects
+// ensuring the current project's config is included
+func (m *Manager) collectAllProjectConfigs(currentCfg *config.Config) []*config.Config {
+	configs := []*config.Config{currentCfg}
+	seen := make(map[string]bool)
+	if currentCfg != nil {
+		seen[currentCfg.Name] = true
+	}
+
+	// Discover all projects
+	discovery := NewProjectDiscovery(m.platform)
+	projects, err := discovery.DiscoverProjects()
+	if err != nil {
+		// On error, just use current config
+		return configs
+	}
+
+	// Load config from each project
+	for _, proj := range projects {
+		if !proj.HasConfig || seen[proj.Name] {
+			continue
+		}
+		projCfg, err := config.LoadFromPath(proj.Path)
+		if err != nil {
+			continue
+		}
+		configs = append(configs, projCfg)
+		seen[proj.Name] = true
+	}
+
+	return configs
 }
 
 // ensureDatabase creates the database if it doesn't exist
