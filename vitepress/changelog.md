@@ -2,6 +2,12 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.6] - 2026-01-24
+
+### Bug Fixes
+
+- **Nginx Config Resilience** - Setup now works with custom nginx configs lacking standard include markers
+
 ## [1.2.5] - 2026-01-24
 
 ### Bug Fixes

@@ -5,6 +5,16 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-01-24
+
+### Fixed
+
+- **Nginx Config Setup Resilience** - Made MageBox include insertion more robust:
+  - Tries multiple include markers (conf.d, sites-enabled)
+  - Falls back to finding http block closing brace
+  - Provides helpful error message with manual instructions if all methods fail
+  - Works with custom nginx configurations that lack standard markers
+
 ## [1.2.5] - 2026-01-24
 
 ### Fixed
