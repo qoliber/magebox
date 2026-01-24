@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"qoliber/magebox/internal/config"
@@ -237,13 +238,32 @@ func (u *UbuntuInstaller) ConfigurePHPFPM(versions []string) error {
 			return fmt.Errorf("failed to create pools directory %s: %w", poolsDir, err)
 		}
 
-		// Enable and start service
-		// Note: We use default log paths to avoid permission issues
-		if err := u.RunSudo("systemctl", "enable", serviceName); err != nil {
-			return fmt.Errorf("failed to enable %s: %w", serviceName, err)
+		// Create a placeholder pool to prevent "no pool defined" error on restart
+		// This pool listens on a socket that won't conflict with anything
+		placeholderPool := filepath.Join(poolsDir, "_magebox-placeholder.conf")
+		if !u.FileExists(placeholderPool) {
+			placeholderContent := fmt.Sprintf(`; MageBox placeholder pool - prevents "no pool defined" error
+; This pool is inactive and will be replaced when you run 'magebox start'
+[magebox-placeholder]
+user = %s
+listen = /tmp/magebox-placeholder-%s.sock
+pm = ondemand
+pm.max_children = 1
+pm.process_idle_timeout = 1s
+`, os.Getenv("USER"), v)
+			if err := os.WriteFile(placeholderPool, []byte(placeholderContent), 0644); err != nil {
+				// Non-fatal, just warn
+				fmt.Printf("  Warning: could not create placeholder pool: %v\n", err)
+			}
 		}
+
+		// Enable service (but don't fail if it can't start yet)
+		_ = u.RunSudo("systemctl", "enable", serviceName)
+
+		// Try to restart, but don't fail bootstrap if it doesn't work
+		// The service will start properly once a real project pool is created
 		if err := u.RunSudo("systemctl", "restart", serviceName); err != nil {
-			return fmt.Errorf("failed to restart %s: %w", serviceName, err)
+			fmt.Printf("  Note: PHP-FPM %s will start when you run 'magebox start'\n", v)
 		}
 	}
 
@@ -267,12 +287,33 @@ func (u *UbuntuInstaller) ConfigureNginx() error {
 
 		// Increase worker_connections for better performance (default 1024 is too low for Magento)
 		_ = u.RunSudo("sed", "-i", "s/worker_connections.*/worker_connections 4096;/", nginxConf)
+
+		// Fix nginx directory permissions for client body uploads and caching
+		// This prevents "Permission denied" errors when uploading files via POST
+		// Since nginx runs as current user, it needs ownership of the nginx lib directory
+		_ = u.RunSudo("chown", "-R", currentUser+":"+currentUser, "/var/lib/nginx/")
+		_ = u.RunSudo("chmod", "-R", "755", "/var/lib/nginx/")
+
+		// Create tmpfiles.d config for persistent permissions across reboots/restarts
+		// Without this, systemd recreates /var/lib/nginx/tmp with wrong permissions
+		tmpfilesContent := fmt.Sprintf(`d /var/lib/nginx 0755 %s %s -
+d /var/lib/nginx/body 0755 %s %s -
+d /var/lib/nginx/fastcgi 0755 %s %s -
+d /var/lib/nginx/proxy 0755 %s %s -
+d /var/lib/nginx/scgi 0755 %s %s -
+d /var/lib/nginx/uwsgi 0755 %s %s -
+`, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser, currentUser)
+		_ = u.WriteFile("/etc/tmpfiles.d/nginx-magebox.conf", tmpfilesContent)
+		_ = u.RunSudo("systemd-tmpfiles", "--create", "/etc/tmpfiles.d/nginx-magebox.conf")
 	}
 
 	// Enable nginx on boot
 	if err := u.RunSudo("systemctl", "enable", "nginx"); err != nil {
 		return err
 	}
+
+	// Restart nginx to apply user change
+	_ = u.RunSudo("systemctl", "restart", "nginx")
 
 	return nil
 }

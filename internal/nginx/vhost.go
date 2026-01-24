@@ -542,8 +542,8 @@ func (c *Controller) addIncludeToNginxConf(includeDirective string) error {
 		1,
 	)
 
-	// Write to temp file
-	tmpFile, err := os.CreateTemp("", "nginx-conf-*")
+	// Write to temp file (use magebox- prefix to match sudoers whitelist)
+	tmpFile, err := os.CreateTemp("", "magebox-nginx-*")
 	if err != nil {
 		return err
 	}
