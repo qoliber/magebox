@@ -5,6 +5,24 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-01-24
+
+### Fixed
+
+- **Ubuntu Nginx Permissions** - Fixed `/var/lib/nginx` permission denied errors:
+  - Added ownership fix for nginx lib directory (same as Fedora)
+  - Added tmpfiles.d config for persistent permissions across reboots
+  - Nginx now restarts after user change to apply configuration
+
+- **Sudoers Temp File Whitelist** - Fixed nginx config update failing without password:
+  - Changed temp file pattern from `nginx-conf-*` to `magebox-nginx-*`
+  - Matches existing sudoers whitelist `/tmp/magebox-*`
+
+- **Ubuntu PHP-FPM Bootstrap** - Fixed "no pool defined" error:
+  - Creates placeholder pool before restarting PHP-FPM
+  - PHP-FPM restart is now non-fatal during bootstrap
+  - Real pools are created when `magebox start` runs
+
 ## [1.2.4] - 2026-01-24
 
 ### Fixed

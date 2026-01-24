@@ -2,6 +2,14 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.5] - 2026-01-24
+
+### Bug Fixes
+
+- **Ubuntu Nginx Permissions** - Fixed `/var/lib/nginx` permission denied on POST requests
+- **Sudoers Whitelist** - Fixed nginx config update requiring password prompt
+- **Ubuntu PHP-FPM Bootstrap** - Fixed "no pool defined" error during initial setup
+
 ## [1.2.4] - 2026-01-24
 
 ### Bug Fixes
