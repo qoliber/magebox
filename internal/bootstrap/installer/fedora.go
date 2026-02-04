@@ -283,11 +283,16 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 		return nil // SELinux not installed
 	}
 
-	// Allow nginx to make network connections (for proxying to Docker containers)
-	// Allow nginx to read user content (for serving files from home directories)
+	// SELinux configuration for MageBox development environment
+	// - httpd_can_network_connect: Allow nginx to proxy to Docker containers
+	// - httpd_read_user_content: Allow nginx to serve files from home directories
+	// - httpd_enable_homedirs: Allow PHP-FPM/nginx to access user home directories
+	// - httpd_unified: Allow PHP to write to any httpd-accessible location (dev mode)
 	if f.CommandExists("setsebool") {
 		_ = f.RunSudo("setsebool", "-P", "httpd_can_network_connect", "on")
 		_ = f.RunSudo("setsebool", "-P", "httpd_read_user_content", "on")
+		_ = f.RunSudo("setsebool", "-P", "httpd_enable_homedirs", "on")
+		_ = f.RunSudo("setsebool", "-P", "httpd_unified", "on")
 	}
 
 	// Get home directory for SELinux context on MageBox configs
