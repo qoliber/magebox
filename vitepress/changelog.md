@@ -10,6 +10,7 @@ All notable changes to MageBox will be documented here.
 - **Isolated PHP-FPM Config Regeneration** - Config is now regenerated from the embedded template on every restart, not just during initial isolation setup. Previously, template fixes required re-isolating projects manually.
 - **Fedora SELinux Log Permissions** - Fixed nginx 502 errors caused by SELinux denying log file writes. Added `httpd_log_t` context for `~/.magebox/logs`.
 - **Fedora PHP-FPM Management** - MageBox now manages PHP-FPM directly instead of via systemd, avoiding SELinux `httpd_t` restrictions on user home directories.
+- **Fedora SELinux PHP Home Access** - Added `httpd_enable_homedirs` and `httpd_unified` booleans to allow PHP to write to Magento projects in user home directories (fixes var/log permission denied).
 - **Fedora SELinux PHP 8.5** - Added PHP 8.5 to Remi run directory SELinux rules.
 - **Arch Linux Bootstrap** - Moved common directory setup to base installer.
 
