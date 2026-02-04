@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -483,6 +484,15 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("  Config exists: %s\n", cli.Highlight(config.GlobalConfigPath(homeDir)))
 	}
+	fmt.Print("  Ensuring MageBox directories... ")
+	if warnings := ensureMageBoxDirs(homeDir); len(warnings) > 0 {
+		fmt.Println(cli.Warning("issues"))
+		for _, w := range warnings {
+			cli.PrintWarning("%s", w)
+		}
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
 	fmt.Println()
 
 	// Step 4: Setup mkcert CA
@@ -879,4 +889,51 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	return nil
+}
+
+func ensureMageBoxDirs(homeDir string) []string {
+	warnings := []string{}
+	mageboxDir := filepath.Join(homeDir, ".magebox")
+	dirs := []string{
+		mageboxDir,
+		filepath.Join(mageboxDir, "bin"),
+		filepath.Join(mageboxDir, "run"),
+		filepath.Join(mageboxDir, "logs"),
+		filepath.Join(mageboxDir, "nginx"),
+		filepath.Join(mageboxDir, "php"),
+		filepath.Join(mageboxDir, "docker"),
+		filepath.Join(mageboxDir, "certs"),
+		filepath.Join(mageboxDir, "varnish"),
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			warnings = append(warnings, fmt.Sprintf("failed to create %s: %v", dir, err))
+		}
+	}
+
+	info, err := os.Stat(mageboxDir)
+	if err != nil {
+		return warnings
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return warnings
+	}
+
+	currentUID := uint32(os.Getuid())
+	currentGID := uint32(os.Getgid())
+	if stat.Uid != currentUID {
+		chownArg := fmt.Sprintf("%d:%d", currentUID, currentGID)
+		cmd := exec.Command("sudo", "chown", "-R", chownArg, mageboxDir)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			warnings = append(warnings, fmt.Sprintf("failed to fix ownership for %s (sudo chown -R %s): %v", mageboxDir, chownArg, err))
+		}
+	}
+
+	return warnings
 }

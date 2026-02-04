@@ -12,14 +12,6 @@ error_log = {{.ErrorLogPath}}
 daemonize = yes
 
 ; ============================================
-; PHP_INI_SYSTEM Settings (Isolated per-master)
-; These settings apply to ALL pools under this master
-; ============================================
-{{range $key, $value := .SystemSettings}}
-php_admin_value[{{$key}}] = {{$value}}
-{{end}}
-
-; ============================================
 ; Pool Configuration
 ; ============================================
 [{{.ProjectName}}]
@@ -42,6 +34,10 @@ pm.max_requests = {{.MaxRequests}}
 catch_workers_output = yes
 decorate_workers_output = no
 
+; PHP_INI_SYSTEM settings (isolated per-master)
+{{range $key, $value := .SystemSettings}}
+php_admin_value[{{$key}}] = {{$value}}
+{{end}}
 ; Pool-level PHP settings (PHP_INI_PERDIR)
 {{range $key, $value := .PoolSettings}}
 php_admin_value[{{$key}}] = {{$value}}

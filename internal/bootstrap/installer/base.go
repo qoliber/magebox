@@ -116,6 +116,15 @@ func (b *BaseInstaller) ConfigureShellPath() error {
 			}
 		}
 		rcFiles = append(rcFiles, zshenv)
+		// Also add to .zprofile/.profile for login shells and non-zsh invocations.
+		zprofile := homeDir + "/.zprofile"
+		if b.FileExists(zprofile) {
+			rcFiles = append(rcFiles, zprofile)
+		}
+		profile := homeDir + "/.profile"
+		if b.FileExists(profile) {
+			rcFiles = append(rcFiles, profile)
+		}
 	case "bash":
 		// bash: prefer .bashrc
 		bashrc := homeDir + "/.bashrc"

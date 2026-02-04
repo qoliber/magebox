@@ -2,6 +2,17 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.2.7] - 2026-02-04
+
+### Bug Fixes
+
+- **Isolated PHP-FPM Template** - Fixed "Array are not allowed in the global section" error that prevented isolated PHP-FPM from starting. `php_admin_value[]` directives were incorrectly placed in the `[global]` section instead of the pool section.
+- **Isolated PHP-FPM Config Regeneration** - Config is now regenerated from the embedded template on every restart, not just during initial isolation setup. Previously, template fixes required re-isolating projects manually.
+- **Fedora SELinux Log Permissions** - Fixed nginx 502 errors caused by SELinux denying log file writes. Added `httpd_log_t` context for `~/.magebox/logs`.
+- **Fedora PHP-FPM Management** - MageBox now manages PHP-FPM directly instead of via systemd, avoiding SELinux `httpd_t` restrictions on user home directories.
+- **Fedora SELinux PHP 8.5** - Added PHP 8.5 to Remi run directory SELinux rules.
+- **Arch Linux Bootstrap** - Moved common directory setup to base installer.
+
 ## [1.2.6] - 2026-01-24
 
 ### Bug Fixes

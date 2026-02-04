@@ -183,7 +183,6 @@ func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 
 	for _, v := range versions {
 		remiVersion := strings.ReplaceAll(v, ".", "")
-		serviceName := fmt.Sprintf("php%s-php-fpm", remiVersion)
 		fpmConfPath := fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.conf", remiVersion)
 		wwwConfPath := fmt.Sprintf("/etc/opt/remi/php%s/php-fpm.d/www.conf", remiVersion)
 		mageboxPoolsInclude := fmt.Sprintf("include=%s/.magebox/php/pools/%s/*.conf", homeDir, v)
@@ -218,14 +217,8 @@ func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 			return fmt.Errorf("failed to create pools directory %s: %w", poolsDir, err)
 		}
 
-		// Enable and start service
-		// Note: We use default Remi log paths to avoid SELinux/permission issues
-		if err := f.RunSudo("systemctl", "enable", serviceName); err != nil {
-			return fmt.Errorf("failed to enable %s: %w", serviceName, err)
-		}
-		if err := f.RunSudo("systemctl", "restart", serviceName); err != nil {
-			return fmt.Errorf("failed to restart %s: %w", serviceName, err)
-		}
+		// NOTE: On Fedora, MageBox manages PHP-FPM directly to avoid SELinux httpd_t
+		// restrictions on user home directories. Do not enable/start systemd here.
 	}
 
 	return nil
@@ -322,9 +315,13 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 		_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_config_t", mageboxDir+"/certs(/.*)?")
 		_ = f.RunSudo("restorecon", "-Rv", mageboxDir+"/certs")
 
+		// Allow httpd to write log files in ~/.magebox/logs
+		_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_log_t", mageboxDir+"/logs(/.*)?")
+		_ = f.RunSudo("restorecon", "-Rv", mageboxDir+"/logs")
+
 		// Fix Remi PHP-FPM run directories (use /opt path due to Fedora equivalency rule)
 		// This allows PHP-FPM to create PID files in /var/opt/remi/php*/run/
-		for _, v := range []string{"81", "82", "83", "84"} {
+		for _, v := range []string{"81", "82", "83", "84", "85"} {
 			remiRunPath := fmt.Sprintf("/opt/remi/php%s/run(/.*)?", v)
 			_ = f.RunSudo("semanage", "fcontext", "-a", "-t", "httpd_var_run_t", remiRunPath)
 			_ = f.RunSudo("restorecon", "-Rv", fmt.Sprintf("/var/opt/remi/php%s/run", v))
@@ -334,6 +331,7 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 		_ = f.RunSudo("chcon", "-R", "-t", "httpd_var_run_t", mageboxDir+"/run")
 		_ = f.RunSudo("chcon", "-R", "-t", "httpd_config_t", mageboxDir+"/nginx")
 		_ = f.RunSudo("chcon", "-R", "-t", "httpd_config_t", mageboxDir+"/certs")
+		_ = f.RunSudo("chcon", "-R", "-t", "httpd_log_t", mageboxDir+"/logs")
 	}
 
 	return nil

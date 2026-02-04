@@ -385,6 +385,10 @@ func (c *IsolatedFPMController) Restart(projectName string) error {
 		return err
 	}
 
+	if err := c.generateConfig(project); err != nil {
+		return fmt.Errorf("failed to regenerate config: %w", err)
+	}
+
 	return c.start(project)
 }
 
@@ -473,6 +477,9 @@ func (c *IsolatedFPMController) StartAllIsolated() error {
 
 	for _, project := range projects {
 		if !c.IsRunning(project.ProjectName) {
+			if err := c.generateConfig(project); err != nil {
+				return fmt.Errorf("failed to regenerate config for %s: %w", project.ProjectName, err)
+			}
 			if err := c.start(project); err != nil {
 				return fmt.Errorf("failed to start %s: %w", project.ProjectName, err)
 			}

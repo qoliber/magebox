@@ -5,6 +5,34 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-02-04
+
+### Fixed
+
+- **Isolated PHP-FPM Template** - Fixed "Array are not allowed in the global section" error:
+  - `php_admin_value[]` directives were incorrectly placed in the `[global]` section of isolated PHP-FPM configs
+  - PHP-FPM only allows these directives in pool sections
+  - Moved system settings (`opcache.enable_cli`, etc.) into the pool section where they work correctly
+  - `php_admin_value` in pool sections can still override PHP_INI_SYSTEM settings, preserving full isolation
+
+- **Isolated PHP-FPM Config Regeneration** - Fixed configs not updating on restart:
+  - `StartAllIsolated()` and `Restart()` now regenerate the config from the embedded template before starting
+  - Previously, config was only generated during initial `Enable()`, so template fixes required re-isolating projects
+  - Ensures config always reflects the latest template and settings
+
+- **Fedora SELinux Log Permissions** - Fixed nginx 502 errors caused by SELinux:
+  - Added `httpd_log_t` context for `~/.magebox/logs` directory
+  - Nginx was denied writing log files due to `user_home_t` context on the logs directory
+  - Added both persistent `semanage fcontext` rule and immediate `chcon` fallback
+
+- **Fedora PHP-FPM Management** - Removed systemd enable/start for PHP-FPM:
+  - MageBox manages PHP-FPM directly to avoid SELinux `httpd_t` restrictions on user home directories
+  - Prevents conflicts between systemd-managed and MageBox-managed PHP-FPM processes
+
+- **Fedora SELinux PHP 8.5 Support** - Added PHP 8.5 to Remi run directory SELinux rules
+
+- **Arch Linux Bootstrap** - Moved common directory setup to base installer
+
 ## [1.2.6] - 2026-01-24
 
 ### Fixed

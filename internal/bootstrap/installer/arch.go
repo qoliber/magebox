@@ -193,13 +193,8 @@ func (a *ArchInstaller) ConfigurePHPFPM(versions []string) error {
 		return fmt.Errorf("failed to create pools directory %s: %w", poolsDir, err)
 	}
 
-	// Enable and start service
-	if err := a.RunSudo("systemctl", "enable", "php-fpm"); err != nil {
-		return fmt.Errorf("failed to enable php-fpm: %w", err)
-	}
-	if err := a.RunSudo("systemctl", "restart", "php-fpm"); err != nil {
-		return fmt.Errorf("failed to restart php-fpm: %w", err)
-	}
+	// NOTE: On Arch, MageBox manages PHP-FPM directly to avoid conflicts with
+	// systemd-managed instances and per-project socket ownership.
 
 	return nil
 }
