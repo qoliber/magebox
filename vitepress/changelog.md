@@ -18,6 +18,8 @@ All notable changes to MageBox will be documented here.
 
 - **Quick Install Database Name** - Fixed mismatch between `ensureDatabase` (sanitized: `product_feeds`) and `setup:install` (raw: `product-feeds`). Both paths now use the sanitized name.
 - **Quick Install PHP Wrapper** - Fixed `setup:install` and post-install commands (`sampledata:deploy`, `setup:upgrade`, `indexer:reindex`, `cache:flush`) using the Composer wrapper instead of the PHP wrapper.
+- **Embedded MageOS Default** - Fixed embedded `versions.yaml` fallback still using MageOS 2.0.0 instead of 2.1.0.
+- **CI Lint Errors** - Fixed all `golangci-lint` errors (unchecked `json.Decode`, `goimports` formatting).
 
 ## [1.3.0] - 2026-02-21
 

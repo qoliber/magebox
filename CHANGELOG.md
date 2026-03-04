@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Quick Install Database Name** - Fixed `setup:install` using raw project name (e.g. `product-feeds`) as `--db-name` while `ensureDatabase` created the sanitized name (`product_feeds`). Both interactive and quick install now use the sanitized name.
 - **Quick Install PHP Wrapper** - Fixed `setup:install`, `sampledata:deploy`, `setup:upgrade`, `indexer:reindex`, and `cache:flush` being executed via the Composer wrapper instead of the PHP wrapper, causing "Command bin/magento is not defined" errors.
+- **Embedded MageOS Default** - Fixed embedded `versions.yaml` fallback still using MageOS 2.0.0 as default instead of 2.1.0.
+- **CI Lint Errors** - Fixed all `golangci-lint` errors (unchecked `json.Decode` return values, `goimports` formatting).
 
 ## [1.3.0] - 2026-02-21
 
