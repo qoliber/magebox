@@ -13,12 +13,16 @@ All notable changes to MageBox will be documented here.
 ### Changes
 
 - **Simplified Quick Install** - Removed Redis and RabbitMQ from `--quick` mode for a cleaner, minimal setup. Add them later via `.magebox.yaml` when needed.
+- **OPcache/JIT Disabled by Default** - OPcache and JIT are now disabled in default PHP-FPM pool settings. Prevents segfaults on PHP 8.3 and stale cache issues during development. Re-enable via `php_ini` in `.magebox.yaml`.
+- **Increased PHP-FPM Pool Sizes** - `pm.max_children` doubled from 25 to 50, start/spare servers proportionally increased (8/4/12) for both shared and isolated pools. Fewer 502 errors under load.
+- **PHP Wrapper Disables OPcache CLI** - The PHP wrapper passes `-d opcache.enable_cli=0` to all CLI commands, preventing JIT segfaults in bin/magento commands.
 
 ### Bug Fixes
 
 - **Quick Install Database Name** - Fixed mismatch between `ensureDatabase` (sanitized: `product_feeds`) and `setup:install` (raw: `product-feeds`). Both paths now use the sanitized name.
 - **Quick Install PHP Wrapper** - Fixed `setup:install` and post-install commands (`sampledata:deploy`, `setup:upgrade`, `indexer:reindex`, `cache:flush`) using the Composer wrapper instead of the PHP wrapper.
 - **Embedded MageOS Default** - Fixed embedded `versions.yaml` fallback still using MageOS 2.0.0 instead of 2.1.0.
+- **Composer Version Maps** - Synced hardcoded maps with `versions.yaml`: added MageOS 2.1.0/1.3.x/1.2.0, Magento 2.4.8.x. Fixed "unsupported MageOS version: 2.1.0" error.
 - **CI Lint Errors** - Fixed all `golangci-lint` errors (unchecked `json.Decode`, `goimports` formatting).
 
 ## [1.3.0] - 2026-02-21

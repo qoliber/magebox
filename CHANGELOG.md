@@ -16,12 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Simplified Quick Install** - Removed Redis and RabbitMQ from `--quick` mode to keep it minimal and avoid connection errors during setup. Users can add these services later via `.magebox.yaml`.
+- **OPcache/JIT Disabled by Default** - OPcache and JIT are now disabled by default in PHP-FPM pool settings. Prevents segfaults during `setup:upgrade` on PHP 8.3 and eliminates stale cache issues during development. Users can re-enable via `php_ini` in `.magebox.yaml` for production-like testing.
+- **Increased PHP-FPM Pool Sizes** - Doubled `pm.max_children` from 25 to 50 and proportionally increased start/spare servers (8/4/12) for both shared and isolated pools. Reduces 502 errors under concurrent Magento requests.
+- **PHP Wrapper Disables OPcache CLI** - The PHP wrapper now passes `-d opcache.enable_cli=0` to all CLI commands, preventing JIT-related segfaults in `setup:install`, `setup:upgrade`, and other bin/magento commands.
 
 ### Fixed
 
 - **Quick Install Database Name** - Fixed `setup:install` using raw project name (e.g. `product-feeds`) as `--db-name` while `ensureDatabase` created the sanitized name (`product_feeds`). Both interactive and quick install now use the sanitized name.
 - **Quick Install PHP Wrapper** - Fixed `setup:install`, `sampledata:deploy`, `setup:upgrade`, `indexer:reindex`, and `cache:flush` being executed via the Composer wrapper instead of the PHP wrapper, causing "Command bin/magento is not defined" errors.
 - **Embedded MageOS Default** - Fixed embedded `versions.yaml` fallback still using MageOS 2.0.0 as default instead of 2.1.0.
+- **Composer Version Maps** - Synced hardcoded composer version maps with `versions.yaml`: added MageOS 2.1.0/1.3.x/1.2.0, Magento 2.4.8/2.4.8-p1/2.4.8-p2/2.4.8-p3/2.4.7-p4/2.4.6-p8. Fixed "unsupported MageOS version: 2.1.0" error.
 - **CI Lint Errors** - Fixed all `golangci-lint` errors (unchecked `json.Decode` return values, `goimports` formatting).
 
 ## [1.3.0] - 2026-02-21
