@@ -96,10 +96,13 @@ func (m *DnsmasqManager) IsRunning() bool {
 
 // Configure sets up dnsmasq to resolve *.test to localhost
 func (m *DnsmasqManager) Configure() error {
-	// Create config directory if needed
+	// Create config directory if needed (requires sudo for system directories)
 	configDir := m.getConfigDir()
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		cmd := exec.Command("sudo", "mkdir", "-p", configDir)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to create config directory: %w", err)
+		}
 	}
 
 	// On Linux, enable conf-dir in dnsmasq.conf if commented out

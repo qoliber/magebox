@@ -467,7 +467,12 @@ func (u *UbuntuInstaller) InstallBlackfire(versions []string) error {
 		return fmt.Errorf("failed to add Blackfire GPG key: %w", err)
 	}
 
-	repoLine := "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/blackfire-archive-keyring.gpg] https://packages.blackfire.io/debian any main"
+	// Resolve architecture in Go to avoid shell quoting issues with $(...)
+	arch, err := u.getArchitecture()
+	if err != nil {
+		return fmt.Errorf("failed to detect architecture: %w", err)
+	}
+	repoLine := fmt.Sprintf("deb [arch=%s signed-by=/usr/share/keyrings/blackfire-archive-keyring.gpg] https://packages.blackfire.io/debian any main", arch)
 	if err := u.RunCommand(fmt.Sprintf("echo '%s' | sudo tee /etc/apt/sources.list.d/blackfire.list", repoLine)); err != nil {
 		return fmt.Errorf("failed to add Blackfire repository: %w", err)
 	}
@@ -501,7 +506,12 @@ func (u *UbuntuInstaller) InstallTideways(versions []string) error {
 		return fmt.Errorf("failed to add Tideways GPG key: %w", err)
 	}
 
-	repoLine := "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/tideways-archive-keyring.gpg] https://packages.tideways.com/apt-packages any-version main"
+	// Resolve architecture in Go to avoid shell quoting issues with $(...)
+	arch, err := u.getArchitecture()
+	if err != nil {
+		return fmt.Errorf("failed to detect architecture: %w", err)
+	}
+	repoLine := fmt.Sprintf("deb [arch=%s signed-by=/usr/share/keyrings/tideways-archive-keyring.gpg] https://packages.tideways.com/apt-packages any-version main", arch)
 	if err := u.RunCommand(fmt.Sprintf("echo '%s' | sudo tee /etc/apt/sources.list.d/tideways.list", repoLine)); err != nil {
 		return fmt.Errorf("failed to add Tideways repository: %w", err)
 	}
@@ -521,6 +531,15 @@ func (u *UbuntuInstaller) InstallTideways(versions []string) error {
 	}
 
 	return nil
+}
+
+// getArchitecture returns the dpkg architecture (e.g., "amd64", "arm64")
+func (u *UbuntuInstaller) getArchitecture() (string, error) {
+	out, err := exec.Command("dpkg", "--print-architecture").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // PackageManager returns "apt" for Ubuntu/Debian

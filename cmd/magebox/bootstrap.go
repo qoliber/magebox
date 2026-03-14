@@ -289,6 +289,16 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println(cli.Header("Step 2: PHP Installation"))
 	fmt.Println()
 
+	// Install prerequisites (adds ondrej/php PPA on Ubuntu, etc.)
+	fmt.Print("  Installing prerequisites... ")
+	if err := bootstrapper.GetInstaller().InstallPrerequisites(); err != nil {
+		fmt.Println(cli.Warning("done with warnings"))
+		cli.PrintWarning("Prerequisites: %v", err)
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+	fmt.Println()
+
 	// All PHP versions we want for Magento compatibility (8.5 is bleeding edge/dev)
 	allPHPVersions := installer.PHPVersions
 
