@@ -14,6 +14,9 @@
 # Varnish-enabled: HTTPS proxies to Varnish, HTTP backend handles requests
 server {
     listen {{.HTTPSPort}} ssl http2;
+{{- if .EnableIPv6}}
+    listen [::]:{{.HTTPSPort}} ssl http2;
+{{- end}}
     server_name {{.Domain}};
 
     access_log {{.AccessLog}};
@@ -51,6 +54,9 @@ server {
 # Standard setup: HTTP redirects to HTTPS, HTTPS handles requests directly
 server {
     listen {{.HTTPPort}};
+{{- if .EnableIPv6}}
+    listen [::]:{{.HTTPPort}};
+{{- end}}
     server_name {{.Domain}};
 
     access_log {{.AccessLog}};
@@ -72,6 +78,9 @@ server {
 
 server {
     listen {{.HTTPSPort}} ssl http2;
+{{- if .EnableIPv6}}
+    listen [::]:{{.HTTPSPort}} ssl http2;
+{{- end}}
     server_name {{.Domain}};
 
     access_log {{.AccessLog}};
@@ -86,6 +95,9 @@ server {
 {{else}}
 server {
     listen {{.HTTPPort}};
+{{- if .EnableIPv6}}
+    listen [::]:{{.HTTPPort}};
+{{- end}}
     server_name {{.Domain}};
 
     access_log {{.AccessLog}};

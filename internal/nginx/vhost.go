@@ -73,6 +73,7 @@ type VhostConfig struct {
 	HTTPPort       int    // 80 on Linux, 8080 on macOS (port forwarding)
 	HTTPSPort      int    // 443 on Linux, 8443 on macOS (port forwarding)
 	BackendPort    int    // Backend port for Varnish (always 8080 when Varnish enabled)
+	EnableIPv6     bool   // true on Linux to add [::]:port listen directives
 	StoreCode      string // Magento store code for multi-store setup (default: "default")
 	MageRunType    string // Magento run type: "store" or "website" (default: "store")
 	AccessLog      string // Path to access log file
@@ -91,6 +92,7 @@ type ProxyConfig struct {
 	SSLKeyFile  string
 	HTTPPort    int
 	HTTPSPort   int
+	EnableIPv6  bool // true on Linux to add [::]:port listen directives
 }
 
 // UpstreamConfig contains data needed to generate an upstream config
@@ -134,9 +136,11 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 	// macOS uses port forwarding (80->8080, 443->8443), Linux uses standard ports
 	httpPort := 80
 	httpsPort := 443
+	enableIPv6 := true
 	if g.platform.Type == platform.Darwin {
 		httpPort = 8080
 		httpsPort = 8443
+		enableIPv6 = false
 	}
 
 	for _, domain := range cfg.Domains {
@@ -163,6 +167,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			HTTPPort:      httpPort,
 			HTTPSPort:     httpsPort,
 			BackendPort:   backendPort,
+			EnableIPv6:    enableIPv6,
 			StoreCode:     domain.GetStoreCode(),
 			MageRunType:   domain.GetMageRunType(),
 			AccessLog:     filepath.Join(logsDir, fmt.Sprintf("%s-access.log", sanitizedDomain)),
@@ -317,9 +322,11 @@ func (g *VhostGenerator) GenerateProxyVhost(cfg ProxyConfig) error {
 	// Set ports based on platform
 	cfg.HTTPPort = 80
 	cfg.HTTPSPort = 443
+	cfg.EnableIPv6 = true
 	if g.platform.Type == platform.Darwin {
 		cfg.HTTPPort = 8080
 		cfg.HTTPSPort = 8443
+		cfg.EnableIPv6 = false
 	}
 
 	// Generate SSL certificate if enabled

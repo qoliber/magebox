@@ -229,6 +229,7 @@ func TestRenderVhost_SSLEnabled(t *testing.T) {
 		SSLKeyFile:    "/path/to/key.pem",
 		HTTPPort:      80,
 		HTTPSPort:     443,
+		EnableIPv6:    true,
 	}
 
 	content, err := g.renderVhost(cfg)
@@ -239,6 +240,8 @@ func TestRenderVhost_SSLEnabled(t *testing.T) {
 	// Should contain SSL configuration (Linux uses port 443)
 	checks := []string{
 		"listen 443 ssl",
+		"listen [::]:443 ssl http2",
+		"listen [::]:80",
 		"ssl_certificate /path/to/cert.pem",
 		"ssl_certificate_key /path/to/key.pem",
 		"return 301 https://",
@@ -248,6 +251,39 @@ func TestRenderVhost_SSLEnabled(t *testing.T) {
 		if !strings.Contains(content, check) {
 			t.Errorf("SSL vhost should contain %q", check)
 		}
+	}
+}
+
+func TestRenderVhost_SSLEnabled_NoIPv6(t *testing.T) {
+	g, tmpDir := setupTestGenerator(t)
+
+	cfg := VhostConfig{
+		ProjectName:   "mystore",
+		Domain:        "mystore.test",
+		DocumentRoot:  "/var/www/mystore/pub",
+		PHPVersion:    "8.2",
+		PHPSocketPath: filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock"),
+		SSLEnabled:    true,
+		SSLCertFile:   "/path/to/cert.pem",
+		SSLKeyFile:    "/path/to/key.pem",
+		HTTPPort:      8080,
+		HTTPSPort:     8443,
+		EnableIPv6:    false,
+	}
+
+	content, err := g.renderVhost(cfg)
+	if err != nil {
+		t.Fatalf("renderVhost failed: %v", err)
+	}
+
+	// Should NOT contain IPv6 listen directives (macOS uses port forwarding)
+	if strings.Contains(content, "[::]") {
+		t.Error("Vhost with EnableIPv6=false should not contain IPv6 listen directives")
+	}
+
+	// Should still contain IPv4 listen directives
+	if !strings.Contains(content, "listen 8443 ssl") {
+		t.Error("Vhost should contain IPv4 SSL listen directive")
 	}
 }
 
