@@ -5,6 +5,27 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-14
+
+Special thanks to [Peter Jaap Blaakmeer](https://github.com/peterjaap) for his contributions to this release.
+
+### Added
+
+- **Laravel Project Type Support** - MageBox now supports Laravel projects with a dedicated vhost template, `--type laravel` project type, and proper nginx configuration for Laravel routing. ([#8](https://github.com/qoliber/magebox/pull/8) - [@peterjaap](https://github.com/peterjaap))
+- **Uninstall `--purge-packages` Flag** - New flag to remove installed system packages (PHP, nginx, etc.) during uninstall, not just MageBox config and data.
+- **Bootstrap MySQL Default Selection** - The bootstrap command now asks which MySQL version should be the default and exposes it on port 3306 alongside the version-specific port.
+
+### Changed
+
+- **Project Name Slash Handling** - Slashes in project names are now replaced with dots for cleaner domain and directory names.
+
+### Fixed
+
+- **Ubuntu 24.04 Bootstrap** - Resolved multiple bootstrap failures on Ubuntu 24.04, including package installation, service configuration, and PHP-FPM setup. ([#7](https://github.com/qoliber/magebox/pull/7) - [@peterjaap](https://github.com/peterjaap))
+- **Nginx http2 Compatibility** - Use compatible `http2` syntax for nginx 1.24 (Ubuntu 24.04) which doesn't support the newer `http2 on` directive.
+- **DNS Setup Permissions** - Use sudo to read `/etc/dnsmasq.conf` during DNS setup to avoid permission errors.
+- **Test Host Config Independence** - Tests no longer depend on host global configuration, making CI more reliable.
+
 ## [1.3.3] - 2026-03-04
 
 ### Added

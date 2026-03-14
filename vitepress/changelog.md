@@ -2,6 +2,27 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.4.0] - 2026-03-14
+
+Special thanks to [Peter Jaap Blaakmeer](https://github.com/peterjaap) for his contributions to this release.
+
+### New Features
+
+- **Laravel Project Type Support** - MageBox now supports Laravel projects with a dedicated vhost template, `--type laravel` project type, and proper nginx routing. ([#8](https://github.com/qoliber/magebox/pull/8) - [@peterjaap](https://github.com/peterjaap))
+- **Uninstall `--purge-packages` Flag** - Remove installed system packages during uninstall, not just MageBox config and data.
+- **Bootstrap MySQL Default Selection** - Bootstrap now asks which MySQL version to expose on port 3306 as the default.
+
+### Changes
+
+- **Project Name Slash Handling** - Slashes in project names are replaced with dots for cleaner domains and directories.
+
+### Bug Fixes
+
+- **Ubuntu 24.04 Bootstrap** - Fixed multiple bootstrap failures on Ubuntu 24.04 (packages, services, PHP-FPM). ([#7](https://github.com/qoliber/magebox/pull/7) - [@peterjaap](https://github.com/peterjaap))
+- **Nginx http2 Compatibility** - Compatible `http2` syntax for nginx 1.24 (Ubuntu 24.04).
+- **DNS Setup Permissions** - Use sudo to read `/etc/dnsmasq.conf` during setup.
+- **Test Host Config Independence** - Tests no longer depend on host global configuration.
+
 ## [1.3.3] - 2026-03-04
 
 ### New Features

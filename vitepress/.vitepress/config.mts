@@ -59,6 +59,7 @@ export default defineConfig({
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Bootstrap', link: '/guide/bootstrap' },
+            { text: 'Laravel Support', link: '/guide/laravel' },
             { text: 'Common Workflows', link: '/guide/workflows' }
           ]
         },
@@ -172,6 +173,7 @@ export default defineConfig({
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Bootstrap', link: '/guide/bootstrap' },
+            { text: 'Laravel Support', link: '/guide/laravel' },
             { text: 'Common Workflows', link: '/guide/workflows' }
           ]
         },
