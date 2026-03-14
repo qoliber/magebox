@@ -115,26 +115,16 @@ func (m *Manager) Enable(phpVersion string) error {
 	}
 
 	iniPath := m.getExtensionIniPath(phpVersion)
-	content, err := os.ReadFile(iniPath)
-	if err != nil {
-		return fmt.Errorf("failed to read tideways ini: %w", err)
-	}
 
-	// Uncomment extension line if commented
-	lines := strings.Split(string(content), "\\n")
-	modified := false
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, ";extension=tideways") {
-			lines[i] = strings.TrimPrefix(trimmed, ";")
-			modified = true
-		}
-	}
+	// Use sudo sed to uncomment extension line (same approach as xdebug manager)
+	args := m.sedInPlaceArgs(`s/^;\(extension=tideways.*\)$/\1/`, iniPath)
+	cmd := exec.Command("sudo", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	if modified {
-		if err := os.WriteFile(iniPath, []byte(strings.Join(lines, "\\n")), 0644); err != nil {
-			return fmt.Errorf("failed to write tideways ini: %w", err)
-		}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to enable tideways: %w", err)
 	}
 
 	return nil
@@ -147,26 +137,15 @@ func (m *Manager) Disable(phpVersion string) error {
 		return nil
 	}
 
-	content, err := os.ReadFile(iniPath)
-	if err != nil {
-		return nil
-	}
+	// Use sudo sed to comment out extension line (same approach as xdebug manager)
+	args := m.sedInPlaceArgs(`s/^\(extension=tideways.*\)$/;\1/`, iniPath)
+	cmd := exec.Command("sudo", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	// Comment out extension line
-	lines := strings.Split(string(content), "\\n")
-	modified := false
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "extension=tideways") {
-			lines[i] = ";" + trimmed
-			modified = true
-		}
-	}
-
-	if modified {
-		if err := os.WriteFile(iniPath, []byte(strings.Join(lines, "\\n")), 0644); err != nil {
-			return fmt.Errorf("failed to write tideways ini: %w", err)
-		}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to disable tideways: %w", err)
 	}
 
 	return nil
@@ -235,6 +214,15 @@ func (m *Manager) ConfigureDaemon() error {
 	}
 
 	return nil
+}
+
+// sedInPlaceArgs returns the correct sed arguments for in-place editing on the current platform.
+// macOS BSD sed requires "sed -i ” <expr> <file>" while GNU sed uses "sed -i <expr> <file>".
+func (m *Manager) sedInPlaceArgs(expr, file string) []string {
+	if m.platform.Type == platform.Darwin {
+		return []string{"sed", "-i", "", expr, file}
+	}
+	return []string{"sed", "-i", expr, file}
 }
 
 // getExtensionIniPath returns the path to the Tideways PHP extension ini file
