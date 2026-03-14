@@ -92,9 +92,11 @@ func (m *Manager) Enable(phpVersion string) error {
 		return fmt.Errorf("xdebug ini file not found for PHP %s", phpVersion)
 	}
 
-	// Use sudo sed to uncomment zend_extension line (works on both Ubuntu and Fedora)
+	// Use sudo sed to uncomment zend_extension line
 	// Pattern: uncomment lines starting with ";zend_extension" containing "xdebug"
-	cmd := exec.Command("sudo", "sed", "-i", `s/^;\(zend_extension.*xdebug.*\)$/\1/`, iniFile)
+	// macOS BSD sed requires -i '' while GNU sed uses -i
+	args := m.sedInPlaceArgs(`s/^;\(zend_extension.*xdebug.*\)$/\1/`, iniFile)
+	cmd := exec.Command("sudo", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -113,9 +115,11 @@ func (m *Manager) Disable(phpVersion string) error {
 		return fmt.Errorf("xdebug ini file not found for PHP %s", phpVersion)
 	}
 
-	// Use sudo sed to comment out zend_extension line (works on both Ubuntu and Fedora)
+	// Use sudo sed to comment out zend_extension line
 	// Pattern: comment out lines starting with "zend_extension" containing "xdebug"
-	cmd := exec.Command("sudo", "sed", "-i", `s/^\(zend_extension.*xdebug.*\)$/;\1/`, iniFile)
+	// macOS BSD sed requires -i '' while GNU sed uses -i
+	args := m.sedInPlaceArgs(`s/^\(zend_extension.*xdebug.*\)$/;\1/`, iniFile)
+	cmd := exec.Command("sudo", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -125,6 +129,15 @@ func (m *Manager) Disable(phpVersion string) error {
 	}
 
 	return nil
+}
+
+// sedInPlaceArgs returns the correct sed arguments for in-place editing on the current platform.
+// macOS BSD sed requires "sed -i ” <expr> <file>" while GNU sed uses "sed -i <expr> <file>".
+func (m *Manager) sedInPlaceArgs(expr, file string) []string {
+	if m.platform.Type == platform.Darwin {
+		return []string{"sed", "-i", "", expr, file}
+	}
+	return []string{"sed", "-i", expr, file}
 }
 
 // getXdebugIniPath returns the path to the xdebug.ini file for a specific PHP version

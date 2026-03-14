@@ -283,6 +283,74 @@ func TestComposeService_MySQL_WithMemory(t *testing.T) {
 	}
 }
 
+func TestComposeService_MySQL_WithCustomConfig(t *testing.T) {
+	g, tmpDir := setupTestComposeGenerator(t)
+
+	// Create the custom config file
+	cnfDir := filepath.Join(tmpDir, ".magebox", "docker")
+	if err := os.MkdirAll(cnfDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cnfPath := filepath.Join(cnfDir, "mysql-custom.cnf")
+	if err := os.WriteFile(cnfPath, []byte("[mysqld]\nskip-log-bin\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "8.0",
+	}
+	svc := g.getMySQLService(svcCfg, false)
+
+	if len(svc.Volumes) != 2 {
+		t.Fatalf("Volumes = %v, want 2 entries (data + custom config)", svc.Volumes)
+	}
+	if !strings.Contains(svc.Volumes[1], "mysql-custom.cnf:/etc/mysql/conf.d/custom.cnf:ro") {
+		t.Errorf("Volumes[1] = %v, want custom cnf mount", svc.Volumes[1])
+	}
+}
+
+func TestComposeService_MySQL_WithoutCustomConfig(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "8.0",
+	}
+	svc := g.getMySQLService(svcCfg, false)
+
+	if len(svc.Volumes) != 1 {
+		t.Errorf("Volumes = %v, want only data volume when no custom config exists", svc.Volumes)
+	}
+}
+
+func TestComposeService_MariaDB_WithCustomConfig(t *testing.T) {
+	g, tmpDir := setupTestComposeGenerator(t)
+
+	// Create the custom config file
+	cnfDir := filepath.Join(tmpDir, ".magebox", "docker")
+	if err := os.MkdirAll(cnfDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cnfPath := filepath.Join(cnfDir, "mariadb-custom.cnf")
+	if err := os.WriteFile(cnfPath, []byte("[mysqld]\nskip-log-bin\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "10.6",
+	}
+	svc := g.getMariaDBService(svcCfg, false)
+
+	if len(svc.Volumes) != 2 {
+		t.Fatalf("Volumes = %v, want 2 entries (data + custom config)", svc.Volumes)
+	}
+	if !strings.Contains(svc.Volumes[1], "mariadb-custom.cnf:/etc/mysql/conf.d/custom.cnf:ro") {
+		t.Errorf("Volumes[1] = %v, want custom cnf mount", svc.Volumes[1])
+	}
+}
+
 func TestComposeService_Redis(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 

@@ -208,7 +208,7 @@ For large databases, you may need to adjust Docker resources:
 
 ### MySQL Configuration
 
-For production-like performance, you can mount a custom MySQL config:
+You can mount a custom MySQL config file for production-like performance or to control features like binary logging:
 
 ```bash
 # Create custom config
@@ -217,7 +217,16 @@ cat > ~/.magebox/docker/mysql-custom.cnf << EOF
 innodb_buffer_pool_size = 1G
 innodb_log_file_size = 256M
 max_connections = 200
+skip-log-bin
 EOF
+```
+
+For MariaDB, use `~/.magebox/docker/mariadb-custom.cnf` instead.
+
+After creating or modifying the config file, restart MageBox to apply:
+
+```bash
+magebox restart
 ```
 
 ## Troubleshooting

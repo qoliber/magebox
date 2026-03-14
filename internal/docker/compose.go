@@ -347,16 +347,24 @@ func (g *ComposeGenerator) getMySQLService(svcCfg *config.ServiceConfig, addStan
 		ports = append(ports, fmt.Sprintf("%d:3306", StandardDBPort))
 	}
 
+	volumes := []string{
+		fmt.Sprintf("mysql%s_data:/var/lib/mysql", strings.ReplaceAll(version, ".", "")),
+	}
+
+	// Mount custom MySQL config if it exists
+	customCnf := filepath.Join(g.platform.MageBoxDir(), "docker", "mysql-custom.cnf")
+	if _, err := os.Stat(customCnf); err == nil {
+		volumes = append(volumes, customCnf+":/etc/mysql/conf.d/custom.cnf:ro")
+	}
+
 	return ComposeService{
 		ContainerName: fmt.Sprintf("magebox-mysql-%s", version),
 		Image:         fmt.Sprintf("mysql:%s", version),
 		Ports:         ports,
 		Environment:   env,
-		Volumes: []string{
-			fmt.Sprintf("mysql%s_data:/var/lib/mysql", strings.ReplaceAll(version, ".", "")),
-		},
-		Networks: []string{"magebox"},
-		Restart:  "unless-stopped",
+		Volumes:       volumes,
+		Networks:      []string{"magebox"},
+		Restart:       "unless-stopped",
 		HealthCheck: &HealthCheck{
 			Test:     []string{"CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p" + DefaultDBRootPassword},
 			Interval: "10s",
@@ -385,16 +393,24 @@ func (g *ComposeGenerator) getMariaDBService(svcCfg *config.ServiceConfig, addSt
 		ports = append(ports, fmt.Sprintf("%d:3306", StandardDBPort))
 	}
 
+	volumes := []string{
+		fmt.Sprintf("mariadb%s_data:/var/lib/mysql", strings.ReplaceAll(version, ".", "")),
+	}
+
+	// Mount custom MariaDB config if it exists
+	customCnf := filepath.Join(g.platform.MageBoxDir(), "docker", "mariadb-custom.cnf")
+	if _, err := os.Stat(customCnf); err == nil {
+		volumes = append(volumes, customCnf+":/etc/mysql/conf.d/custom.cnf:ro")
+	}
+
 	return ComposeService{
 		ContainerName: fmt.Sprintf("magebox-mariadb-%s", version),
 		Image:         fmt.Sprintf("mariadb:%s", version),
 		Ports:         ports,
 		Environment:   env,
-		Volumes: []string{
-			fmt.Sprintf("mariadb%s_data:/var/lib/mysql", strings.ReplaceAll(version, ".", "")),
-		},
-		Networks: []string{"magebox"},
-		Restart:  "unless-stopped",
+		Volumes:       volumes,
+		Networks:      []string{"magebox"},
+		Restart:       "unless-stopped",
 		HealthCheck: &HealthCheck{
 			Test:     []string{"CMD", "healthcheck.sh", "--connect", "--innodb_initialized"},
 			Interval: "10s",

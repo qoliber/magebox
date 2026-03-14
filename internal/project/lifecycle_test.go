@@ -92,6 +92,66 @@ func TestManager_Init(t *testing.T) {
 	}
 }
 
+func TestManager_InitRespectsGlobalDefaults(t *testing.T) {
+	m, tmpDir := setupTestManager(t)
+	// Use temp dir as HOME so we can write a custom global config
+	t.Setenv("HOME", tmpDir)
+
+	// Create a global config with custom defaults
+	mageboxDir := filepath.Join(tmpDir, ".magebox")
+	if err := os.MkdirAll(mageboxDir, 0755); err != nil {
+		t.Fatalf("failed to create .magebox dir: %v", err)
+	}
+	globalConfig := `dns_mode: dnsmasq
+default_php: "8.4"
+tld: localhost
+default_services:
+  mysql: "8.4"
+  redis: true
+  rabbitmq: true
+`
+	if err := os.WriteFile(filepath.Join(mageboxDir, "config.yaml"), []byte(globalConfig), 0644); err != nil {
+		t.Fatalf("failed to write global config: %v", err)
+	}
+
+	projectPath := filepath.Join(tmpDir, "myproject")
+	if err := os.MkdirAll(projectPath, 0755); err != nil {
+		t.Fatalf("failed to create project dir: %v", err)
+	}
+
+	err := m.Init(projectPath, "mystore", "magento")
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(projectPath, config.ConfigFileName))
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+
+	contentStr := string(content)
+
+	// Should use PHP 8.4 from global config, not hardcoded 8.2
+	if !strings.Contains(contentStr, `php: "8.4"`) {
+		t.Errorf("Config should use default_php from global config (8.4), got:\n%s", contentStr)
+	}
+
+	// Should use MySQL 8.4 from global config
+	if !strings.Contains(contentStr, `mysql: "8.4"`) {
+		t.Errorf("Config should use default mysql version from global config (8.4), got:\n%s", contentStr)
+	}
+
+	// Should use localhost TLD from global config
+	if !strings.Contains(contentStr, "mystore.localhost") {
+		t.Errorf("Config should use TLD from global config (localhost), got:\n%s", contentStr)
+	}
+
+	// Should include rabbitmq from global config defaults
+	if !strings.Contains(contentStr, "rabbitmq: true") {
+		t.Errorf("Config should include rabbitmq from global defaults, got:\n%s", contentStr)
+	}
+}
+
 func TestManager_InitAlreadyExists(t *testing.T) {
 	m, tmpDir := setupTestManager(t)
 

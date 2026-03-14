@@ -562,13 +562,37 @@ func (m *Manager) Init(projectPath string, projectName string, projectType strin
 		return fmt.Errorf("%s file already exists", config.ConfigFileName)
 	}
 
-	// Get configured TLD from global config
+	// Get configured defaults from global config
 	homeDir, _ := os.UserHomeDir()
 	globalCfg, _ := config.LoadGlobalConfig(homeDir)
 	tld := globalCfg.GetTLD()
+	phpVersion := globalCfg.DefaultPHP
+	defaults := globalCfg.DefaultServices
 
 	// Derive domain from project name
 	domain := projectName + "." + tld
+
+	// Build services block from global defaults
+	var services strings.Builder
+	services.WriteString("services:\n")
+	if defaults.MySQL != "" {
+		services.WriteString(fmt.Sprintf("  mysql: \"%s\"\n", defaults.MySQL))
+	}
+	if defaults.MariaDB != "" {
+		services.WriteString(fmt.Sprintf("  mariadb: \"%s\"\n", defaults.MariaDB))
+	}
+	if defaults.Redis {
+		services.WriteString("  redis: true\n")
+	}
+	if defaults.OpenSearch != "" {
+		services.WriteString(fmt.Sprintf("  opensearch: \"%s\"\n", defaults.OpenSearch))
+	}
+	if defaults.RabbitMQ {
+		services.WriteString("  rabbitmq: true\n")
+	}
+	if defaults.Mailpit {
+		services.WriteString("  mailpit: true\n")
+	}
 
 	var content string
 	if projectType == config.ProjectTypeLaravel {
@@ -576,20 +600,14 @@ func (m *Manager) Init(projectPath string, projectName string, projectType strin
 type: laravel
 domains:
   - host: %s
-php: "8.2"
-services:
-  mysql: "8.0"
-  redis: true
-`, projectName, domain)
+php: "%s"
+%s`, projectName, domain, phpVersion, services.String())
 	} else {
 		content = fmt.Sprintf(`name: %s
 domains:
   - host: %s
-php: "8.2"
-services:
-  mysql: "8.0"
-  redis: true
-`, projectName, domain)
+php: "%s"
+%s`, projectName, domain, phpVersion, services.String())
 	}
 
 	return os.WriteFile(configPath, []byte(content), 0644)
