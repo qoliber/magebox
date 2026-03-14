@@ -51,6 +51,8 @@ func TestNewManager(t *testing.T) {
 
 func TestManager_Init(t *testing.T) {
 	m, tmpDir := setupTestManager(t)
+	// Use temp dir as HOME so global config defaults apply (TLD=test)
+	t.Setenv("HOME", tmpDir)
 
 	projectPath := filepath.Join(tmpDir, "myproject")
 	if err := os.MkdirAll(projectPath, 0755); err != nil {

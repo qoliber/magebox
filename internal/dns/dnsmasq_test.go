@@ -56,6 +56,9 @@ func TestDnsmasqManager_getConfigPath(t *testing.T) {
 }
 
 func TestDnsmasqManager_generateConfig(t *testing.T) {
+	// Use temp dir as HOME so global config defaults apply (TLD=test)
+	t.Setenv("HOME", t.TempDir())
+
 	tests := []struct {
 		name          string
 		platformType  platform.Type
