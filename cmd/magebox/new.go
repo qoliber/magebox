@@ -42,9 +42,14 @@ Quick Mode (--quick):
   - Sample data included
   - Domain: {directory}.test
 
+Hyvä Theme (--hyva):
+  Install the Hyvä theme alongside Magento/MageOS.
+  Requires your Hyvä Private Packagist repository URL (prompted if not configured).
+
 Example:
   magebox new mystore              # Interactive wizard
   magebox new mystore --quick      # Quick install with defaults + sample data
+  magebox new mystore --quick --hyva  # Quick install with Hyvä theme
   magebox new . --quick            # Quick install in current directory`,
 	Args: cobra.ExactArgs(1),
 	RunE: runNew,
@@ -54,11 +59,13 @@ Example:
 var (
 	newQuick      bool
 	newWithSample bool
+	newHyva       bool
 )
 
 func init() {
 	newCmd.Flags().BoolVarP(&newQuick, "quick", "q", false, "Quick install with defaults (MageOS + sample data)")
 	newCmd.Flags().BoolVar(&newWithSample, "with-sample", false, "Include sample data (used with --quick)")
+	newCmd.Flags().BoolVar(&newHyva, "hyva", false, "Install Hyvä theme")
 	rootCmd.AddCommand(newCmd)
 }
 
@@ -535,6 +542,9 @@ func runNew(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  RabbitMQ:        %s\n", cli.Status(enableRabbitMQ))
 	fmt.Printf("  Mailpit:         %s\n", cli.Status(enableMailpit))
 	fmt.Printf("  Sample Data:     %s\n", cli.Status(installSampleData))
+	if newHyva {
+		fmt.Printf("  Hyvä Theme:      %s\n", cli.Status(true))
+	}
 	fmt.Printf("  Project:         %s\n", cli.Highlight(projectName))
 	fmt.Printf("  Domain:          %s\n", cli.URL("https://"+domainInput))
 	fmt.Println()
@@ -552,6 +562,20 @@ func runNew(cmd *cobra.Command, args []string) error {
 	composerPath, err := findRealComposer(p)
 	if err != nil {
 		return fmt.Errorf("composer not found: %w", err)
+	}
+
+	// Check Hyvä Composer repository URL if --hyva is set
+	composerWrapperPath := filepath.Join(p.MageBoxDir(), "bin", "composer")
+	var hyvaRepoURL string
+	if newHyva {
+		var err error
+		hyvaRepoURL, err = ensureHyvaRepoURL(composerWrapperPath)
+		if err != nil {
+			return err
+		}
+		if hyvaRepoURL == "" {
+			return nil
+		}
 	}
 
 	// Set up Composer auth if needed (use explicit PHP to avoid shebang issues)
@@ -702,6 +726,13 @@ commands:
 		_ = updateCmd.Run()
 	}
 
+	// Install Hyvä theme if requested
+	if newHyva {
+		if err := installHyvaComposer(wrapperPath, projectDir, hyvaRepoURL); err != nil {
+			cli.PrintWarning("Hyvä installation failed: %v", err)
+		}
+	}
+
 	// Success!
 	fmt.Println()
 	cli.PrintTitle("Installation Complete!")
@@ -807,6 +838,17 @@ commands:
 		fmt.Println()
 	}
 
+	if newHyva {
+		stepNum := "3"
+		if installSampleData {
+			stepNum = "4"
+		}
+		fmt.Println(cli.Bullet(stepNum + ". Activate Hyvä theme:"))
+		fmt.Println("      Go to Admin > Content > Design > Configuration")
+		fmt.Println("      Set the theme to " + cli.Highlight("Hyva/default"))
+		fmt.Println()
+	}
+
 	fmt.Println("After setup, access your store at: " + cli.URL("https://"+domainInput))
 	fmt.Println("Admin panel: " + cli.URL("https://"+domainInput+"/admin"))
 	fmt.Println()
@@ -816,13 +858,33 @@ commands:
 
 // runNewQuick creates a new MageOS project with sensible defaults (no questions)
 func runNewQuick(targetDir string, p *platform.Platform) error {
-	cli.PrintTitle("Quick Install - MageOS with Sample Data")
+	if newHyva {
+		cli.PrintTitle("Quick Install - MageOS with Sample Data + Hyvä Theme")
+	} else {
+		cli.PrintTitle("Quick Install - MageOS with Sample Data")
+	}
 	fmt.Println()
 
 	// Load global config for TLD
 	homeDir, _ := os.UserHomeDir()
 	globalCfg, _ := config.LoadGlobalConfig(homeDir)
 	tld := globalCfg.GetTLD()
+
+	// Composer wrapper path (needed early for Hyvä auth check)
+	wrapperPath := filepath.Join(p.MageBoxDir(), "bin", "composer")
+
+	// Check Hyvä Composer repository URL if --hyva is set
+	var hyvaRepoURL string
+	if newHyva {
+		var err error
+		hyvaRepoURL, err = ensureHyvaRepoURL(wrapperPath)
+		if err != nil {
+			return err
+		}
+		if hyvaRepoURL == "" {
+			return nil
+		}
+	}
 
 	// Load versions from config
 	versionsCfg, err := loadVersions(p)
@@ -914,6 +976,9 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	fmt.Println(cli.Bullet("Search:       " + cli.Highlight("OpenSearch "+searchVersion)))
 	fmt.Println(cli.Bullet("Services:     " + cli.Highlight("Mailpit")))
 	fmt.Println(cli.Bullet("Sample Data:  " + cli.Highlight("Yes")))
+	if newHyva {
+		fmt.Println(cli.Bullet("Hyvä Theme:   " + cli.Highlight("Yes")))
+	}
 	fmt.Println(cli.Bullet("Directory:    " + cli.Highlight(projectDir)))
 	fmt.Println(cli.Bullet("Domain:       " + cli.Highlight(domainInput)))
 	fmt.Println()
@@ -985,7 +1050,6 @@ commands:
 	}
 
 	// Run composer install using our wrapper
-	wrapperPath := filepath.Join(p.MageBoxDir(), "bin", "composer")
 	compInstallCmd := exec.Command(wrapperPath, "install")
 	compInstallCmd.Dir = projectDir
 	compInstallCmd.Stdout = os.Stdout
@@ -995,6 +1059,14 @@ commands:
 	if err := compInstallCmd.Run(); err != nil {
 		cli.PrintError("Composer install failed: %v", err)
 		return err
+	}
+
+	// Install Hyvä theme if requested
+	if newHyva {
+		if err := installHyvaComposer(wrapperPath, projectDir, hyvaRepoURL); err != nil {
+			cli.PrintError("Hyvä installation failed: %v", err)
+			return err
+		}
 	}
 
 	// Step 4: Start MageBox services
@@ -1128,6 +1200,12 @@ commands:
 		cli.PrintWarning("setup:upgrade failed: %v", err)
 	}
 
+	// Activate Hyvä theme after setup:upgrade has registered it in the database
+	if newHyva {
+		fmt.Println()
+		activateHyvaTheme(phpWrapperPath, projectDir)
+	}
+
 	// Step 9: Reindex
 	fmt.Println()
 	cli.PrintInfo("Running indexer:reindex...")
@@ -1156,7 +1234,11 @@ commands:
 	fmt.Println()
 	cli.PrintTitle("Installation Complete!")
 	fmt.Println()
-	cli.PrintSuccess("MageOS project installed successfully!")
+	if newHyva {
+		cli.PrintSuccess("MageOS project with Hyvä theme installed successfully!")
+	} else {
+		cli.PrintSuccess("MageOS project installed successfully!")
+	}
 	fmt.Println()
 	fmt.Println("Your store is ready at: " + cli.URL("https://"+domainInput))
 	fmt.Println("Admin panel: " + cli.URL("https://"+domainInput+"/admin"))
@@ -1167,6 +1249,163 @@ commands:
 	fmt.Println()
 
 	return nil
+}
+
+// HyvaComposerRepoHost is the hostname for Hyvä's Private Packagist
+const HyvaComposerRepoHost = "hyva-themes.repo.packagist.com"
+
+// hasHyvaComposerAuth checks if Hyvä Composer authentication is already configured
+func hasHyvaComposerAuth() bool {
+	homeDir, _ := os.UserHomeDir()
+	for _, authFile := range []string{
+		filepath.Join(homeDir, ".config", "composer", "auth.json"),
+		filepath.Join(homeDir, ".composer", "auth.json"),
+	} {
+		content, err := os.ReadFile(authFile)
+		if err == nil && strings.Contains(string(content), HyvaComposerRepoHost) {
+			return true
+		}
+	}
+	return false
+}
+
+// getHyvaRepoURL checks the global Composer config for an existing Hyvä repository URL.
+// Returns the URL if found, or empty string if not configured.
+func getHyvaRepoURL() string {
+	homeDir, _ := os.UserHomeDir()
+
+	// Check global composer.json for existing Hyvä repo
+	for _, globalComposer := range []string{
+		filepath.Join(homeDir, ".config", "composer", "composer.json"),
+		filepath.Join(homeDir, ".composer", "composer.json"),
+	} {
+		content, err := os.ReadFile(globalComposer)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(content), HyvaComposerRepoHost) {
+			// Extract the URL - look for the full repo URL pattern
+			parts := strings.Split(string(content), "\"")
+			for _, part := range parts {
+				if strings.Contains(part, HyvaComposerRepoHost) && strings.HasPrefix(part, "https://") {
+					return part
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// ensureHyvaRepoURL checks for an existing Hyvä repo URL and auth, or prompts the user.
+// Returns the repo URL or empty string if the user declined.
+func ensureHyvaRepoURL(composerWrapper string) (string, error) {
+	repoURL := getHyvaRepoURL()
+	hasAuth := hasHyvaComposerAuth()
+
+	if repoURL != "" && hasAuth {
+		fmt.Println("  " + cli.Success("✓") + " Found existing Hyvä Composer repository and authentication")
+		return repoURL, nil
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+
+	// Prompt for repo URL if not found
+	if repoURL == "" {
+		fmt.Println()
+		cli.PrintInfo("Hyvä theme requires a Private Packagist repository URL and token.")
+		fmt.Println("  Find both in your Hyvä account at " + cli.URL("https://www.hyva.io/customer/account/login/"))
+		fmt.Println()
+
+		fmt.Print("  Hyvä Composer repository URL: ")
+		input, _ := reader.ReadString('\n')
+		repoURL = strings.TrimSpace(input)
+		if repoURL == "" {
+			cli.PrintError("Hyvä repository URL is required for Hyvä installation")
+			return "", nil
+		}
+
+		if !strings.Contains(repoURL, HyvaComposerRepoHost) {
+			cli.PrintError("Invalid URL: must be a %s URL", HyvaComposerRepoHost)
+			return "", nil
+		}
+
+		// Ensure trailing slash
+		if !strings.HasSuffix(repoURL, "/") {
+			repoURL += "/"
+		}
+	} else {
+		fmt.Println("  " + cli.Success("✓") + " Found existing Hyvä Composer repository")
+	}
+
+	// Prompt for auth token if not found
+	if !hasAuth {
+		fmt.Print("  Hyvä Composer token: ")
+		input, _ := reader.ReadString('\n')
+		token := strings.TrimSpace(input)
+		if token == "" {
+			cli.PrintError("Hyvä Composer token is required for Hyvä installation")
+			return "", nil
+		}
+
+		// Configure http-basic auth: username is "token", password is the actual token
+		authCmd := exec.Command(composerWrapper, "config", "--global",
+			fmt.Sprintf("http-basic.%s", HyvaComposerRepoHost), "token", token)
+		if err := authCmd.Run(); err != nil {
+			return "", fmt.Errorf("failed to configure Hyvä Composer auth: %w", err)
+		}
+		fmt.Println("  " + cli.Success("✓") + " Hyvä Composer authentication configured")
+	}
+
+	return repoURL, nil
+}
+
+// installHyvaComposer adds the Hyvä repository and requires the theme package.
+func installHyvaComposer(composerWrapper, projectDir, repoURL string) error {
+	fmt.Println()
+	cli.PrintInfo("Installing Hyvä theme via Composer...")
+
+	// Add Hyvä repository to project composer.json
+	repoCmd := exec.Command(composerWrapper, "config", "repositories.hyva-themes",
+		"composer", repoURL)
+	repoCmd.Dir = projectDir
+	repoCmd.Stdout = os.Stdout
+	repoCmd.Stderr = os.Stderr
+	if err := repoCmd.Run(); err != nil {
+		return fmt.Errorf("failed to add Hyvä Composer repository: %w", err)
+	}
+
+	// Require the Hyvä default theme
+	requireCmd := exec.Command(composerWrapper, "require", "hyva-themes/magento2-default-theme")
+	requireCmd.Dir = projectDir
+	requireCmd.Stdout = os.Stdout
+	requireCmd.Stderr = os.Stderr
+	requireCmd.Stdin = os.Stdin
+	if err := requireCmd.Run(); err != nil {
+		return fmt.Errorf("hyvä theme composer require failed: %w", err)
+	}
+
+	fmt.Println("  Hyvä theme installed " + cli.Success("✓"))
+	return nil
+}
+
+// HyvaDefaultThemeID is the theme_id for Hyva/default after setup:upgrade registers it.
+const HyvaDefaultThemeID = "5"
+
+// activateHyvaTheme sets the Hyvä theme as the active frontend theme.
+func activateHyvaTheme(phpWrapper, projectDir string) {
+	cli.PrintInfo("Activating Hyvä theme...")
+
+	themeCmd := exec.Command(phpWrapper, "bin/magento", "config:set", "design/theme/theme_id", HyvaDefaultThemeID)
+	themeCmd.Dir = projectDir
+	themeCmd.Stdout = os.Stdout
+	themeCmd.Stderr = os.Stderr
+	if err := themeCmd.Run(); err != nil {
+		cli.PrintWarning("Failed to activate Hyvä theme: %v", err)
+		cli.PrintInfo("You can activate it manually: php bin/magento config:set design/theme/theme_id 5")
+	} else {
+		fmt.Println("  Hyvä theme activated " + cli.Success("✓"))
+	}
 }
 
 // titleCase converts a string to title case (first letter uppercase)
