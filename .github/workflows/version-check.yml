@@ -32,7 +32,7 @@ jobs:
           # --- MageOS ---
           echo "### MageOS" >> report.md
           MAGEOS_TAGS=$(gh api repos/mage-os/mageos-magento2/tags --paginate --jq '.[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
-          KNOWN_MAGEOS=$(grep -A1 'version:' lib/templates/config/versions.yaml | grep -oP '"\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | sort -V)
+          KNOWN_MAGEOS=$(sed -n '/^mageos:/,/^[^ ]/p' lib/templates/config/versions.yaml | grep -oP 'version: "\K[0-9]+\.[0-9]+\.[0-9]+(?=")' | sort -V)
 
           MAGEOS_NEW=false
           for tag in $MAGEOS_TAGS; do
@@ -50,7 +50,7 @@ jobs:
           # --- Magento ---
           echo "### Magento Open Source" >> report.md
           MAGENTO_TAGS=$(gh api repos/magento/magento2/tags --paginate --jq '.[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-p[0-9]+)?$' | sort -V | tail -20)
-          KNOWN_MAGENTO=$(grep -A1 'version:' lib/templates/config/versions.yaml | grep -oP '"\K2\.[0-9]+\.[0-9]+(-p[0-9]+)?(?=")' | sort -V)
+          KNOWN_MAGENTO=$(sed -n '/^magento:/,/^[^ ]/p' lib/templates/config/versions.yaml | grep -oP 'version: "\K[0-9]+\.[0-9]+\.[0-9]+(-p[0-9]+)?(?=")' | sort -V)
 
           MAGENTO_NEW=false
           for tag in $MAGENTO_TAGS; do

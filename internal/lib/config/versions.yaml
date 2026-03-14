@@ -29,12 +29,48 @@ magento:
     - version: "2.4.8"
       name: "Magento 2.4.8"
       php: ["8.4", "8.3", "8.2"]
+    - version: "2.4.7-p8"
+      name: "Magento 2.4.7-p8"
+      php: ["8.3", "8.2"]
+    - version: "2.4.7-p7"
+      name: "Magento 2.4.7-p7"
+      php: ["8.3", "8.2"]
+    - version: "2.4.7-p6"
+      name: "Magento 2.4.7-p6"
+      php: ["8.3", "8.2"]
+    - version: "2.4.7-p5"
+      name: "Magento 2.4.7-p5"
+      php: ["8.3", "8.2"]
     - version: "2.4.7-p4"
       name: "Magento 2.4.7-p4"
       php: ["8.3", "8.2"]
     - version: "2.4.7-p3"
       name: "Magento 2.4.7-p3"
       php: ["8.3", "8.2"]
+    - version: "2.4.7-p2"
+      name: "Magento 2.4.7-p2"
+      php: ["8.3", "8.2"]
+    - version: "2.4.7-p1"
+      name: "Magento 2.4.7-p1"
+      php: ["8.3", "8.2"]
+    - version: "2.4.7"
+      name: "Magento 2.4.7"
+      php: ["8.3", "8.2"]
+    - version: "2.4.6-p13"
+      name: "Magento 2.4.6-p13"
+      php: ["8.2", "8.1"]
+    - version: "2.4.6-p12"
+      name: "Magento 2.4.6-p12"
+      php: ["8.2", "8.1"]
+    - version: "2.4.6-p11"
+      name: "Magento 2.4.6-p11"
+      php: ["8.2", "8.1"]
+    - version: "2.4.6-p10"
+      name: "Magento 2.4.6-p10"
+      php: ["8.2", "8.1"]
+    - version: "2.4.6-p9"
+      name: "Magento 2.4.6-p9"
+      php: ["8.2", "8.1"]
     - version: "2.4.6-p8"
       name: "Magento 2.4.6-p8"
       php: ["8.2", "8.1"]
@@ -47,10 +83,14 @@ magento:
 mageos:
   package: "mage-os/project-community-edition"
   versions:
-    - version: "2.1.0"
-      name: "MageOS 2.1.0 (Latest)"
+    - version: "2.2.0"
+      name: "MageOS 2.2.0 (Latest)"
       php: ["8.4", "8.3", "8.2"]
       default: true
+      base: "2.4.8"
+    - version: "2.1.0"
+      name: "MageOS 2.1.0"
+      php: ["8.4", "8.3", "8.2"]
       base: "2.4.8"
     - version: "2.0.0"
       name: "MageOS 2.0.0"
@@ -68,10 +108,18 @@ mageos:
       name: "MageOS 1.2.0"
       php: ["8.3", "8.2"]
       base: "2.4.8"
+    - version: "1.1.1"
+      name: "MageOS 1.1.1"
+      php: ["8.3", "8.2"]
+      base: "2.4.7"
     - version: "1.1.0"
       name: "MageOS 1.1.0"
       php: ["8.3", "8.2"]
       base: "2.4.7"
+    - version: "1.0.6"
+      name: "MageOS 1.0.6"
+      php: ["8.3", "8.2"]
+      base: "2.4.6"
     - version: "1.0.5"
       name: "MageOS 1.0.5"
       php: ["8.3", "8.2"]
