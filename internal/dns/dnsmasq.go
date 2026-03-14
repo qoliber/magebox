@@ -394,12 +394,19 @@ func (m *DnsmasqManager) GetStatus() DnsmasqStatus {
 
 // enableDnsmasqConfDir enables the conf-dir directive in /etc/dnsmasq.conf
 // This is needed on Fedora/RHEL where it's commented out by default
+// On Ubuntu 24.04, /etc/dnsmasq.conf may not exist if dnsmasq was installed
+// without a default config — in that case we create a minimal one.
 func (m *DnsmasqManager) enableDnsmasqConfDir() error {
 	dnsmasqConf := "/etc/dnsmasq.conf"
 
 	// Read current config
 	content, err := os.ReadFile(dnsmasqConf)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// Create a minimal dnsmasq.conf that includes the conf.d directory
+			minimalConf := "# MageBox: minimal dnsmasq config\nconf-dir=/etc/dnsmasq.d\n"
+			return m.writeConfigWithSudo(dnsmasqConf, minimalConf)
+		}
 		return err
 	}
 

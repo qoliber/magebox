@@ -107,6 +107,12 @@ func (u *UbuntuInstaller) InstallPrerequisites() error {
 
 // InstallPHP installs a specific PHP version via Ondrej PPA
 func (u *UbuntuInstaller) InstallPHP(version string) error {
+	// Pre-create the FPM pool directory and placeholder pool BEFORE installing
+	// PHP-FPM. This prevents the "no pool defined" error (exit code 78) that
+	// occurs when dpkg tries to start the FPM service during installation and
+	// www.conf was already disabled by a previous bootstrap run.
+	u.ensurePlaceholderPool(version)
+
 	// Install PHP with all required extensions
 	// Note: sodium is included in php-common on Ubuntu/Debian
 	packages := []string{
@@ -142,9 +148,66 @@ func (u *UbuntuInstaller) InstallPHP(version string) error {
 			fmt.Printf("  Note: Disabled default www.conf pool to resolve socket conflict\n")
 			return nil
 		}
+
+		// Even without www.conf, dpkg may still be in a broken state from
+		// previous FPM service failures. Fix it and check if CLI works.
+		_ = u.RunSudo("dpkg", "--configure", "-a")
+		cliBin := fmt.Sprintf("php%s", version)
+		if u.CommandExists(cliBin) {
+			fmt.Printf("  Note: PHP %s packages installed, FPM will be configured later\n", version)
+			return nil
+		}
 		return err
 	}
 	return nil
+}
+
+// ensurePlaceholderPool creates the FPM pool directory and a placeholder pool
+// config so that PHP-FPM can start during package installation without
+// encountering the "no pool defined" error.
+func (u *UbuntuInstaller) ensurePlaceholderPool(version string) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	currentUser := os.Getenv("USER")
+	if currentUser == "" {
+		currentUser = os.Getenv("LOGNAME")
+	}
+	if currentUser == "" {
+		currentUser = "www-data"
+	}
+
+	// Create the pools directory
+	poolsDir := fmt.Sprintf("%s/.magebox/php/pools/%s", homeDir, version)
+	_ = os.MkdirAll(poolsDir, 0755)
+
+	// Create placeholder pool if it doesn't exist
+	placeholderPool := filepath.Join(poolsDir, "_magebox-placeholder.conf")
+	if !u.FileExists(placeholderPool) {
+		placeholderContent := fmt.Sprintf(`; MageBox placeholder pool - prevents "no pool defined" error
+; This pool is inactive and will be replaced when you run 'magebox start'
+[magebox-placeholder]
+user = %s
+listen = /tmp/magebox-placeholder-%s.sock
+pm = ondemand
+pm.max_children = 1
+pm.process_idle_timeout = 1s
+`, currentUser, version)
+		_ = os.WriteFile(placeholderPool, []byte(placeholderContent), 0644)
+	}
+
+	// Pre-configure the FPM include path if php-fpm.conf already exists
+	// (e.g., from a previous installation that was removed/reinstalled)
+	fpmConfPath := fmt.Sprintf("/etc/php/%s/fpm/php-fpm.conf", version)
+	if u.FileExists(fpmConfPath) {
+		mageboxPoolsInclude := fmt.Sprintf("include=%s/.magebox/php/pools/%s/*.conf", homeDir, version)
+		checkCmd := exec.Command("grep", "-q", mageboxPoolsInclude, fpmConfPath)
+		if checkCmd.Run() != nil {
+			_ = u.RunSudo("sh", "-c", fmt.Sprintf("echo '%s' >> %s", mageboxPoolsInclude, fpmConfPath))
+		}
+	}
 }
 
 // InstallNginx installs Nginx
@@ -182,11 +245,11 @@ func (u *UbuntuInstaller) InstallImagick(version string) error {
 	return u.RunSudo("apt", "install", "-y", fmt.Sprintf("php%s-imagick", version))
 }
 
-// InstallSodium installs the sodium PHP extension for a specific PHP version
-// Required for Argon2i password hashing in Magento
-// Note: On Ubuntu/Debian with Ondrej PPA, sodium may be in php-common or separate package
-func (u *UbuntuInstaller) InstallSodium(version string) error {
-	return u.RunSudo("apt", "install", "-y", fmt.Sprintf("php%s-sodium", version))
+// InstallSodium is a no-op on Ubuntu/Debian.
+// The sodium extension is bundled in php{version}-common via the Ondrej PPA,
+// so there is no separate php{version}-sodium package.
+func (u *UbuntuInstaller) InstallSodium(_ string) error {
+	return nil
 }
 
 // ConfigurePHPFPM configures PHP-FPM on Ubuntu/Debian
@@ -463,7 +526,7 @@ func (u *UbuntuInstaller) ConfigurePHPINI(versions []string) error {
 // InstallBlackfire installs Blackfire agent and PHP extension for all versions
 func (u *UbuntuInstaller) InstallBlackfire(versions []string) error {
 	// Add Blackfire GPG key and repository
-	if err := u.RunCommand("curl -sSL https://packages.blackfire.io/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/blackfire-archive-keyring.gpg"); err != nil {
+	if err := u.RunCommand("curl -sSL https://packages.blackfire.io/gpg.key | sudo gpg --yes --dearmor -o /usr/share/keyrings/blackfire-archive-keyring.gpg"); err != nil {
 		return fmt.Errorf("failed to add Blackfire GPG key: %w", err)
 	}
 
@@ -487,13 +550,10 @@ func (u *UbuntuInstaller) InstallBlackfire(versions []string) error {
 		return fmt.Errorf("failed to install Blackfire agent: %w", err)
 	}
 
-	// Install Blackfire PHP extension for each version
-	for _, version := range versions {
-		pkgName := fmt.Sprintf("blackfire-php%s", strings.ReplaceAll(version, ".", ""))
-		if err := u.RunSudo("apt", "install", "-y", pkgName); err != nil {
-			// Don't fail if extension not available for this PHP version
-			continue
-		}
+	// Install Blackfire PHP probe (single package covers all PHP versions)
+	if err := u.RunSudo("apt", "install", "-y", "blackfire-php"); err != nil {
+		// Don't fail if probe not available
+		fmt.Printf("  Note: Blackfire PHP probe not available, agent-only install\n")
 	}
 
 	return nil
@@ -501,8 +561,8 @@ func (u *UbuntuInstaller) InstallBlackfire(versions []string) error {
 
 // InstallTideways installs Tideways PHP extension for all versions
 func (u *UbuntuInstaller) InstallTideways(versions []string) error {
-	// Add Tideways GPG key and repository
-	if err := u.RunCommand("curl -sSL https://packages.tideways.com/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/tideways-archive-keyring.gpg"); err != nil {
+	// Add Tideways GPG key and repository (Cloudsmith-hosted since 2024)
+	if err := u.RunCommand("curl -sSL https://packages.tideways.com/key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/tideways-archive-keyring.gpg"); err != nil {
 		return fmt.Errorf("failed to add Tideways GPG key: %w", err)
 	}
 
@@ -511,7 +571,7 @@ func (u *UbuntuInstaller) InstallTideways(versions []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to detect architecture: %w", err)
 	}
-	repoLine := fmt.Sprintf("deb [arch=%s signed-by=/usr/share/keyrings/tideways-archive-keyring.gpg] https://packages.tideways.com/apt-packages any-version main", arch)
+	repoLine := fmt.Sprintf("deb [arch=%s signed-by=/usr/share/keyrings/tideways-archive-keyring.gpg] https://packages.tideways.com/apt-packages-main any-version main", arch)
 	if err := u.RunCommand(fmt.Sprintf("echo '%s' | sudo tee /etc/apt/sources.list.d/tideways.list", repoLine)); err != nil {
 		return fmt.Errorf("failed to add Tideways repository: %w", err)
 	}
