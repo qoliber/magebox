@@ -49,6 +49,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Replace slashes with dots in project name
+	projectName = strings.ReplaceAll(projectName, "/", ".")
+
 	// Check if .magebox.yaml already exists
 	configPath := filepath.Join(cwd, config.ConfigFileName)
 	if _, err := os.Stat(configPath); err == nil {
