@@ -1175,12 +1175,6 @@ commands:
 		cli.PrintWarning("Failed to regenerate env.php: %v", err)
 	}
 
-	// Activate Hyvä theme if installed
-	if newHyva {
-		fmt.Println()
-		activateHyvaTheme(phpWrapperPath, projectDir, dbPort, dbName)
-	}
-
 	// Step 7: Deploy sample data
 	fmt.Println()
 	cli.PrintInfo("Deploying sample data...")
@@ -1204,6 +1198,12 @@ commands:
 	upgradeCmd.Stderr = os.Stderr
 	if err := upgradeCmd.Run(); err != nil {
 		cli.PrintWarning("setup:upgrade failed: %v", err)
+	}
+
+	// Activate Hyvä theme after setup:upgrade has registered it in the database
+	if newHyva {
+		fmt.Println()
+		activateHyvaTheme(phpWrapperPath, projectDir)
 	}
 
 	// Step 9: Reindex
@@ -1389,29 +1389,22 @@ func installHyvaComposer(composerWrapper, projectDir, repoURL string) error {
 	return nil
 }
 
-// activateHyvaTheme sets the Hyvä theme as active via database query.
-func activateHyvaTheme(phpWrapper, projectDir, dbPort, dbName string) {
+// HyvaDefaultThemeID is the theme_id for Hyva/default after setup:upgrade registers it.
+const HyvaDefaultThemeID = "5"
+
+// activateHyvaTheme sets the Hyvä theme as the active frontend theme.
+func activateHyvaTheme(phpWrapper, projectDir string) {
 	cli.PrintInfo("Activating Hyvä theme...")
 
-	phpCode := fmt.Sprintf(
-		`$p=new PDO('mysql:host=127.0.0.1;port=%s;dbname=%s','%s','%s');`+
-			`$r=$p->query("SELECT theme_id FROM theme WHERE theme_path='Hyva/default' AND area='frontend'");`+
-			`$id=$r->fetchColumn();`+
-			`if($id){`+
-			`$p->exec("INSERT INTO core_config_data(scope,scope_id,path,value)VALUES('default',0,'design/theme/theme_id',$id)ON DUPLICATE KEY UPDATE value=$id");`+
-			`echo "Hyva theme activated (ID: $id)\n";`+
-			`}else{`+
-			`echo "Warning: Hyva/default theme not found in database\n";`+
-			`}`,
-		dbPort, dbName, DefaultDBUser, DefaultDBPassword)
-
-	themeCmd := exec.Command(phpWrapper, "-r", phpCode)
+	themeCmd := exec.Command(phpWrapper, "bin/magento", "config:set", "design/theme/theme_id", HyvaDefaultThemeID)
 	themeCmd.Dir = projectDir
 	themeCmd.Stdout = os.Stdout
 	themeCmd.Stderr = os.Stderr
 	if err := themeCmd.Run(); err != nil {
 		cli.PrintWarning("Failed to activate Hyvä theme: %v", err)
-		cli.PrintInfo("You can activate it manually in Admin > Content > Design > Configuration")
+		cli.PrintInfo("You can activate it manually: php bin/magento config:set design/theme/theme_id 5")
+	} else {
+		fmt.Println("  Hyvä theme activated " + cli.Success("✓"))
 	}
 }
 
