@@ -664,9 +664,6 @@ func flushMagentoCache(phpBin, cwd string) {
 		fmt.Println(cli.Success("done"))
 	}
 
-	// Also flush Redis directly to ensure full-page cache is cleared
-	redisCmd := exec.Command("docker", "exec", "magebox-redis", "redis-cli", "FLUSHALL")
-	_ = redisCmd.Run()
 }
 
 // extractHostname extracts the hostname from a URL string
