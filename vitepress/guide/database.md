@@ -132,6 +132,16 @@ services:
 
 Both run simultaneously without conflicts.
 
+### Monitor Database Processes
+
+Watch active queries and connections in real time:
+
+```bash
+magebox db top
+```
+
+Refreshes every 2 seconds, showing the MySQL/MariaDB process list. Press `Ctrl+C` to stop.
+
 ## Database Management Tools
 
 ### Using Sequel Pro / TablePlus / DBeaver

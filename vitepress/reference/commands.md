@@ -576,6 +576,20 @@ Equivalent to `db drop` followed by `db create`. Requires confirmation.
 
 ---
 
+### `magebox db top`
+
+Monitor database processes in real time.
+
+```bash
+magebox db top
+```
+
+Shows active MySQL/MariaDB queries, connections, and lock info using `mysqladmin processlist`. Refreshes every 2 seconds.
+
+Press `Ctrl+C` to stop.
+
+---
+
 ### `magebox db snapshot create [name]`
 
 Create a database snapshot for quick backup.
@@ -811,6 +825,66 @@ magebox varnish disable
 ```
 
 Restores direct Nginx → PHP-FPM routing.
+
+---
+
+### `magebox varnish vcl-import <file>`
+
+Import a custom VCL file.
+
+```bash
+magebox varnish vcl-import /path/to/custom.vcl
+```
+
+Replaces the auto-generated VCL with your custom file. The existing VCL is backed up as `default.vcl.bak`. Varnish is reloaded automatically if running.
+
+---
+
+### `magebox varnish vcl-reset`
+
+Reset VCL to the auto-generated default.
+
+```bash
+magebox varnish vcl-reset
+```
+
+Regenerates the default VCL from project configuration, removing any custom VCL. Varnish is reloaded automatically if running.
+
+## Elasticvue Commands
+
+### `magebox elasticvue enable`
+
+Enable the Elasticvue web UI for OpenSearch/Elasticsearch.
+
+```bash
+magebox elasticvue enable
+```
+
+Starts the Elasticvue container on port 8080. Access at http://localhost:8080.
+
+---
+
+### `magebox elasticvue disable`
+
+Disable Elasticvue.
+
+```bash
+magebox elasticvue disable
+```
+
+Stops the Elasticvue container and removes it from docker-compose.
+
+---
+
+### `magebox elasticvue status`
+
+Show Elasticvue status.
+
+```bash
+magebox elasticvue status
+```
+
+Shows whether Elasticvue is enabled, running, and the web UI URL.
 
 ## Docker Commands (macOS)
 
@@ -1073,6 +1147,7 @@ magebox config set dns_mode dnsmasq
 magebox config set default_php 8.3
 magebox config set tld local
 magebox config set portainer true
+magebox config set elasticvue true
 ```
 
 **Available keys:**
@@ -1080,6 +1155,7 @@ magebox config set portainer true
 - `default_php` - Default PHP version
 - `tld` - Top-level domain (default: test)
 - `portainer` - Enable Portainer UI (true/false)
+- `elasticvue` - Enable Elasticvue search UI (true/false)
 - `editor` - Preferred editor
 - `auto_start` - Auto-start services (true/false)
 
