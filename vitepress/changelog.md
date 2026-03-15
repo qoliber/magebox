@@ -2,6 +2,21 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.6.0] - 2026-03-15
+
+### New Features
+
+- **Service-Specific Log Tailing** - New `magebox logs php/nginx/mysql/redis` subcommands for viewing per-service logs. PHP-FPM and Nginx tail local log files with multitail support, while MySQL and Redis stream Docker container logs. Supports `-f` (follow) and `-n` (lines) flags. ([#26](https://github.com/qoliber/magebox/pull/26))
+- **Expose / Share via Cloudflare Tunnels** - New `magebox expose` command to share local projects via public Cloudflare Tunnel URLs. Automatically backs up and updates Magento base URLs, nginx vhosts, and env.php, with full revert on Ctrl+C. ([#25](https://github.com/qoliber/magebox/pull/25))
+- **Auto Document Root Discovery** - MageBox now automatically discovers the document root directory, removing the need to manually configure it in most cases. ([#24](https://github.com/qoliber/magebox/pull/24))
+- **Elasticvue Integration** - New `magebox elasticvue enable/disable/status` commands for managing the Elasticvue web UI for OpenSearch/Elasticsearch. ([#23](https://github.com/qoliber/magebox/pull/23))
+- **Database Process Monitor** - New `magebox db top` command for real-time MySQL/MariaDB process monitoring using innotop or mysqladmin processlist. ([#23](https://github.com/qoliber/magebox/pull/23))
+- **VCL Import/Reset** - New `magebox varnish vcl-import` and `magebox varnish vcl-reset` commands for custom Varnish VCL management. ([#23](https://github.com/qoliber/magebox/pull/23))
+
+### Documentation
+
+- Updated docs with new features, service pages, and command reference. ([#22](https://github.com/qoliber/magebox/pull/22))
+
 ## [1.5.0] - 2026-03-15
 
 ### New Features
