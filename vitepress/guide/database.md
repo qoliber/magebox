@@ -140,19 +140,12 @@ Watch active queries and connections in real time:
 magebox db top
 ```
 
-Uses [mytop](https://github.com/jzawodn/mytop) for a full-featured TUI when installed, falling back to `mysqladmin processlist` otherwise. Press `Ctrl+C` to stop.
+Uses [innotop](https://github.com/innotop/innotop) for a full-featured TUI when installed, falling back to `mysqladmin processlist` otherwise. Press `Ctrl+C` to stop.
 
 ::: tip
-Install mytop for the best experience:
+Install innotop for the best experience:
 ```bash
-# macOS
-brew install mytop
-
-# Ubuntu/Debian
-sudo apt install mytop
-
-# Fedora
-sudo dnf install mytop
+brew install innotop
 ```
 :::
 

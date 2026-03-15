@@ -584,7 +584,7 @@ Monitor database processes in real time.
 magebox db top
 ```
 
-Uses [mytop](https://github.com/jzawodn/mytop) when installed for a full-featured TUI, falling back to `mysqladmin processlist` otherwise. Connects to the project's database container automatically.
+Uses [innotop](https://github.com/innotop/innotop) when installed for a full-featured TUI, falling back to `mysqladmin processlist` otherwise. Connects to the project's database container automatically.
 
 Press `Ctrl+C` to stop.
 

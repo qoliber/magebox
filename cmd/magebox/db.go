@@ -545,27 +545,25 @@ func runDbTop(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Try mytop on the host first (best TUI experience)
-	if mytopPath, err := exec.LookPath("mytop"); err == nil {
-		fmt.Printf("Monitoring %s via mytop (Ctrl+C to stop)\n\n", cli.Highlight(db.ContainerName))
-		mytopCmd := exec.Command(mytopPath,
-			"--host=127.0.0.1",
-			fmt.Sprintf("--port=%d", db.Port),
-			"--user=root",
-			"--pass="+docker.DefaultDBRootPassword,
+	// Try innotop on the host first (best TUI experience)
+	if innotopPath, err := exec.LookPath("innotop"); err == nil {
+		fmt.Printf("Monitoring %s via innotop (Ctrl+C to stop)\n\n", cli.Highlight(db.ContainerName))
+		innotopCmd := exec.Command(innotopPath,
+			"--host", "127.0.0.1",
+			"--port", fmt.Sprintf("%d", db.Port),
+			"--user", "root",
+			"--password", docker.DefaultDBRootPassword,
 		)
-		mytopCmd.Stdin = os.Stdin
-		mytopCmd.Stdout = os.Stdout
-		mytopCmd.Stderr = os.Stderr
-		return mytopCmd.Run()
+		innotopCmd.Stdin = os.Stdin
+		innotopCmd.Stdout = os.Stdout
+		innotopCmd.Stderr = os.Stderr
+		return innotopCmd.Run()
 	}
 
 	// Fallback to mysqladmin processlist inside the container
-	cli.PrintWarning("mytop not found, falling back to mysqladmin processlist")
-	cli.PrintInfo("Install mytop for a better experience:")
-	fmt.Println("  macOS:   brew install mytop")
-	fmt.Println("  Ubuntu:  sudo apt install mytop")
-	fmt.Println("  Fedora:  sudo dnf install mytop")
+	cli.PrintWarning("innotop not found, falling back to mysqladmin processlist")
+	cli.PrintInfo("Install innotop for a better experience:")
+	fmt.Println("  brew install innotop")
 	fmt.Println()
 	fmt.Printf("Monitoring %s (Ctrl+C to stop)\n\n", cli.Highlight(db.ContainerName))
 
