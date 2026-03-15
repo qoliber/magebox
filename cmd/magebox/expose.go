@@ -163,7 +163,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	// Save current base URLs from all scopes via direct SQL
 	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
 	if db != nil {
-		saveBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
+		saveBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile, domain)
 	}
 
 	// Start cloudflared tunnel — the tunnel hostname passes through as Host
@@ -361,8 +361,10 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// saveBaseURLsFromDB reads all base URL entries from core_config_data and saves them
-func saveBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
+// saveBaseURLsFromDB reads all base URL entries from core_config_data and saves them.
+// If stale tunnel URLs from a previous run are detected, they are replaced with
+// URLs derived from the local domain before saving.
+func saveBaseURLsFromDB(db *dbInfo, dbName, urlsFile, localDomain string) {
 	fmt.Print("Saving current base URLs... ")
 
 	// Build WHERE clause for all URL paths
@@ -384,20 +386,46 @@ func saveBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
 		return
 	}
 
+	localBaseURL := fmt.Sprintf("https://%s/", localDomain)
+
 	var rows []savedConfigRow
+	hasStale := false
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if line == "" {
 			continue
 		}
 		fields := strings.SplitN(line, "\t", 4)
 		if len(fields) == 4 {
+			value := fields[3]
+
+			// Detect stale tunnel URLs from a previous run that wasn't cleanly reverted
+			if strings.Contains(value, ".trycloudflare.com") {
+				hasStale = true
+				// Derive the correct local URL from the path type
+				switch {
+				case strings.Contains(fields[2], "media"):
+					value = localBaseURL + "media/"
+				case strings.Contains(fields[2], "static"):
+					value = localBaseURL + "static/"
+				default:
+					value = localBaseURL
+				}
+			}
+
 			rows = append(rows, savedConfigRow{
 				Scope:   fields[0],
 				ScopeID: fields[1],
 				Path:    fields[2],
-				Value:   fields[3],
+				Value:   value,
 			})
 		}
+	}
+
+	// If stale tunnel URLs were found, also fix them in the database now
+	if hasStale {
+		cli.PrintWarning("Found stale tunnel URLs from a previous run, fixing...")
+		revertBaseURLsFromSaved(db, dbName, rows)
+		fmt.Print("Saving current base URLs... ")
 	}
 
 	data, err := json.Marshal(rows)
@@ -414,6 +442,23 @@ func saveBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
 	}
 
 	fmt.Printf("%s (%d entries)\n", cli.Success("done"), len(rows))
+}
+
+// revertBaseURLsFromSaved restores base URLs from a slice of saved rows
+func revertBaseURLsFromSaved(db *dbInfo, dbName string, rows []savedConfigRow) {
+	var statements []string
+	for _, row := range rows {
+		statements = append(statements,
+			fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
+				row.Value, row.Scope, row.ScopeID, row.Path),
+		)
+	}
+
+	query := strings.Join(statements, "; ")
+	cmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+		dbName, "-e", query)
+	_ = cmd.Run()
 }
 
 // updateBaseURLsInDB replaces all base URL values in core_config_data with the tunnel URL
@@ -463,23 +508,7 @@ func revertBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
 	}
 
 	fmt.Print("Reverting Magento base URLs (all scopes)... ")
-
-	var statements []string
-	for _, row := range rows {
-		statements = append(statements,
-			fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
-				row.Value, row.Scope, row.ScopeID, row.Path),
-		)
-	}
-
-	query := strings.Join(statements, "; ")
-	cmd := exec.Command("docker", "exec", db.ContainerName,
-		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
-		dbName, "-e", query)
-	if err := cmd.Run(); err != nil {
-		fmt.Println(cli.Error("failed"))
-		return
-	}
+	revertBaseURLsFromSaved(db, dbName, rows)
 	fmt.Println(cli.Success("done"))
 }
 
