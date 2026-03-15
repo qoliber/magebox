@@ -33,8 +33,8 @@ Uses cloudflared quick tunnels (no account required) to generate a
 temporary *.trycloudflare.com URL. The tunnel domain is added to
 .magebox.yaml so nginx serves it alongside your local domains.
 
-Automatically updates Magento base URLs (across all scopes) to the
-tunnel URL and reverts them when the tunnel is stopped.
+Automatically updates Magento base URLs (across all scopes and config
+files) to the tunnel URL and reverts them when the tunnel is stopped.
 
 Requires cloudflared to be installed (brew install cloudflared).`,
 	Args: cobra.MaximumNArgs(1),
@@ -77,6 +77,13 @@ type savedConfigRow struct {
 	ScopeID string `json:"scope_id"`
 	Path    string `json:"path"`
 	Value   string `json:"value"`
+}
+
+// savedExposeState holds all state needed to revert an expose session
+type savedExposeState struct {
+	DBRows         []savedConfigRow  `json:"db_rows"`
+	EnvLocked      map[string]string `json:"env_locked"`       // path -> value for env.php locked entries
+	ConfigPHPPaths []string          `json:"config_php_paths"` // paths that were in config.php (need --lock-env to override)
 }
 
 func runExpose(cmd *cobra.Command, args []string) error {
@@ -147,6 +154,8 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		cli.PrintWarning("Could not determine database info: %v", err)
 	}
 
+	phpBin := p.PHPBinary(cfg.PHP)
+
 	// Determine local URL — cloudflared connects to nginx HTTP
 	httpPort := 80
 	if p.Type == platform.Darwin {
@@ -160,17 +169,11 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Backend: %s\n", cli.Highlight(localURL))
 	fmt.Println()
 
-	// Save current base URLs from all scopes via direct SQL
-	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
-	if db != nil {
-		saveBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile, domain)
-	}
+	// Save current state (DB rows + env.php/config.php locked values)
+	stateFile := getTunnelStateFile(p, cfg.Name)
+	saveExposeState(db, cfg.DatabaseName(), phpBin, cwd, stateFile, domain)
 
-	// Remove any locked base URLs from env.php (they override core_config_data)
-	envBackupFile := getTunnelEnvBackupFile(p, cfg.Name)
-	removeLockedBaseURLsFromEnv(cwd, p.PHPBinary(cfg.PHP), envBackupFile)
-
-	// Start cloudflared tunnel — the tunnel hostname passes through as Host
+	// Start cloudflared tunnel
 	tunnelCmd := exec.Command(cloudflaredPath, "tunnel", "--url", localURL)
 	tunnelCmd.Env = os.Environ()
 
@@ -188,7 +191,6 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	}
 
 	urlFile := getTunnelURLFile(p, cfg.Name)
-	phpBin := p.PHPBinary(cfg.PHP)
 
 	urlPattern := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.trycloudflare\.com`)
 	scanner := bufio.NewScanner(stderr)
@@ -211,13 +213,8 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				// Add tunnel domain to .magebox.yaml and regenerate nginx vhosts
 				addTunnelDomain(p, cwd, cfg, tunnelHost, domain)
 
-				// Update base URLs across all scopes via direct SQL
-				if db != nil {
-					updateBaseURLsInDB(db, cfg.DatabaseName(), tunnelURL+"/")
-				}
-
-				// Flush Magento cache
-				flushMagentoCache(phpBin, cwd)
+				// Update base URLs everywhere: DB (all scopes) + env.php (--lock-env)
+				setAllBaseURLs(db, cfg.DatabaseName(), phpBin, cwd, tunnelURL+"/")
 
 				fmt.Println()
 				fmt.Printf("Public URL: %s\n", cli.URL(tunnelURL))
@@ -236,14 +233,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		<-sigChan
 		fmt.Println()
 
-		// Revert base URLs from saved data
-		if db != nil {
-			revertBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
-		}
-		restoreLockedBaseURLsToEnv(cwd, envBackupFile)
-		flushMagentoCache(phpBin, cwd)
-
-		// Remove tunnel domain from .magebox.yaml and regenerate nginx vhosts
+		revertExposeState(db, cfg.DatabaseName(), phpBin, cwd, stateFile)
 		removeTunnelDomain(p, cwd, cfg)
 
 		fmt.Print("Stopping tunnel... ")
@@ -255,8 +245,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	// Clean up run files
 	os.Remove(pidFile)
 	os.Remove(urlFile)
-	os.Remove(urlsFile)
-	os.Remove(envBackupFile)
+	os.Remove(stateFile)
 
 	if tunnelURL == "" {
 		fmt.Println(cli.Error("failed"))
@@ -284,17 +273,11 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 	}
 
 	pidFile := getTunnelPidFile(p, cfg.Name)
-	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
-	envBackupFile := getTunnelEnvBackupFile(p, cfg.Name)
+	stateFile := getTunnelStateFile(p, cfg.Name)
 	phpBin := p.PHPBinary(cfg.PHP)
 
-	// Revert URLs and remove tunnel domain
 	db, _ := getDbInfo(cfg)
-	if db != nil {
-		revertBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
-	}
-	restoreLockedBaseURLsToEnv(cwd, envBackupFile)
-	flushMagentoCache(phpBin, cwd)
+	revertExposeState(db, cfg.DatabaseName(), phpBin, cwd, stateFile)
 	removeTunnelDomain(p, cwd, cfg)
 
 	pid, err := readPidFile(pidFile)
@@ -302,8 +285,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 		cli.PrintInfo("No tunnel process is running for this project")
 		os.Remove(pidFile)
 		os.Remove(getTunnelURLFile(p, cfg.Name))
-		os.Remove(urlsFile)
-		os.Remove(envBackupFile)
+		os.Remove(stateFile)
 		return nil
 	}
 
@@ -321,8 +303,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 
 	os.Remove(pidFile)
 	os.Remove(getTunnelURLFile(p, cfg.Name))
-	os.Remove(urlsFile)
-	os.Remove(envBackupFile)
+	os.Remove(stateFile)
 	fmt.Println(cli.Success("done"))
 
 	return nil
@@ -371,267 +352,209 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// saveBaseURLsFromDB reads all base URL entries from core_config_data and saves them.
-// If stale tunnel URLs from a previous run are detected, they are replaced with
-// URLs derived from the local domain before saving.
-func saveBaseURLsFromDB(db *dbInfo, dbName, urlsFile, localDomain string) {
+// saveExposeState captures the current base URL state from both the database
+// and config files for later restoration
+func saveExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile, localDomain string) {
 	fmt.Print("Saving current base URLs... ")
 
-	// Build WHERE clause for all URL paths
-	pathConditions := make([]string, len(baseURLConfigPaths))
-	for i, p := range baseURLConfigPaths {
-		pathConditions[i] = fmt.Sprintf("'%s'", p)
-	}
-	query := fmt.Sprintf(
-		"SELECT scope, scope_id, path, value FROM core_config_data WHERE path IN (%s)",
-		strings.Join(pathConditions, ","),
-	)
-
-	cmd := exec.Command("docker", "exec", db.ContainerName,
-		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
-		"-N", "-B", dbName, "-e", query)
-	out, err := cmd.Output()
-	if err != nil {
-		fmt.Println(cli.Warning("skipped"))
-		return
+	state := savedExposeState{
+		EnvLocked: make(map[string]string),
 	}
 
-	localBaseURL := fmt.Sprintf("https://%s/", localDomain)
-
-	var rows []savedConfigRow
-	hasStale := false
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line == "" {
-			continue
+	// 1. Read all base URL rows from core_config_data
+	if db != nil {
+		pathConditions := make([]string, len(baseURLConfigPaths))
+		for i, p := range baseURLConfigPaths {
+			pathConditions[i] = fmt.Sprintf("'%s'", p)
 		}
-		fields := strings.SplitN(line, "\t", 4)
-		if len(fields) == 4 {
-			value := fields[3]
+		query := fmt.Sprintf(
+			"SELECT scope, scope_id, path, value FROM core_config_data WHERE path IN (%s)",
+			strings.Join(pathConditions, ","),
+		)
 
-			// Detect stale tunnel URLs from a previous run that wasn't cleanly reverted
-			if strings.Contains(value, ".trycloudflare.com") {
-				hasStale = true
-				// Derive the correct local URL from the path type
-				switch {
-				case strings.Contains(fields[2], "media"):
-					value = localBaseURL + "media/"
-				case strings.Contains(fields[2], "static"):
-					value = localBaseURL + "static/"
-				default:
-					value = localBaseURL
+		cmd := exec.Command("docker", "exec", db.ContainerName,
+			"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+			"-N", "-B", dbName, "-e", query)
+		if out, err := cmd.Output(); err == nil {
+			localBaseURL := fmt.Sprintf("https://%s/", localDomain)
+			for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if line == "" {
+					continue
+				}
+				fields := strings.SplitN(line, "\t", 4)
+				if len(fields) == 4 {
+					value := fields[3]
+					// Fix stale tunnel URLs
+					if strings.Contains(value, ".trycloudflare.com") {
+						switch {
+						case strings.Contains(fields[2], "media"):
+							value = localBaseURL + "media/"
+						case strings.Contains(fields[2], "static"):
+							value = localBaseURL + "static/"
+						default:
+							value = localBaseURL
+						}
+					}
+					state.DBRows = append(state.DBRows, savedConfigRow{
+						Scope: fields[0], ScopeID: fields[1],
+						Path: fields[2], Value: value,
+					})
 				}
 			}
-
-			rows = append(rows, savedConfigRow{
-				Scope:   fields[0],
-				ScopeID: fields[1],
-				Path:    fields[2],
-				Value:   value,
-			})
 		}
 	}
 
-	// If stale tunnel URLs were found, also fix them in the database now
-	if hasStale {
-		cli.PrintWarning("Found stale tunnel URLs from a previous run, fixing...")
-		revertBaseURLsFromSaved(db, dbName, rows)
-		fmt.Print("Saving current base URLs... ")
+	// 2. Read locked values from env.php and config.php via bin/magento config:show
+	// Values that differ between config:show (which reads all layers) and the DB
+	// are locked in config files
+	for _, path := range []string{"web/unsecure/base_url", "web/secure/base_url"} {
+		cmd := exec.Command(phpBin, "bin/magento", "config:show", path)
+		cmd.Dir = cwd
+		if out, err := cmd.Output(); err == nil {
+			val := strings.TrimSpace(string(out))
+			if val != "" && !strings.Contains(val, ".trycloudflare.com") {
+				state.EnvLocked[path] = val
+			}
+		}
 	}
 
-	data, err := json.Marshal(rows)
+	// Save state
+	data, err := json.Marshal(state)
 	if err != nil {
 		fmt.Println(cli.Warning("skipped"))
 		return
 	}
 
-	dir := filepath.Dir(urlsFile)
+	dir := filepath.Dir(stateFile)
 	_ = os.MkdirAll(dir, 0755)
-	if err := os.WriteFile(urlsFile, data, 0644); err != nil {
+	if err := os.WriteFile(stateFile, data, 0644); err != nil {
 		fmt.Println(cli.Warning("skipped"))
 		return
 	}
 
-	fmt.Printf("%s (%d entries)\n", cli.Success("done"), len(rows))
+	fmt.Printf("%s (%d DB entries, %d locked)\n",
+		cli.Success("done"), len(state.DBRows), len(state.EnvLocked))
 }
 
-// revertBaseURLsFromSaved restores base URLs from a slice of saved rows
-func revertBaseURLsFromSaved(db *dbInfo, dbName string, rows []savedConfigRow) {
-	var statements []string
-	for _, row := range rows {
-		statements = append(statements,
-			fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
-				row.Value, row.Scope, row.ScopeID, row.Path),
-		)
-	}
-
-	query := strings.Join(statements, "; ")
-	cmd := exec.Command("docker", "exec", db.ContainerName,
-		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
-		dbName, "-e", query)
-	_ = cmd.Run()
-}
-
-// updateBaseURLsInDB replaces all base URL values in core_config_data with the tunnel URL
-func updateBaseURLsInDB(db *dbInfo, dbName, tunnelBaseURL string) {
-	fmt.Print("Updating Magento base URLs (all scopes)... ")
-
-	// Build a single UPDATE that replaces the domain in all base URL entries.
-	// For media URLs: value ends with /media/, for static: /static/, for base: just /
-	// We set them all to the tunnel URL with the appropriate suffix.
-	var statements []string
-	for _, path := range baseURLConfigPaths {
-		var newValue string
-		switch {
-		case strings.Contains(path, "media"):
-			newValue = tunnelBaseURL + "media/"
-		case strings.Contains(path, "static"):
-			newValue = tunnelBaseURL + "static/"
-		default:
-			newValue = tunnelBaseURL
+// setAllBaseURLs updates base URLs in both core_config_data and env.php
+func setAllBaseURLs(db *dbInfo, dbName, phpBin, cwd, tunnelBaseURL string) {
+	// 1. Update all rows in core_config_data via SQL
+	if db != nil {
+		fmt.Print("Updating base URLs in database... ")
+		var statements []string
+		for _, path := range baseURLConfigPaths {
+			var newValue string
+			switch {
+			case strings.Contains(path, "media"):
+				newValue = tunnelBaseURL + "media/"
+			case strings.Contains(path, "static"):
+				newValue = tunnelBaseURL + "static/"
+			default:
+				newValue = tunnelBaseURL
+			}
+			statements = append(statements,
+				fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE path='%s'", newValue, path),
+			)
 		}
-		statements = append(statements,
-			fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE path='%s'", newValue, path),
-		)
+		query := strings.Join(statements, "; ")
+		cmd := exec.Command("docker", "exec", db.ContainerName,
+			"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+			dbName, "-e", query)
+		if err := cmd.Run(); err != nil {
+			fmt.Println(cli.Error("failed"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
 	}
 
-	query := strings.Join(statements, "; ")
-	cmd := exec.Command("docker", "exec", db.ContainerName,
-		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
-		dbName, "-e", query)
-	if err := cmd.Run(); err != nil {
+	// 2. Override in env.php via --lock-env (takes priority over config.php and DB)
+	fmt.Print("Locking base URLs in env.php... ")
+	failed := false
+	for _, path := range []string{"web/unsecure/base_url", "web/secure/base_url"} {
+		cmd := exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, tunnelBaseURL)
+		cmd.Dir = cwd
+		if err := cmd.Run(); err != nil {
+			failed = true
+		}
+	}
+	if failed {
 		fmt.Println(cli.Error("failed"))
-		return
-	}
-	fmt.Println(cli.Success("done"))
-}
-
-// revertBaseURLsFromDB restores all base URL entries from the saved JSON file
-func revertBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
-	data, err := os.ReadFile(urlsFile)
-	if err != nil {
-		return
-	}
-
-	var rows []savedConfigRow
-	if err := json.Unmarshal(data, &rows); err != nil {
-		return
-	}
-
-	fmt.Print("Reverting Magento base URLs (all scopes)... ")
-	revertBaseURLsFromSaved(db, dbName, rows)
-	fmt.Println(cli.Success("done"))
-}
-
-// removeLockedBaseURLsFromEnv removes any locked web/unsecure/base_url and
-// web/secure/base_url entries from env.php. These entries override
-// core_config_data and would prevent our SQL-based URL changes from taking effect.
-// A backup of the original env.php section is saved for restoration.
-func removeLockedBaseURLsFromEnv(projectPath, phpBin, backupFile string) {
-	envFile := filepath.Join(projectPath, "app", "etc", "env.php")
-	content, err := os.ReadFile(envFile)
-	if err != nil {
-		return
-	}
-
-	contentStr := string(content)
-
-	// Check if there are any locked base URLs in the system > default > web section
-	if !strings.Contains(contentStr, "'web'") || !strings.Contains(contentStr, "'base_url'") {
-		return
-	}
-
-	// Use PHP to safely remove the web section from the system default config
-	// This is safer than regex on PHP array syntax
-	phpCode := `<?php
-$env = include '` + envFile + `';
-$backup = [];
-if (isset($env['system']['default']['web'])) {
-    $backup = $env['system']['default']['web'];
-    unset($env['system']['default']['web']);
-    if (empty($env['system']['default'])) {
-        unset($env['system']['default']);
-    }
-    if (empty($env['system'])) {
-        unset($env['system']);
-    }
-    $content = "<?php\nreturn " . var_export($env, true) . ";\n";
-    // Fix short array syntax
-    $content = preg_replace('/array \(/', '[', $content);
-    $content = preg_replace('/\)$/', ']', $content);
-    $content = preg_replace('/\),/', '],', $content);
-    file_put_contents('` + envFile + `', $content);
-    echo json_encode($backup);
-}
-`
-	fmt.Print("Removing locked base URLs from env.php... ")
-	cmd := exec.Command(phpBin, "-r", phpCode)
-	cmd.Dir = projectPath
-	out, err := cmd.Output()
-	if err != nil || len(out) == 0 {
-		fmt.Println(cli.Warning("skipped"))
-		return
-	}
-
-	// Save the backup
-	dir := filepath.Dir(backupFile)
-	_ = os.MkdirAll(dir, 0755)
-	_ = os.WriteFile(backupFile, out, 0644)
-	fmt.Println(cli.Success("done"))
-}
-
-// restoreLockedBaseURLsToEnv restores the web section to env.php from backup
-func restoreLockedBaseURLsToEnv(projectPath, backupFile string) {
-	backupData, err := os.ReadFile(backupFile)
-	if err != nil || len(backupData) == 0 {
-		return
-	}
-
-	envFile := filepath.Join(projectPath, "app", "etc", "env.php")
-
-	// Use a simple PHP script to restore the web config
-	// We find the PHP binary by looking at the env.php itself
-	phpBin := "php" // fallback
-
-	phpCode := `<?php
-$env = include '` + envFile + `';
-$web = json_decode('` + strings.ReplaceAll(string(backupData), "'", "\\'") + `', true);
-if ($web) {
-    if (!isset($env['system'])) $env['system'] = [];
-    if (!isset($env['system']['default'])) $env['system']['default'] = [];
-    $env['system']['default']['web'] = $web;
-    $content = "<?php\nreturn " . var_export($env, true) . ";\n";
-    $content = preg_replace('/array \(/', '[', $content);
-    $content = preg_replace('/\)$/', ']', $content);
-    $content = preg_replace('/\),/', '],', $content);
-    file_put_contents('` + envFile + `', $content);
-    echo "ok";
-}
-`
-	fmt.Print("Restoring locked base URLs to env.php... ")
-	cmd := exec.Command(phpBin, "-r", phpCode)
-	cmd.Dir = projectPath
-	if out, err := cmd.Output(); err == nil && strings.TrimSpace(string(out)) == "ok" {
-		fmt.Println(cli.Success("done"))
 	} else {
-		fmt.Println(cli.Warning("skipped"))
+		fmt.Println(cli.Success("done"))
 	}
 
-	os.Remove(backupFile)
+	// 3. Flush cache
+	flushMagentoCache(phpBin, cwd)
 }
 
-// getTunnelEnvBackupFile returns the path to the env.php web config backup
-func getTunnelEnvBackupFile(p *platform.Platform, projectName string) string {
-	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.envweb.json", projectName))
+// revertExposeState restores the base URLs from saved state
+func revertExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile string) {
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		return
+	}
+
+	var state savedExposeState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return
+	}
+
+	// 1. Restore DB rows
+	if db != nil && len(state.DBRows) > 0 {
+		fmt.Print("Reverting base URLs in database... ")
+		var statements []string
+		for _, row := range state.DBRows {
+			statements = append(statements,
+				fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
+					row.Value, row.Scope, row.ScopeID, row.Path),
+			)
+		}
+		query := strings.Join(statements, "; ")
+		cmd := exec.Command("docker", "exec", db.ContainerName,
+			"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+			dbName, "-e", query)
+		if err := cmd.Run(); err != nil {
+			fmt.Println(cli.Error("failed"))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	// 2. Restore env.php locked values, or delete them if they weren't originally there
+	fmt.Print("Reverting env.php base URLs... ")
+	failed := false
+	for _, path := range []string{"web/unsecure/base_url", "web/secure/base_url"} {
+		if origVal, wasLocked := state.EnvLocked[path]; wasLocked {
+			// Restore original locked value
+			cmd := exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, origVal)
+			cmd.Dir = cwd
+			if err := cmd.Run(); err != nil {
+				failed = true
+			}
+		} else {
+			// Remove the lock we added (delete from env.php)
+			cmd := exec.Command(phpBin, "bin/magento", "config:delete", "--lock-env", path)
+			cmd.Dir = cwd
+			if err := cmd.Run(); err != nil {
+				failed = true
+			}
+		}
+	}
+	if failed {
+		fmt.Println(cli.Warning("partial"))
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+
+	// 3. Flush cache
+	flushMagentoCache(phpBin, cwd)
 }
 
 // addTunnelDomain adds the tunnel hostname as a domain to .magebox.yaml,
-// regenerates nginx vhosts, and reloads nginx. The tunnel domain uses the
-// same document root as the source domain with SSL disabled (Cloudflare
-// terminates SSL).
+// regenerates nginx vhosts, and reloads nginx.
 func addTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config, tunnelHost, sourceDomain string) {
 	fmt.Print("Adding tunnel domain to config... ")
 
-	// Find the source domain's root
 	var root string
 	for _, d := range cfg.Domains {
 		if d.Host == sourceDomain {
@@ -653,14 +576,11 @@ func addTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config, tunne
 	}
 	fmt.Println(cli.Success("done"))
 
-	// Regenerate nginx vhosts and reload
 	regenNginxVhosts(p, cfg, cwd)
 }
 
-// removeTunnelDomain removes any *.trycloudflare.com domain from .magebox.yaml,
-// removes its vhost file, regenerates remaining vhosts, and reloads nginx.
+// removeTunnelDomain removes any *.trycloudflare.com domain from .magebox.yaml
 func removeTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config) {
-	// Re-read config in case it changed
 	freshCfg, err := config.LoadFromPath(cwd)
 	if err != nil {
 		return
@@ -689,7 +609,6 @@ func removeTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config) {
 	}
 	fmt.Println(cli.Success("done"))
 
-	// Remove tunnel vhost files
 	sslMgr := ssl.NewManager(p)
 	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
 	for _, host := range removedHosts {
@@ -697,7 +616,6 @@ func removeTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config) {
 		os.Remove(vhostFile)
 	}
 
-	// Regenerate remaining vhosts and reload nginx
 	regenNginxVhosts(p, freshCfg, cwd)
 }
 
@@ -714,8 +632,6 @@ func regenNginxVhosts(p *platform.Platform, cfg *config.Config, cwd string) {
 	fmt.Println(cli.Success("done"))
 
 	ngxCtrl := nginx.NewController(p)
-
-	// Ensure hash bucket size is large enough for long hostnames (e.g. tunnel domains)
 	_ = ngxCtrl.EnsureHashBucketSize()
 
 	fmt.Print("Reloading nginx... ")
@@ -754,22 +670,18 @@ func extractHostname(rawURL string) string {
 	return u.Hostname()
 }
 
-// getTunnelPidFile returns the path to the tunnel PID file for a project
 func getTunnelPidFile(p *platform.Platform, projectName string) string {
 	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.pid", projectName))
 }
 
-// getTunnelURLFile returns the path to the tunnel URL file for a project
 func getTunnelURLFile(p *platform.Platform, projectName string) string {
 	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.url", projectName))
 }
 
-// getTunnelBaseURLsFile returns the path to the saved base URLs file
-func getTunnelBaseURLsFile(p *platform.Platform, projectName string) string {
-	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.baseurls.json", projectName))
+func getTunnelStateFile(p *platform.Platform, projectName string) string {
+	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.state.json", projectName))
 }
 
-// readPidFile reads a PID from a file
 func readPidFile(path string) (int, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -778,7 +690,6 @@ func readPidFile(path string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(string(data)))
 }
 
-// writePidFile writes a PID to a file
 func writePidFile(path string, pid int) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -787,7 +698,6 @@ func writePidFile(path string, pid int) error {
 	return os.WriteFile(path, []byte(strconv.Itoa(pid)), 0644)
 }
 
-// processRunning checks if a process with the given PID is still running
 func processRunning(pid int) bool {
 	process, err := os.FindProcess(pid)
 	if err != nil {
