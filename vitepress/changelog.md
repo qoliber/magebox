@@ -2,7 +2,7 @@
 
 All notable changes to MageBox will be documented here.
 
-## [Unreleased]
+## [1.5.0] - 2026-03-15
 
 ### New Features
 
