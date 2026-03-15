@@ -102,21 +102,22 @@ domains:
     ssl: true               # Enable HTTPS (default: true)
 ```
 
+::: tip Auto-discovery
+When `root` is omitted, MageBox automatically detects the document root by checking for common directories in your project: `pub`, `public`, `web`, `htdocs`, `httpdocs`. The first one found is used. If none exist, it defaults to `pub` (Magento) or `public` (Laravel).
+:::
+
 #### Multiple Domains
 
 ```yaml
 domains:
   - host: mystore.test
-    root: pub
   - host: admin.mystore.test
-    root: pub
   - host: api.mystore.test
-    root: pub
 ```
 
 #### Custom Document Root
 
-For non-standard Magento setups:
+For non-standard setups, set `root` explicitly:
 
 ```yaml
 domains:

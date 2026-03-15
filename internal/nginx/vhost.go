@@ -158,7 +158,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			ProjectPath:   projectPath,
 			ProjectType:   cfg.GetType(),
 			Domain:        domain.Host,
-			DocumentRoot:  filepath.Join(projectPath, domain.GetRootForType(cfg.GetType())),
+			DocumentRoot:  filepath.Join(projectPath, domain.GetRootForProject(projectPath, cfg.GetType())),
 			PHPVersion:    cfg.PHP,
 			PHPSocketPath: g.getPHPSocketPath(cfg.Name, cfg.PHP),
 			SSLEnabled:    domain.IsSSLEnabled(),

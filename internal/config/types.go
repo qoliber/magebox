@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -230,6 +232,39 @@ func (d *Domain) GetRootForType(projectType string) string {
 		return "public"
 	}
 	return "pub"
+}
+
+// webrootCandidates lists common webroot directories in priority order.
+// Magento-style roots come first, then generic ones.
+var webrootCandidates = []string{"pub", "public", "web", "htdocs", "httpdocs"}
+
+// GetRootForProject returns the document root, auto-discovering it from the
+// project directory when no explicit root is configured. It checks for common
+// webroot directories (pub, public, web, htdocs, httpdocs) and returns the
+// first one that exists. Falls back to the project-type default.
+func (d *Domain) GetRootForProject(projectPath, projectType string) string {
+	if d.Root != "" {
+		return d.Root
+	}
+	if detected := discoverRoot(projectPath); detected != "" {
+		return detected
+	}
+	if projectType == ProjectTypeLaravel {
+		return "public"
+	}
+	return "pub"
+}
+
+// discoverRoot checks for common webroot directories inside projectPath
+// and returns the first match, or "" if none exist.
+func discoverRoot(projectPath string) string {
+	for _, candidate := range webrootCandidates {
+		info, err := os.Stat(filepath.Join(projectPath, candidate))
+		if err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // IsSSLEnabled returns whether SSL is enabled, defaulting to true
