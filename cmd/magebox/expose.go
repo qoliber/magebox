@@ -166,6 +166,10 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		saveBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile, domain)
 	}
 
+	// Remove any locked base URLs from env.php (they override core_config_data)
+	envBackupFile := getTunnelEnvBackupFile(p, cfg.Name)
+	removeLockedBaseURLsFromEnv(cwd, p.PHPBinary(cfg.PHP), envBackupFile)
+
 	// Start cloudflared tunnel — the tunnel hostname passes through as Host
 	tunnelCmd := exec.Command(cloudflaredPath, "tunnel", "--url", localURL)
 	tunnelCmd.Env = os.Environ()
@@ -236,6 +240,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		if db != nil {
 			revertBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
 		}
+		restoreLockedBaseURLsToEnv(cwd, envBackupFile)
 		flushMagentoCache(phpBin, cwd)
 
 		// Remove tunnel domain from .magebox.yaml and regenerate nginx vhosts
@@ -251,6 +256,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	os.Remove(pidFile)
 	os.Remove(urlFile)
 	os.Remove(urlsFile)
+	os.Remove(envBackupFile)
 
 	if tunnelURL == "" {
 		fmt.Println(cli.Error("failed"))
@@ -279,6 +285,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 
 	pidFile := getTunnelPidFile(p, cfg.Name)
 	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
+	envBackupFile := getTunnelEnvBackupFile(p, cfg.Name)
 	phpBin := p.PHPBinary(cfg.PHP)
 
 	// Revert URLs and remove tunnel domain
@@ -286,6 +293,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 	if db != nil {
 		revertBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
 	}
+	restoreLockedBaseURLsToEnv(cwd, envBackupFile)
 	flushMagentoCache(phpBin, cwd)
 	removeTunnelDomain(p, cwd, cfg)
 
@@ -295,6 +303,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 		os.Remove(pidFile)
 		os.Remove(getTunnelURLFile(p, cfg.Name))
 		os.Remove(urlsFile)
+		os.Remove(envBackupFile)
 		return nil
 	}
 
@@ -313,6 +322,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 	os.Remove(pidFile)
 	os.Remove(getTunnelURLFile(p, cfg.Name))
 	os.Remove(urlsFile)
+	os.Remove(envBackupFile)
 	fmt.Println(cli.Success("done"))
 
 	return nil
@@ -510,6 +520,108 @@ func revertBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
 	fmt.Print("Reverting Magento base URLs (all scopes)... ")
 	revertBaseURLsFromSaved(db, dbName, rows)
 	fmt.Println(cli.Success("done"))
+}
+
+// removeLockedBaseURLsFromEnv removes any locked web/unsecure/base_url and
+// web/secure/base_url entries from env.php. These entries override
+// core_config_data and would prevent our SQL-based URL changes from taking effect.
+// A backup of the original env.php section is saved for restoration.
+func removeLockedBaseURLsFromEnv(projectPath, phpBin, backupFile string) {
+	envFile := filepath.Join(projectPath, "app", "etc", "env.php")
+	content, err := os.ReadFile(envFile)
+	if err != nil {
+		return
+	}
+
+	contentStr := string(content)
+
+	// Check if there are any locked base URLs in the system > default > web section
+	if !strings.Contains(contentStr, "'web'") || !strings.Contains(contentStr, "'base_url'") {
+		return
+	}
+
+	// Use PHP to safely remove the web section from the system default config
+	// This is safer than regex on PHP array syntax
+	phpCode := `<?php
+$env = include '` + envFile + `';
+$backup = [];
+if (isset($env['system']['default']['web'])) {
+    $backup = $env['system']['default']['web'];
+    unset($env['system']['default']['web']);
+    if (empty($env['system']['default'])) {
+        unset($env['system']['default']);
+    }
+    if (empty($env['system'])) {
+        unset($env['system']);
+    }
+    $content = "<?php\nreturn " . var_export($env, true) . ";\n";
+    // Fix short array syntax
+    $content = preg_replace('/array \(/', '[', $content);
+    $content = preg_replace('/\)$/', ']', $content);
+    $content = preg_replace('/\),/', '],', $content);
+    file_put_contents('` + envFile + `', $content);
+    echo json_encode($backup);
+}
+`
+	fmt.Print("Removing locked base URLs from env.php... ")
+	cmd := exec.Command(phpBin, "-r", phpCode)
+	cmd.Dir = projectPath
+	out, err := cmd.Output()
+	if err != nil || len(out) == 0 {
+		fmt.Println(cli.Warning("skipped"))
+		return
+	}
+
+	// Save the backup
+	dir := filepath.Dir(backupFile)
+	_ = os.MkdirAll(dir, 0755)
+	_ = os.WriteFile(backupFile, out, 0644)
+	fmt.Println(cli.Success("done"))
+}
+
+// restoreLockedBaseURLsToEnv restores the web section to env.php from backup
+func restoreLockedBaseURLsToEnv(projectPath, backupFile string) {
+	backupData, err := os.ReadFile(backupFile)
+	if err != nil || len(backupData) == 0 {
+		return
+	}
+
+	envFile := filepath.Join(projectPath, "app", "etc", "env.php")
+
+	// Use a simple PHP script to restore the web config
+	// We find the PHP binary by looking at the env.php itself
+	phpBin := "php" // fallback
+
+	phpCode := `<?php
+$env = include '` + envFile + `';
+$web = json_decode('` + strings.ReplaceAll(string(backupData), "'", "\\'") + `', true);
+if ($web) {
+    if (!isset($env['system'])) $env['system'] = [];
+    if (!isset($env['system']['default'])) $env['system']['default'] = [];
+    $env['system']['default']['web'] = $web;
+    $content = "<?php\nreturn " . var_export($env, true) . ";\n";
+    $content = preg_replace('/array \(/', '[', $content);
+    $content = preg_replace('/\)$/', ']', $content);
+    $content = preg_replace('/\),/', '],', $content);
+    file_put_contents('` + envFile + `', $content);
+    echo "ok";
+}
+`
+	fmt.Print("Restoring locked base URLs to env.php... ")
+	cmd := exec.Command(phpBin, "-r", phpCode)
+	cmd.Dir = projectPath
+	if out, err := cmd.Output(); err == nil && strings.TrimSpace(string(out)) == "ok" {
+		fmt.Println(cli.Success("done"))
+	} else {
+		fmt.Println(cli.Warning("skipped"))
+	}
+
+	os.Remove(backupFile)
+}
+
+// getTunnelEnvBackupFile returns the path to the env.php web config backup
+func getTunnelEnvBackupFile(p *platform.Platform, projectName string) string {
+	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.envweb.json", projectName))
 }
 
 // addTunnelDomain adds the tunnel hostname as a domain to .magebox.yaml,
