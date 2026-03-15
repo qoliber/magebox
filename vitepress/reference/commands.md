@@ -886,6 +886,45 @@ magebox elasticvue status
 
 Shows whether Elasticvue is enabled, running, and the web UI URL.
 
+## Expose Commands
+
+### `magebox expose [domain]`
+
+Expose your local project via a public Cloudflare Tunnel URL.
+
+```bash
+magebox expose                    # Expose first configured domain
+magebox expose store.mystore.test # Expose a specific domain
+```
+
+Creates a temporary `*.trycloudflare.com` URL that forwards traffic to your local project. No Cloudflare account required.
+
+**Arguments:**
+- `domain` - Specific domain to expose (optional, defaults to first domain)
+
+**Requirements:**
+- `cloudflared` must be installed (`brew install cloudflared`)
+
+---
+
+### `magebox expose stop`
+
+Stop the running tunnel.
+
+```bash
+magebox expose stop
+```
+
+---
+
+### `magebox expose status`
+
+Show tunnel status and public URL.
+
+```bash
+magebox expose status
+```
+
 ## Docker Commands (macOS)
 
 Commands for managing Docker providers on macOS. On Linux, the default Docker installation is used.
