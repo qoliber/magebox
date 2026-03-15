@@ -190,9 +190,9 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				_ = os.WriteFile(urlFile, []byte(tunnelURL), 0644)
 
 				// Update Magento base URLs to the tunnel URL
-				setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/")
-
-				cli.PrintInfo("Magento base URLs updated to tunnel URL")
+				if setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/") {
+					cli.PrintInfo("Magento base URLs updated to tunnel URL")
+				}
 				cli.PrintInfo("Press Ctrl+C to stop the tunnel and revert URLs")
 				fmt.Println()
 			}
@@ -352,29 +352,31 @@ func readMagentoBaseURLs(phpBin, cwd string) savedBaseURLs {
 	return urls
 }
 
-// setMagentoBaseURLs updates Magento base URLs and flushes cache
-func setMagentoBaseURLs(phpBin, cwd, baseURL string) {
+// setMagentoBaseURLs updates Magento base URLs and flushes cache.
+// Returns true if both URLs were set successfully.
+func setMagentoBaseURLs(phpBin, cwd, baseURL string) bool {
 	fmt.Print("Updating Magento base URLs... ")
 
 	unsecureCmd := exec.Command(phpBin, "bin/magento", "config:set", "web/unsecure/base_url", baseURL)
 	unsecureCmd.Dir = cwd
-	if err := unsecureCmd.Run(); err != nil {
+	if out, err := unsecureCmd.CombinedOutput(); err != nil {
 		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Could not set unsecure base URL: %v", err)
-		return
+		cli.PrintWarning("Could not set unsecure base URL: %s", strings.TrimSpace(string(out)))
+		return false
 	}
 
 	secureCmd := exec.Command(phpBin, "bin/magento", "config:set", "web/secure/base_url", baseURL)
 	secureCmd.Dir = cwd
-	if err := secureCmd.Run(); err != nil {
+	if out, err := secureCmd.CombinedOutput(); err != nil {
 		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Could not set secure base URL: %v", err)
-		return
+		cli.PrintWarning("Could not set secure base URL: %s", strings.TrimSpace(string(out)))
+		return false
 	}
 
 	fmt.Println(cli.Success("done"))
 
 	flushMagentoCache(phpBin, cwd)
+	return true
 }
 
 // revertMagentoBaseURLs restores Magento base URLs from the saved file
@@ -386,19 +388,28 @@ func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
 
 	fmt.Print("Reverting Magento base URLs... ")
 
+	failed := false
 	if urls.UnsecureBaseURL != "" {
 		cmd := exec.Command(phpBin, "bin/magento", "config:set", "web/unsecure/base_url", urls.UnsecureBaseURL)
 		cmd.Dir = cwd
-		_ = cmd.Run()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			cli.PrintWarning("Could not revert unsecure base URL: %s", strings.TrimSpace(string(out)))
+			failed = true
+		}
 	}
 
 	if urls.SecureBaseURL != "" {
 		cmd := exec.Command(phpBin, "bin/magento", "config:set", "web/secure/base_url", urls.SecureBaseURL)
 		cmd.Dir = cwd
-		_ = cmd.Run()
+		if out, err := cmd.CombinedOutput(); err != nil {
+			cli.PrintWarning("Could not revert secure base URL: %s", strings.TrimSpace(string(out)))
+			failed = true
+		}
 	}
 
-	fmt.Println(cli.Success("done"))
+	if !failed {
+		fmt.Println(cli.Success("done"))
+	}
 
 	flushMagentoCache(phpBin, cwd)
 }
