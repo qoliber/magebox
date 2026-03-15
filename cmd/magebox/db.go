@@ -69,6 +69,13 @@ var dbResetCmd = &cobra.Command{
 	RunE:  runDbReset,
 }
 
+var dbTopCmd = &cobra.Command{
+	Use:   "top",
+	Short: "Monitor database processes",
+	Long:  "Shows real-time MySQL/MariaDB process list (like mytop/mysqladmin processlist)",
+	RunE:  runDbTop,
+}
+
 var dbSnapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Database snapshots",
@@ -113,6 +120,7 @@ func init() {
 	dbCmd.AddCommand(dbCreateCmd)
 	dbCmd.AddCommand(dbDropCmd)
 	dbCmd.AddCommand(dbResetCmd)
+	dbCmd.AddCommand(dbTopCmd)
 	dbCmd.AddCommand(dbSnapshotCmd)
 
 	// Snapshot subcommands
@@ -518,6 +526,55 @@ func runDbReset(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintSuccess("Database '%s' reset!", dbName)
 	return nil
+}
+
+func runDbTop(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
+	}
+
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
+		return nil
+	}
+
+	// Try innotop on the host first (best TUI experience)
+	if innotopPath, err := exec.LookPath("innotop"); err == nil {
+		fmt.Printf("Monitoring %s via innotop (Ctrl+C to stop)\n\n", cli.Highlight(db.ContainerName))
+		innotopCmd := exec.Command(innotopPath,
+			"--host", "127.0.0.1",
+			"--port", fmt.Sprintf("%d", db.Port),
+			"--user", "root",
+			"--password", docker.DefaultDBRootPassword,
+		)
+		innotopCmd.Stdin = os.Stdin
+		innotopCmd.Stdout = os.Stdout
+		innotopCmd.Stderr = os.Stderr
+		return innotopCmd.Run()
+	}
+
+	// Fallback to mysqladmin processlist inside the container
+	cli.PrintWarning("innotop not found, falling back to mysqladmin processlist")
+	cli.PrintInfo("Install innotop for a better experience:")
+	fmt.Println("  brew install innotop")
+	fmt.Println()
+	fmt.Printf("Monitoring %s (Ctrl+C to stop)\n\n", cli.Highlight(db.ContainerName))
+
+	topCmd := exec.Command("docker", "exec", "-it", db.ContainerName,
+		"mysqladmin", "-uroot", "-p"+docker.DefaultDBRootPassword,
+		"processlist", "--sleep=2", "--verbose")
+	topCmd.Stdin = os.Stdin
+	topCmd.Stdout = os.Stdout
+	topCmd.Stderr = os.Stderr
+
+	return topCmd.Run()
 }
 
 // getSnapshotDir returns the directory for storing snapshots

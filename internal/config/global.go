@@ -24,6 +24,9 @@ type GlobalConfig struct {
 	// Portainer enables/disables Portainer Docker UI
 	Portainer bool `yaml:"portainer,omitempty"`
 
+	// Elasticvue enables/disables Elasticvue web UI for OpenSearch/Elasticsearch
+	Elasticvue bool `yaml:"elasticvue,omitempty"`
+
 	// TLD is the top-level domain for local development (default: "test")
 	TLD string `yaml:"tld,omitempty"`
 

@@ -14,6 +14,7 @@ dns_mode: dnsmasq
 default_php: "8.2"
 tld: test
 portainer: false
+elasticvue: false
 auto_start: false
 ```
 
@@ -78,6 +79,16 @@ magebox config set portainer true
 ```
 
 Access at `http://localhost:9000` after enabling.
+
+### elasticvue
+
+Enable [Elasticvue](https://elasticvue.com/) web UI for browsing OpenSearch/Elasticsearch data.
+
+```bash
+magebox config set elasticvue true
+```
+
+Access at `http://localhost:8080` after enabling. You can also use `magebox elasticvue enable`.
 
 ### auto_start
 
@@ -150,6 +161,7 @@ dns_mode: dnsmasq
 default_php: "8.2"
 tld: test
 portainer: false
+elasticvue: false
 auto_start: false
 default_services:
   mysql: "8.0"

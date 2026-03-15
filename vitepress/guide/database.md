@@ -132,6 +132,23 @@ services:
 
 Both run simultaneously without conflicts.
 
+### Monitor Database Processes
+
+Watch active queries and connections in real time:
+
+```bash
+magebox db top
+```
+
+Uses [innotop](https://github.com/innotop/innotop) for a full-featured TUI when installed, falling back to `mysqladmin processlist` otherwise. Press `Ctrl+C` to stop.
+
+::: tip
+Install innotop for the best experience:
+```bash
+brew install innotop
+```
+:::
+
 ## Database Management Tools
 
 ### Using Sequel Pro / TablePlus / DBeaver

@@ -23,6 +23,7 @@ Reference for all service ports used by MageBox.
 | Mailpit Web | 8025 | HTTP | Email UI |
 | Varnish | 6081 | HTTP | Cache |
 | Portainer | 9000 | HTTP | Docker UI |
+| Elasticvue | 8080 | HTTP | Search UI |
 
 ## Database Ports
 

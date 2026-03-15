@@ -94,6 +94,7 @@ export default defineConfig({
             { text: 'RabbitMQ', link: '/services/rabbitmq' },
             { text: 'Mailpit', link: '/services/mailpit' },
             { text: 'Varnish', link: '/services/varnish' },
+            { text: 'Elasticvue', link: '/services/elasticvue' },
             { text: 'Blackfire', link: '/services/blackfire' },
             { text: 'Tideways', link: '/services/tideways' }
           ]
@@ -209,6 +210,7 @@ export default defineConfig({
             { text: 'RabbitMQ', link: '/services/rabbitmq' },
             { text: 'Mailpit', link: '/services/mailpit' },
             { text: 'Varnish', link: '/services/varnish' },
+            { text: 'Elasticvue', link: '/services/elasticvue' },
             { text: 'Blackfire', link: '/services/blackfire' },
             { text: 'Tideways', link: '/services/tideways' }
           ]

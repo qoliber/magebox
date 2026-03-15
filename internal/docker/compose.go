@@ -255,6 +255,11 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 	// This prevents accidental emails to real addresses
 	compose.Services["mailpit"] = g.getMailpitService()
 
+	// Add Elasticvue if enabled in global config
+	if globalCfg != nil && globalCfg.Elasticvue {
+		compose.Services["elasticvue"] = g.getElasticvueService()
+	}
+
 	// Add Varnish if needed
 	if requiredServices.varnish != nil {
 		// Generate VCL configuration first
@@ -552,6 +557,17 @@ func (g *ComposeGenerator) getPortainerService() ComposeService {
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
+	}
+}
+
+// getElasticvueService returns an Elasticvue service configuration
+func (g *ComposeGenerator) getElasticvueService() ComposeService {
+	return ComposeService{
+		ContainerName: "magebox-elasticvue",
+		Image:         "cars10/elasticvue:latest",
+		Ports:         []string{"8080:8080"},
+		Networks:      []string{"magebox"},
+		Restart:       "unless-stopped",
 	}
 }
 
@@ -891,6 +907,11 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 	if globalCfg.Portainer {
 		compose.Services["portainer"] = g.getPortainerService()
 		compose.Volumes["portainer_data"] = ComposeVolume{}
+	}
+
+	// Add Elasticvue if enabled
+	if globalCfg.Elasticvue {
+		compose.Services["elasticvue"] = g.getElasticvueService()
 	}
 
 	// Write compose file

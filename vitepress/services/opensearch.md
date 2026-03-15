@@ -327,6 +327,59 @@ curl http://127.0.0.1:9200/_cat/plugins?v
 docker restart magebox-opensearch-2.19
 ```
 
+## Elasticvue Web UI
+
+MageBox supports [Elasticvue](https://elasticvue.com/), a web-based UI for browsing and managing your OpenSearch/Elasticsearch data.
+
+### Enabling Elasticvue
+
+```bash
+magebox elasticvue enable
+```
+
+Or via global config:
+
+```bash
+magebox config set elasticvue true
+```
+
+### Accessing Elasticvue
+
+Once enabled, open **http://localhost:8080** in your browser.
+
+On first launch, add your cluster:
+- Click "Add Cluster"
+- Enter the URI: `http://localhost:9200`
+- Click "Connect"
+
+### Features
+
+- Browse indices and view documents
+- Run queries against your search engine
+- View cluster health, node info, and shard allocation
+- Inspect index mappings and settings
+
+### Commands
+
+```bash
+# Enable Elasticvue
+magebox elasticvue enable
+
+# Disable Elasticvue
+magebox elasticvue disable
+
+# Check status
+magebox elasticvue status
+```
+
+### Docker Container
+
+Elasticvue runs as a Docker container (`magebox-elasticvue`) with:
+
+- **Image**: `cars10/elasticvue:latest`
+- **Port**: 8080 (Web UI)
+- **Network**: magebox (can access search containers directly)
+
 ## Performance Tips
 
 ### Index Optimization

@@ -34,7 +34,8 @@ Available keys:
   dns_mode     - DNS resolution mode: "hosts" or "dnsmasq"
   default_php  - Default PHP version for new projects (e.g., "8.2")
   tld          - Top-level domain for local dev (default: "test")
-  portainer    - Enable Portainer Docker UI: "true" or "false"`,
+  portainer    - Enable Portainer Docker UI: "true" or "false"
+  elasticvue   - Enable Elasticvue search UI: "true" or "false"`,
 	Args: cobra.ExactArgs(2),
 	RunE: runConfigSet,
 }
@@ -80,6 +81,7 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  %-14s %s\n", "default_php:", cli.Highlight(cfg.DefaultPHP))
 	fmt.Printf("  %-14s %s\n", "tld:", cli.Highlight(cfg.TLD))
 	fmt.Printf("  %-14s %s\n", "portainer:", cli.Highlight(fmt.Sprintf("%v", cfg.Portainer)))
+	fmt.Printf("  %-14s %s\n", "elasticvue:", cli.Highlight(fmt.Sprintf("%v", cfg.Elasticvue)))
 	fmt.Printf("  %-14s %s\n", "auto_start:", cli.Highlight(fmt.Sprintf("%v", cfg.AutoStart)))
 
 	fmt.Println(cli.Header("Default Services"))
@@ -131,10 +133,12 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		cfg.Portainer = (value == "true" || value == "1" || value == "yes")
 	case "auto_start":
 		cfg.AutoStart = (value == "true" || value == "1" || value == "yes")
+	case "elasticvue":
+		cfg.Elasticvue = (value == "true" || value == "1" || value == "yes")
 	default:
 		cli.PrintError("Unknown configuration key: %s", key)
 		fmt.Println()
-		cli.PrintInfo("Available keys: dns_mode, default_php, tld, portainer, auto_start")
+		cli.PrintInfo("Available keys: dns_mode, default_php, tld, portainer, elasticvue, auto_start")
 		return nil
 	}
 

@@ -345,6 +345,20 @@ php bin/magento config:set catalog/search/opensearch_server_port 9200
 php bin/magento indexer:reindex catalogsearch_fulltext
 ```
 
+## Elasticvue Web UI
+
+MageBox can run [Elasticvue](https://elasticvue.com/), a browser-based UI for inspecting your search engine.
+
+```bash
+# Enable
+magebox elasticvue enable
+
+# Access at http://localhost:8080
+# Add cluster URI: http://localhost:9200
+```
+
+See the [OpenSearch service docs](/services/opensearch#elasticvue-web-ui) for details.
+
 ## Performance Tips
 
 1. **Allocate sufficient memory** - At least 1GB for development, 2GB for production-like testing

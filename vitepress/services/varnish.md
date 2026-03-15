@@ -157,6 +157,33 @@ php bin/magento varnish:vcl:generate \
     --export-version=7 > varnish.vcl
 ```
 
+## Custom VCL
+
+### Import Custom VCL
+
+Replace the auto-generated VCL with your own:
+
+```bash
+magebox varnish vcl-import /path/to/custom.vcl
+```
+
+This command:
+1. Backs up the current VCL as `default.vcl.bak`
+2. Copies your custom VCL into place
+3. Reloads Varnish if it's running
+
+### Reset to Default VCL
+
+Regenerate the auto-generated VCL from your project configuration:
+
+```bash
+magebox varnish vcl-reset
+```
+
+::: tip
+Use `vcl-import` when you need Magento-generated VCL or a hand-tuned configuration. Use `vcl-reset` to go back to the MageBox default.
+:::
+
 ## VCL Configuration
 
 MageBox generates a default VCL at `~/.magebox/varnish/default.vcl`:

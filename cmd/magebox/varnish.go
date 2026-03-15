@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -57,12 +60,29 @@ var varnishDisableCmd = &cobra.Command{
 	RunE:  runVarnishDisable,
 }
 
+var varnishVCLImportCmd = &cobra.Command{
+	Use:   "vcl-import <file>",
+	Short: "Import custom VCL file",
+	Long:  "Imports a custom Varnish VCL file, replacing the auto-generated one",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runVarnishVCLImport,
+}
+
+var varnishVCLResetCmd = &cobra.Command{
+	Use:   "vcl-reset",
+	Short: "Reset VCL to default",
+	Long:  "Regenerates the default auto-generated VCL, removing any custom VCL",
+	RunE:  runVarnishVCLReset,
+}
+
 func init() {
 	varnishCmd.AddCommand(varnishPurgeCmd)
 	varnishCmd.AddCommand(varnishFlushCmd)
 	varnishCmd.AddCommand(varnishStatusCmd)
 	varnishCmd.AddCommand(varnishEnableCmd)
 	varnishCmd.AddCommand(varnishDisableCmd)
+	varnishCmd.AddCommand(varnishVCLImportCmd)
+	varnishCmd.AddCommand(varnishVCLResetCmd)
 	rootCmd.AddCommand(varnishCmd)
 }
 
@@ -350,4 +370,151 @@ func runVarnishDisable(cmd *cobra.Command, args []string) error {
 	fmt.Println("  bin/magento config:set system/full_page_cache/caching_application 1")
 
 	return nil
+}
+
+func runVarnishVCLImport(cmd *cobra.Command, args []string) error {
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	vclFile := args[0]
+
+	// Validate the file exists and is readable
+	info, err := os.Stat(vclFile)
+	if err != nil {
+		return fmt.Errorf("cannot access VCL file: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("%s is a directory, not a file", vclFile)
+	}
+
+	cli.PrintTitle("Importing Custom VCL")
+	fmt.Printf("Source: %s\n", cli.Path(vclFile))
+	fmt.Println()
+
+	// Read the source file
+	src, err := os.Open(vclFile)
+	if err != nil {
+		return fmt.Errorf("failed to open VCL file: %w", err)
+	}
+	defer src.Close()
+
+	// Write to the MageBox VCL location
+	vclGen := varnish.NewVCLGenerator(p)
+	vclDir := vclGen.VCLDir()
+	if err := os.MkdirAll(vclDir, 0755); err != nil {
+		return fmt.Errorf("failed to create VCL directory: %w", err)
+	}
+
+	destPath := vclGen.VCLFilePath()
+
+	// Back up the existing VCL if it exists
+	if _, err := os.Stat(destPath); err == nil {
+		backupPath := filepath.Join(vclDir, "default.vcl.bak")
+		fmt.Print("Backing up current VCL... ")
+		if err := copyFile(destPath, backupPath); err != nil {
+			fmt.Println(cli.Warning("failed: " + err.Error()))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	// Copy the new VCL
+	fmt.Print("Importing VCL... ")
+	dest, err := os.Create(destPath)
+	if err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to create destination VCL: %w", err)
+	}
+	defer dest.Close()
+
+	if _, err := io.Copy(dest, src); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to copy VCL: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Reload Varnish if running
+	ctrl := varnish.NewController(p, destPath)
+	if ctrl.IsRunning() {
+		fmt.Print("Reloading Varnish... ")
+		if err := ctrl.Reload(); err != nil {
+			fmt.Println(cli.Error("failed: " + err.Error()))
+			cli.PrintWarning("Varnish may need to be restarted manually")
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	fmt.Println()
+	cli.PrintSuccess("Custom VCL imported!")
+	cli.PrintInfo("Reset to auto-generated VCL with: magebox varnish vcl-reset")
+
+	return nil
+}
+
+func runVarnishVCLReset(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	cli.PrintTitle("Resetting VCL to Default")
+	fmt.Println()
+
+	// Load project config(s) to regenerate VCL
+	var configs []*config.Config
+	cfg, ok := loadProjectConfig(cwd)
+	if ok {
+		configs = append(configs, cfg)
+	}
+
+	// Regenerate VCL
+	fmt.Print("Generating default VCL... ")
+	vclGen := varnish.NewVCLGenerator(p)
+	if err := vclGen.Generate(configs); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return fmt.Errorf("failed to generate VCL: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Reload Varnish if running
+	ctrl := varnish.NewController(p, vclGen.VCLFilePath())
+	if ctrl.IsRunning() {
+		fmt.Print("Reloading Varnish... ")
+		if err := ctrl.Reload(); err != nil {
+			fmt.Println(cli.Error("failed: " + err.Error()))
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	fmt.Println()
+	cli.PrintSuccess("VCL reset to default!")
+
+	return nil
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
 }
