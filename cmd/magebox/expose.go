@@ -17,8 +17,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/ssl"
 )
 
 var exposeCmd = &cobra.Command{
@@ -27,8 +29,8 @@ var exposeCmd = &cobra.Command{
 	Long: `Creates a public Cloudflare Tunnel URL pointing to your local project.
 
 Uses cloudflared quick tunnels (no account required) to generate a
-temporary *.trycloudflare.com URL. Traffic is routed to your local
-nginx with the correct Host header so the right project is served.
+temporary *.trycloudflare.com URL. The tunnel domain is added to
+.magebox.yaml so nginx serves it alongside your local domains.
 
 Automatically updates Magento base URLs to the tunnel URL and reverts
 them when the tunnel is stopped.
@@ -126,10 +128,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		os.Remove(pidFile)
 	}
 
-	// Determine local URL — cloudflared connects to nginx HTTP (not HTTPS)
-	// We use HTTP because nginx will handle the request directly without
-	// SSL certificate issues. The tunnel vhost sets X-Forwarded-Proto: https
-	// so Magento knows the original request was HTTPS.
+	// Determine local URL — cloudflared connects to nginx HTTP
 	httpPort := 80
 	if p.Type == platform.Darwin {
 		httpPort = 8080
@@ -150,14 +149,8 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		cli.PrintWarning("Could not save original base URLs: %v", err)
 	}
 
-	// Start cloudflared tunnel — no --http-host-header so the tunnel
-	// hostname passes through to nginx where our tunnel vhost handles it
-	tunnelArgs := []string{
-		"tunnel",
-		"--url", localURL,
-	}
-
-	tunnelCmd := exec.Command(cloudflaredPath, tunnelArgs...)
+	// Start cloudflared tunnel — the tunnel hostname passes through as Host
+	tunnelCmd := exec.Command(cloudflaredPath, "tunnel", "--url", localURL)
 	tunnelCmd.Env = os.Environ()
 
 	stderr, err := tunnelCmd.StderrPipe()
@@ -174,7 +167,6 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	}
 
 	urlFile := getTunnelURLFile(p, cfg.Name)
-	tunnelVhostFile := getTunnelVhostFile(p, cfg.Name)
 
 	urlPattern := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.trycloudflare\.com`)
 	scanner := bufio.NewScanner(stderr)
@@ -194,11 +186,10 @@ func runExpose(cmd *cobra.Command, args []string) error {
 
 				_ = os.WriteFile(urlFile, []byte(tunnelURL), 0644)
 
-				// Extract tunnel hostname from URL
 				tunnelHost := extractHostname(tunnelURL)
 
-				// Create nginx vhost for the tunnel hostname
-				writeTunnelVhost(p, cfg.Name, tunnelHost, domain, tunnelVhostFile)
+				// Add tunnel domain to .magebox.yaml and regenerate nginx vhosts
+				addTunnelDomain(p, cwd, cfg, tunnelHost, domain)
 
 				// Update Magento base URLs to the tunnel URL
 				if setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/") {
@@ -218,11 +209,11 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		<-sigChan
 		fmt.Println()
 
-		// Revert Magento base URLs before stopping
+		// Revert Magento base URLs
 		revertMagentoBaseURLs(phpBin, cwd, urlsFile)
 
-		// Remove tunnel vhost and reload nginx
-		removeTunnelVhost(p, tunnelVhostFile)
+		// Remove tunnel domain from .magebox.yaml and regenerate nginx vhosts
+		removeTunnelDomain(p, cwd, cfg)
 
 		fmt.Print("Stopping tunnel... ")
 		_ = tunnelCmd.Process.Signal(syscall.SIGTERM)
@@ -261,13 +252,12 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 	}
 
 	pidFile := getTunnelPidFile(p, cfg.Name)
-	tunnelVhostFile := getTunnelVhostFile(p, cfg.Name)
 	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
 	phpBin := p.PHPBinary(cfg.PHP)
 
-	// Always try to revert URLs and remove vhost, even if process is gone
+	// Always try to revert URLs and remove tunnel domain
 	revertMagentoBaseURLs(phpBin, cwd, urlsFile)
-	removeTunnelVhost(p, tunnelVhostFile)
+	removeTunnelDomain(p, cwd, cfg)
 
 	pid, err := readPidFile(pidFile)
 	if err != nil || !processRunning(pid) {
@@ -341,74 +331,98 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// writeTunnelVhost creates a temporary nginx vhost that accepts the tunnel
-// hostname and proxies it to the project's PHP backend. This allows nginx
-// to serve requests where Host matches the Cloudflare tunnel domain.
-func writeTunnelVhost(p *platform.Platform, projectName, tunnelHost, localDomain string, vhostPath string) {
-	fmt.Print("Creating tunnel nginx vhost... ")
+// addTunnelDomain adds the tunnel hostname as a domain to .magebox.yaml,
+// regenerates nginx vhosts, and reloads nginx. The tunnel domain uses the
+// same document root as the source domain with SSL disabled (Cloudflare
+// terminates SSL).
+func addTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config, tunnelHost, sourceDomain string) {
+	fmt.Print("Adding tunnel domain to config... ")
 
-	httpPort := 80
-	if p.Type == platform.Darwin {
-		httpPort = 8080
+	// Find the source domain's root
+	var root string
+	for _, d := range cfg.Domains {
+		if d.Host == sourceDomain {
+			root = d.Root
+			break
+		}
 	}
 
-	// Generate a server block that accepts the tunnel hostname on HTTP.
-	// Cloudflared connects to our HTTP port. We set X-Forwarded-Proto: https
-	// because the original client connection to Cloudflare is HTTPS.
-	// We proxy to the local HTTPS vhost to reuse all its PHP/Magento config.
-	vhostContent := fmt.Sprintf(`# MageBox tunnel vhost for %s — auto-generated, do not edit
-# Tunnel hostname: %s -> local project: %s
+	sslDisabled := false
+	cfg.Domains = append(cfg.Domains, config.Domain{
+		Host: tunnelHost,
+		Root: root,
+		SSL:  &sslDisabled,
+	})
 
-server {
-    listen %d;
-    server_name %s;
-
-    location / {
-        proxy_pass https://%s;
-        proxy_set_header Host %s;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-Port 443;
-        proxy_set_header Ssl-Offloaded "1";
-        proxy_ssl_verify off;
-        proxy_buffer_size 128k;
-        proxy_buffers 4 256k;
-        proxy_busy_buffers_size 256k;
-        proxy_read_timeout 600s;
-    }
-}
-`, projectName, tunnelHost, localDomain, httpPort, tunnelHost, localDomain, tunnelHost)
-
-	if err := os.WriteFile(vhostPath, []byte(vhostContent), 0644); err != nil {
+	if err := config.SaveToPath(cfg, cwd); err != nil {
 		fmt.Println(cli.Error("failed: " + err.Error()))
 		return
 	}
 	fmt.Println(cli.Success("done"))
 
-	// Reload nginx
-	fmt.Print("Reloading nginx... ")
-	nginxCtrl := nginx.NewController(p)
-	if err := nginxCtrl.Reload(); err != nil {
-		fmt.Println(cli.Error("failed: " + err.Error()))
-	} else {
-		fmt.Println(cli.Success("done"))
-	}
+	// Regenerate nginx vhosts and reload
+	regenNginxVhosts(p, cfg, cwd)
 }
 
-// removeTunnelVhost removes the temporary tunnel nginx vhost and reloads nginx
-func removeTunnelVhost(p *platform.Platform, vhostPath string) {
-	if _, err := os.Stat(vhostPath); os.IsNotExist(err) {
+// removeTunnelDomain removes any *.trycloudflare.com domain from .magebox.yaml,
+// removes its vhost file, regenerates remaining vhosts, and reloads nginx.
+func removeTunnelDomain(p *platform.Platform, cwd string, cfg *config.Config) {
+	// Re-read config in case it changed
+	freshCfg, err := config.LoadFromPath(cwd)
+	if err != nil {
 		return
 	}
 
-	fmt.Print("Removing tunnel nginx vhost... ")
-	os.Remove(vhostPath)
+	var removedHosts []string
+	newDomains := make([]config.Domain, 0, len(freshCfg.Domains))
+	for _, d := range freshCfg.Domains {
+		if strings.HasSuffix(d.Host, ".trycloudflare.com") {
+			removedHosts = append(removedHosts, d.Host)
+		} else {
+			newDomains = append(newDomains, d)
+		}
+	}
+
+	if len(removedHosts) == 0 {
+		return
+	}
+
+	fmt.Print("Removing tunnel domain from config... ")
+
+	freshCfg.Domains = newDomains
+	if err := config.SaveToPath(freshCfg, cwd); err != nil {
+		fmt.Println(cli.Error("failed: " + err.Error()))
+		return
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Remove tunnel vhost files
+	sslMgr := ssl.NewManager(p)
+	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
+	for _, host := range removedHosts {
+		vhostFile := filepath.Join(vhostGen.VhostsDir(), fmt.Sprintf("%s-%s.conf", freshCfg.Name, host))
+		os.Remove(vhostFile)
+	}
+
+	// Regenerate remaining vhosts and reload nginx
+	regenNginxVhosts(p, freshCfg, cwd)
+}
+
+// regenNginxVhosts regenerates nginx vhosts for the config and reloads nginx
+func regenNginxVhosts(p *platform.Platform, cfg *config.Config, cwd string) {
+	sslMgr := ssl.NewManager(p)
+	vhostGen := nginx.NewVhostGenerator(p, sslMgr)
+
+	fmt.Print("Regenerating nginx vhosts... ")
+	if err := vhostGen.Generate(cfg, cwd); err != nil {
+		fmt.Println(cli.Error("failed: " + err.Error()))
+		return
+	}
 	fmt.Println(cli.Success("done"))
 
 	fmt.Print("Reloading nginx... ")
-	nginxCtrl := nginx.NewController(p)
-	if err := nginxCtrl.Reload(); err != nil {
+	ngxCtrl := nginx.NewController(p)
+	if err := ngxCtrl.Reload(); err != nil {
 		fmt.Println(cli.Error("failed: " + err.Error()))
 	} else {
 		fmt.Println(cli.Success("done"))
@@ -419,7 +433,6 @@ func removeTunnelVhost(p *platform.Platform, vhostPath string) {
 func extractHostname(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		// Fallback: strip protocol
 		h := strings.TrimPrefix(rawURL, "https://")
 		h = strings.TrimPrefix(h, "http://")
 		return strings.Split(h, "/")[0]
@@ -575,11 +588,6 @@ func getTunnelURLFile(p *platform.Platform, projectName string) string {
 // getTunnelBaseURLsFile returns the path to the saved base URLs file
 func getTunnelBaseURLsFile(p *platform.Platform, projectName string) string {
 	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.baseurls.json", projectName))
-}
-
-// getTunnelVhostFile returns the path to the temporary tunnel nginx vhost
-func getTunnelVhostFile(p *platform.Platform, projectName string) string {
-	return filepath.Join(p.MageBoxDir(), "nginx", "vhosts", fmt.Sprintf("tunnel-%s.conf", projectName))
 }
 
 // readPidFile reads a PID from a file
