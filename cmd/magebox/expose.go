@@ -648,7 +648,7 @@ func regenNginxVhosts(p *platform.Platform, cfg *config.Config, cwd string) {
 	}
 }
 
-// flushMagentoCache runs bin/magento cache:clean and cache:flush
+// flushMagentoCache runs bin/magento cache:flush and flushes Redis
 func flushMagentoCache(phpBin, cwd string) {
 	fmt.Print("Flushing Magento cache... ")
 
@@ -663,6 +663,10 @@ func flushMagentoCache(phpBin, cwd string) {
 	} else {
 		fmt.Println(cli.Success("done"))
 	}
+
+	// Also flush Redis directly to ensure full-page cache is cleared
+	redisCmd := exec.Command("docker", "exec", "magebox-redis", "redis-cli", "FLUSHALL")
+	_ = redisCmd.Run()
 }
 
 // extractHostname extracts the hostname from a URL string
