@@ -199,8 +199,6 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				tunnelURL = match
 				fmt.Println(cli.Success("done"))
 				fmt.Println()
-				fmt.Printf("Public URL: %s\n", cli.URL(tunnelURL))
-				fmt.Println()
 
 				_ = os.WriteFile(urlFile, []byte(tunnelURL), 0644)
 
@@ -213,6 +211,10 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				if setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/") {
 					cli.PrintInfo("Magento base URLs updated to tunnel URL")
 				}
+
+				fmt.Println()
+				fmt.Printf("Public URL: %s\n", cli.URL(tunnelURL))
+				fmt.Println()
 				cli.PrintInfo("Press Ctrl+C to stop the tunnel and revert URLs")
 				fmt.Println()
 			}
