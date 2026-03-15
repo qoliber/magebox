@@ -519,31 +519,52 @@ func (c *Controller) EnsureHashBucketSize() error {
 	}
 
 	contentStr := string(content)
-
-	// Already configured — don't touch it
-	if strings.Contains(contentStr, "server_names_hash_bucket_size") {
-		return nil
-	}
-
 	directive := "server_names_hash_bucket_size 128;"
 
-	// Insert inside the http block, right after "http {"
-	httpIdx := strings.Index(contentStr, "http {")
-	if httpIdx == -1 {
-		httpIdx = strings.Index(contentStr, "http{")
-	}
-	if httpIdx == -1 {
-		return fmt.Errorf("could not find http block in nginx.conf")
+	var newContent string
+
+	// Check for uncommented, active directive — already configured
+	for _, line := range strings.Split(contentStr, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "server_names_hash_bucket_size") {
+			return nil
+		}
 	}
 
-	// Find the opening brace
-	braceIdx := strings.Index(contentStr[httpIdx:], "{")
-	if braceIdx == -1 {
-		return fmt.Errorf("could not find http block opening brace")
+	// Check for commented-out directive — uncomment and set to 128
+	replaced := false
+	lines := strings.Split(contentStr, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "server_names_hash_bucket_size") {
+			// Preserve indentation
+			indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			lines[i] = indent + directive + " # MageBox: support long server names"
+			replaced = true
+			break
+		}
 	}
-	insertAt := httpIdx + braceIdx + 1
 
-	newContent := contentStr[:insertAt] + "\n    " + directive + " # MageBox: support long server names" + contentStr[insertAt:]
+	if replaced {
+		newContent = strings.Join(lines, "\n")
+	} else {
+		// Not present at all — insert inside the http block
+		httpIdx := strings.Index(contentStr, "http {")
+		if httpIdx == -1 {
+			httpIdx = strings.Index(contentStr, "http{")
+		}
+		if httpIdx == -1 {
+			return fmt.Errorf("could not find http block in nginx.conf")
+		}
+
+		braceIdx := strings.Index(contentStr[httpIdx:], "{")
+		if braceIdx == -1 {
+			return fmt.Errorf("could not find http block opening brace")
+		}
+		insertAt := httpIdx + braceIdx + 1
+
+		newContent = contentStr[:insertAt] + "\n    " + directive + " # MageBox: support long server names" + contentStr[insertAt:]
+	}
 
 	switch c.platform.Type {
 	case platform.Darwin:
