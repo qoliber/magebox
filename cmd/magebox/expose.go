@@ -404,10 +404,9 @@ func saveExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile, localDomain str
 		}
 	}
 
-	// 2. Read locked values from env.php and config.php via bin/magento config:show
-	// Values that differ between config:show (which reads all layers) and the DB
-	// are locked in config files
-	for _, path := range []string{"web/unsecure/base_url", "web/secure/base_url"} {
+	// 2. Read effective values from all config layers via bin/magento config:show
+	// These include env.php and config.php locked values that override the DB
+	for _, path := range baseURLConfigPaths {
 		cmd := exec.Command(phpBin, "bin/magento", "config:show", path)
 		cmd.Dir = cwd
 		if out, err := cmd.Output(); err == nil {
@@ -467,11 +466,20 @@ func setAllBaseURLs(db *dbInfo, dbName, phpBin, cwd, tunnelBaseURL string) {
 		}
 	}
 
-	// 2. Override in env.php via --lock-env (takes priority over config.php and DB)
+	// 2. Override ALL paths in env.php via --lock-env (takes priority over config.php and DB)
 	fmt.Print("Locking base URLs in env.php... ")
 	failed := false
-	for _, path := range []string{"web/unsecure/base_url", "web/secure/base_url"} {
-		cmd := exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, tunnelBaseURL)
+	for _, path := range baseURLConfigPaths {
+		var newValue string
+		switch {
+		case strings.Contains(path, "media"):
+			newValue = tunnelBaseURL + "media/"
+		case strings.Contains(path, "static"):
+			newValue = tunnelBaseURL + "static/"
+		default:
+			newValue = tunnelBaseURL
+		}
+		cmd := exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, newValue)
 		cmd.Dir = cwd
 		if err := cmd.Run(); err != nil {
 			failed = true
@@ -523,7 +531,7 @@ func revertExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile string) {
 	// 2. Restore env.php locked values, or delete them if they weren't originally there
 	fmt.Print("Reverting env.php base URLs... ")
 	failed := false
-	for _, path := range []string{"web/unsecure/base_url", "web/secure/base_url"} {
+	for _, path := range baseURLConfigPaths {
 		if origVal, wasLocked := state.EnvLocked[path]; wasLocked {
 			// Restore original locked value
 			cmd := exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, origVal)
@@ -535,9 +543,7 @@ func revertExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile string) {
 			// Remove the lock we added (delete from env.php)
 			cmd := exec.Command(phpBin, "bin/magento", "config:delete", "--lock-env", path)
 			cmd.Dir = cwd
-			if err := cmd.Run(); err != nil {
-				failed = true
-			}
+			_ = cmd.Run() // Ignore errors — path may not exist in env.php
 		}
 	}
 	if failed {
