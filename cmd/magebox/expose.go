@@ -420,8 +420,12 @@ func regenNginxVhosts(p *platform.Platform, cfg *config.Config, cwd string) {
 	}
 	fmt.Println(cli.Success("done"))
 
-	fmt.Print("Reloading nginx... ")
 	ngxCtrl := nginx.NewController(p)
+
+	// Ensure hash bucket size is large enough for long hostnames (e.g. tunnel domains)
+	_ = ngxCtrl.EnsureHashBucketSize()
+
+	fmt.Print("Reloading nginx... ")
 	if err := ngxCtrl.Reload(); err != nil {
 		fmt.Println(cli.Error("failed: " + err.Error()))
 	} else {
