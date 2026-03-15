@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/platform"
 )
 
@@ -124,12 +126,15 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		os.Remove(pidFile)
 	}
 
-	// Determine local URL — cloudflared connects to nginx HTTPS
-	httpsPort := 443
+	// Determine local URL — cloudflared connects to nginx HTTP (not HTTPS)
+	// We use HTTP because nginx will handle the request directly without
+	// SSL certificate issues. The tunnel vhost sets X-Forwarded-Proto: https
+	// so Magento knows the original request was HTTPS.
+	httpPort := 80
 	if p.Type == platform.Darwin {
-		httpsPort = 8443
+		httpPort = 8080
 	}
-	localURL := fmt.Sprintf("https://localhost:%d", httpsPort)
+	localURL := fmt.Sprintf("http://localhost:%d", httpPort)
 
 	cli.PrintTitle("Exposing Project")
 	fmt.Printf("Project: %s\n", cli.Highlight(cfg.Name))
@@ -145,12 +150,11 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		cli.PrintWarning("Could not save original base URLs: %v", err)
 	}
 
-	// Start cloudflared tunnel
+	// Start cloudflared tunnel — no --http-host-header so the tunnel
+	// hostname passes through to nginx where our tunnel vhost handles it
 	tunnelArgs := []string{
 		"tunnel",
 		"--url", localURL,
-		"--http-host-header", domain,
-		"--no-tls-verify",
 	}
 
 	tunnelCmd := exec.Command(cloudflaredPath, tunnelArgs...)
@@ -170,6 +174,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	}
 
 	urlFile := getTunnelURLFile(p, cfg.Name)
+	tunnelVhostFile := getTunnelVhostFile(p, cfg.Name)
 
 	urlPattern := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.trycloudflare\.com`)
 	scanner := bufio.NewScanner(stderr)
@@ -188,6 +193,12 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				fmt.Println()
 
 				_ = os.WriteFile(urlFile, []byte(tunnelURL), 0644)
+
+				// Extract tunnel hostname from URL
+				tunnelHost := extractHostname(tunnelURL)
+
+				// Create nginx vhost for the tunnel hostname
+				writeTunnelVhost(p, cfg.Name, tunnelHost, domain, tunnelVhostFile)
 
 				// Update Magento base URLs to the tunnel URL
 				if setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/") {
@@ -209,6 +220,9 @@ func runExpose(cmd *cobra.Command, args []string) error {
 
 		// Revert Magento base URLs before stopping
 		revertMagentoBaseURLs(phpBin, cwd, urlsFile)
+
+		// Remove tunnel vhost and reload nginx
+		removeTunnelVhost(p, tunnelVhostFile)
 
 		fmt.Print("Stopping tunnel... ")
 		_ = tunnelCmd.Process.Signal(syscall.SIGTERM)
@@ -247,28 +261,22 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 	}
 
 	pidFile := getTunnelPidFile(p, cfg.Name)
-	pid, err := readPidFile(pidFile)
-	if err != nil {
-		cli.PrintInfo("No tunnel is running for this project")
-		return nil
-	}
+	tunnelVhostFile := getTunnelVhostFile(p, cfg.Name)
+	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
+	phpBin := p.PHPBinary(cfg.PHP)
 
-	if !processRunning(pid) {
-		cli.PrintInfo("No tunnel is running for this project")
-		// Still revert URLs in case they weren't restored
-		phpBin := p.PHPBinary(cfg.PHP)
-		urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
-		revertMagentoBaseURLs(phpBin, cwd, urlsFile)
+	// Always try to revert URLs and remove vhost, even if process is gone
+	revertMagentoBaseURLs(phpBin, cwd, urlsFile)
+	removeTunnelVhost(p, tunnelVhostFile)
+
+	pid, err := readPidFile(pidFile)
+	if err != nil || !processRunning(pid) {
+		cli.PrintInfo("No tunnel process is running for this project")
 		os.Remove(pidFile)
 		os.Remove(getTunnelURLFile(p, cfg.Name))
 		os.Remove(urlsFile)
 		return nil
 	}
-
-	// Revert Magento base URLs
-	phpBin := p.PHPBinary(cfg.PHP)
-	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
-	revertMagentoBaseURLs(phpBin, cwd, urlsFile)
 
 	fmt.Print("Stopping tunnel... ")
 	process, err := os.FindProcess(pid)
@@ -324,13 +332,99 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 
 	urlFile := getTunnelURLFile(p, cfg.Name)
 	if urlBytes, err := os.ReadFile(urlFile); err == nil {
-		url := strings.TrimSpace(string(urlBytes))
-		if url != "" {
-			fmt.Printf("URL:    %s\n", cli.URL(url))
+		tunnelURL := strings.TrimSpace(string(urlBytes))
+		if tunnelURL != "" {
+			fmt.Printf("URL:    %s\n", cli.URL(tunnelURL))
 		}
 	}
 
 	return nil
+}
+
+// writeTunnelVhost creates a temporary nginx vhost that accepts the tunnel
+// hostname and proxies it to the project's PHP backend. This allows nginx
+// to serve requests where Host matches the Cloudflare tunnel domain.
+func writeTunnelVhost(p *platform.Platform, projectName, tunnelHost, localDomain string, vhostPath string) {
+	fmt.Print("Creating tunnel nginx vhost... ")
+
+	httpPort := 80
+	if p.Type == platform.Darwin {
+		httpPort = 8080
+	}
+
+	// Generate a server block that accepts the tunnel hostname on HTTP.
+	// Cloudflared connects to our HTTP port. We set X-Forwarded-Proto: https
+	// because the original client connection to Cloudflare is HTTPS.
+	// We proxy to the local HTTPS vhost to reuse all its PHP/Magento config.
+	vhostContent := fmt.Sprintf(`# MageBox tunnel vhost for %s — auto-generated, do not edit
+# Tunnel hostname: %s -> local project: %s
+
+server {
+    listen %d;
+    server_name %s;
+
+    location / {
+        proxy_pass https://%s;
+        proxy_set_header Host %s;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header Ssl-Offloaded "1";
+        proxy_ssl_verify off;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+        proxy_read_timeout 600s;
+    }
+}
+`, projectName, tunnelHost, localDomain, httpPort, tunnelHost, localDomain, tunnelHost)
+
+	if err := os.WriteFile(vhostPath, []byte(vhostContent), 0644); err != nil {
+		fmt.Println(cli.Error("failed: " + err.Error()))
+		return
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Reload nginx
+	fmt.Print("Reloading nginx... ")
+	nginxCtrl := nginx.NewController(p)
+	if err := nginxCtrl.Reload(); err != nil {
+		fmt.Println(cli.Error("failed: " + err.Error()))
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+}
+
+// removeTunnelVhost removes the temporary tunnel nginx vhost and reloads nginx
+func removeTunnelVhost(p *platform.Platform, vhostPath string) {
+	if _, err := os.Stat(vhostPath); os.IsNotExist(err) {
+		return
+	}
+
+	fmt.Print("Removing tunnel nginx vhost... ")
+	os.Remove(vhostPath)
+	fmt.Println(cli.Success("done"))
+
+	fmt.Print("Reloading nginx... ")
+	nginxCtrl := nginx.NewController(p)
+	if err := nginxCtrl.Reload(); err != nil {
+		fmt.Println(cli.Error("failed: " + err.Error()))
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+}
+
+// extractHostname extracts the hostname from a URL string
+func extractHostname(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		// Fallback: strip protocol
+		h := strings.TrimPrefix(rawURL, "https://")
+		h = strings.TrimPrefix(h, "http://")
+		return strings.Split(h, "/")[0]
+	}
+	return u.Hostname()
 }
 
 // readMagentoBaseURLs reads the current Magento base URLs via bin/magento
@@ -481,6 +575,11 @@ func getTunnelURLFile(p *platform.Platform, projectName string) string {
 // getTunnelBaseURLsFile returns the path to the saved base URLs file
 func getTunnelBaseURLsFile(p *platform.Platform, projectName string) string {
 	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.baseurls.json", projectName))
+}
+
+// getTunnelVhostFile returns the path to the temporary tunnel nginx vhost
+func getTunnelVhostFile(p *platform.Platform, projectName string) string {
+	return filepath.Join(p.MageBoxDir(), "nginx", "vhosts", fmt.Sprintf("tunnel-%s.conf", projectName))
 }
 
 // readPidFile reads a PID from a file
