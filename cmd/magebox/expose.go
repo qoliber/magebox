@@ -560,12 +560,18 @@ func magentoConfigSet(phpBin, cwd, path, value string) error {
 	return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 }
 
-// flushMagentoCache runs bin/magento cache:flush
+// flushMagentoCache runs bin/magento cache:flush and cleans generated content
 func flushMagentoCache(phpBin, cwd string) {
 	fmt.Print("Flushing Magento cache... ")
-	cacheCmd := exec.Command(phpBin, "bin/magento", "cache:flush")
-	cacheCmd.Dir = cwd
-	if err := cacheCmd.Run(); err != nil {
+
+	// Clean first, then flush — ensures both backend and storage are cleared
+	cleanCmd := exec.Command(phpBin, "bin/magento", "cache:clean")
+	cleanCmd.Dir = cwd
+	_ = cleanCmd.Run()
+
+	flushCmd := exec.Command(phpBin, "bin/magento", "cache:flush")
+	flushCmd.Dir = cwd
+	if err := flushCmd.Run(); err != nil {
 		fmt.Println(cli.Warning("skipped"))
 	} else {
 		fmt.Println(cli.Success("done"))
