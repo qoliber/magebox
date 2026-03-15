@@ -62,8 +62,26 @@ func init() {
 
 // savedBaseURLs stores original Magento base URLs for restoration
 type savedBaseURLs struct {
-	UnsecureBaseURL string `json:"unsecure_base_url"`
-	SecureBaseURL   string `json:"secure_base_url"`
+	UnsecureBaseURL   string `json:"unsecure_base_url"`
+	SecureBaseURL     string `json:"secure_base_url"`
+	UnsecureMediaURL  string `json:"unsecure_media_url,omitempty"`
+	SecureMediaURL    string `json:"secure_media_url,omitempty"`
+	UnsecureStaticURL string `json:"unsecure_static_url,omitempty"`
+	SecureStaticURL   string `json:"secure_static_url,omitempty"`
+}
+
+// magentoBaseURLPaths lists all Magento config paths that need to be updated
+// for a full base URL switch (base, media, static × secure/unsecure)
+var magentoBaseURLPaths = []struct {
+	configPath string
+	savedField func(*savedBaseURLs) *string
+}{
+	{"web/unsecure/base_url", func(s *savedBaseURLs) *string { return &s.UnsecureBaseURL }},
+	{"web/secure/base_url", func(s *savedBaseURLs) *string { return &s.SecureBaseURL }},
+	{"web/unsecure/base_media_url", func(s *savedBaseURLs) *string { return &s.UnsecureMediaURL }},
+	{"web/secure/base_media_url", func(s *savedBaseURLs) *string { return &s.SecureMediaURL }},
+	{"web/unsecure/base_static_url", func(s *savedBaseURLs) *string { return &s.UnsecureStaticURL }},
+	{"web/secure/base_static_url", func(s *savedBaseURLs) *string { return &s.SecureStaticURL }},
 }
 
 func runExpose(cmd *cobra.Command, args []string) error {
@@ -444,40 +462,45 @@ func extractHostname(rawURL string) string {
 	return u.Hostname()
 }
 
-// readMagentoBaseURLs reads the current Magento base URLs via bin/magento
+// readMagentoBaseURLs reads all current Magento base URLs via bin/magento
 func readMagentoBaseURLs(phpBin, cwd string) savedBaseURLs {
 	urls := savedBaseURLs{}
 
-	unsecureCmd := exec.Command(phpBin, "bin/magento", "config:show", "web/unsecure/base_url")
-	unsecureCmd.Dir = cwd
-	if out, err := unsecureCmd.Output(); err == nil {
-		urls.UnsecureBaseURL = strings.TrimSpace(string(out))
-	}
-
-	secureCmd := exec.Command(phpBin, "bin/magento", "config:show", "web/secure/base_url")
-	secureCmd.Dir = cwd
-	if out, err := secureCmd.Output(); err == nil {
-		urls.SecureBaseURL = strings.TrimSpace(string(out))
+	for _, p := range magentoBaseURLPaths {
+		cmd := exec.Command(phpBin, "bin/magento", "config:show", p.configPath)
+		cmd.Dir = cwd
+		if out, err := cmd.Output(); err == nil {
+			val := strings.TrimSpace(string(out))
+			if val != "" {
+				*p.savedField(&urls) = val
+			}
+		}
 	}
 
 	return urls
 }
 
-// setMagentoBaseURLs updates Magento base URLs and flushes cache.
-// Returns true if both URLs were set successfully.
+// setMagentoBaseURLs updates all Magento base URLs and flushes cache.
+// Returns true if all URLs were set successfully.
 func setMagentoBaseURLs(phpBin, cwd, baseURL string) bool {
 	fmt.Print("Updating Magento base URLs... ")
 
-	if err := magentoConfigSet(phpBin, cwd, "web/unsecure/base_url", baseURL); err != nil {
-		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Could not set unsecure base URL: %s", err)
-		return false
+	// For media and static, append the subpath to the base URL
+	urlMap := map[string]string{
+		"web/unsecure/base_url":        baseURL,
+		"web/secure/base_url":          baseURL,
+		"web/unsecure/base_media_url":  baseURL + "media/",
+		"web/secure/base_media_url":    baseURL + "media/",
+		"web/unsecure/base_static_url": baseURL + "static/",
+		"web/secure/base_static_url":   baseURL + "static/",
 	}
 
-	if err := magentoConfigSet(phpBin, cwd, "web/secure/base_url", baseURL); err != nil {
-		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Could not set secure base URL: %s", err)
-		return false
+	for _, p := range magentoBaseURLPaths {
+		if err := magentoConfigSet(phpBin, cwd, p.configPath, urlMap[p.configPath]); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("Could not set %s: %s", p.configPath, err)
+			return false
+		}
 	}
 
 	fmt.Println(cli.Success("done"))
@@ -486,7 +509,7 @@ func setMagentoBaseURLs(phpBin, cwd, baseURL string) bool {
 	return true
 }
 
-// revertMagentoBaseURLs restores Magento base URLs from the saved file
+// revertMagentoBaseURLs restores all Magento base URLs from the saved file
 func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
 	urls, err := loadBaseURLs(urlsFile)
 	if err != nil {
@@ -496,17 +519,13 @@ func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
 	fmt.Print("Reverting Magento base URLs... ")
 
 	failed := false
-	if urls.UnsecureBaseURL != "" {
-		if err := magentoConfigSet(phpBin, cwd, "web/unsecure/base_url", urls.UnsecureBaseURL); err != nil {
-			cli.PrintWarning("Could not revert unsecure base URL: %s", err)
-			failed = true
-		}
-	}
-
-	if urls.SecureBaseURL != "" {
-		if err := magentoConfigSet(phpBin, cwd, "web/secure/base_url", urls.SecureBaseURL); err != nil {
-			cli.PrintWarning("Could not revert secure base URL: %s", err)
-			failed = true
+	for _, p := range magentoBaseURLPaths {
+		val := *p.savedField(urls)
+		if val != "" {
+			if err := magentoConfigSet(phpBin, cwd, p.configPath, val); err != nil {
+				cli.PrintWarning("Could not revert %s: %s", p.configPath, err)
+				failed = true
+			}
 		}
 	}
 
