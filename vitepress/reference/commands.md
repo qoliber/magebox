@@ -118,6 +118,8 @@ Create a new Magento/MageOS installation.
 
 ```bash
 magebox new mystore
+magebox new mystore --quick
+magebox new mystore --quick --hyva
 ```
 
 Interactive wizard that guides through:
@@ -129,6 +131,15 @@ Interactive wizard that guides through:
 - Search engine selection
 - Service configuration
 - Sample data installation
+
+**Options:**
+- `--quick`, `-q` - Quick install with sensible defaults (MageOS, PHP 8.3, MySQL 8.0, OpenSearch)
+- `--with-sample` - Include sample data (used with `--quick`)
+- `--hyva` - Install and activate the [Hyvä theme](/guide/hyva). Prompts for Hyvä Composer credentials if not already configured.
+
+::: tip
+Combine `--quick --hyva` for the fastest way to get a Hyvä-powered store running.
+:::
 
 ## PHP Commands
 
@@ -934,6 +945,7 @@ This command:
 - `--force` - Skip confirmation prompt
 - `--dry-run` - Preview what would be removed without making changes
 - `--keep-vhosts` - Preserve nginx vhost configurations
+- `--purge-packages` - Also remove system packages (PHP, nginx, dnsmasq) installed by MageBox
 
 ::: warning
 This does not uninstall MageBox itself (the binary), only the components it manages.

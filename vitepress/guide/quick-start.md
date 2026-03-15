@@ -68,6 +68,18 @@ The `--quick` flag installs:
 - **Sample data** included
 :::
 
+## Quick Install with Hyvä Theme
+
+Add the `--hyva` flag to install the [Hyvä theme](https://www.hyva.io/) automatically:
+
+```bash
+magebox new mystore --quick --hyva
+```
+
+You'll be prompted for your Hyvä Composer credentials (one-time setup). MageBox handles the rest: installing the theme package, running `setup:upgrade`, and activating the theme.
+
+See the [Hyvä Theme guide](/guide/hyva) for details.
+
 ## Interactive Wizard
 
 For full control over your setup:

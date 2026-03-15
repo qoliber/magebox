@@ -2,6 +2,27 @@
 
 All notable changes to MageBox will be documented here.
 
+## [Unreleased]
+
+### New Features
+
+- **Hyvä Theme Support** - Install and activate the Hyvä theme with `magebox new --hyva`. Handles Composer authentication, package installation, and automatic theme activation after `setup:upgrade`. ([#21](https://github.com/qoliber/magebox/pull/21))
+- **Automatic Composer Installation** - `magebox new` now detects if Composer is missing and installs it automatically. ([#13](https://github.com/qoliber/magebox/pull/13))
+- **New Magento & MageOS Versions** - Added support for latest Magento and MageOS releases. ([#14](https://github.com/qoliber/magebox/pull/14))
+
+### Changes
+
+- **CGO-Free Builds** - Replaced `mattn/go-sqlite3` with `modernc.org/sqlite` for CGO-free builds, simplifying cross-compilation. ([#15](https://github.com/qoliber/magebox/pull/15))
+
+### Bug Fixes
+
+- **IPv6 Nginx Listen Directives** - Added IPv6 (`[::]:port`) listen directives to nginx vhost templates on Linux. ([#20](https://github.com/qoliber/magebox/pull/20))
+- **Quick Install DI Error** - Fixed dependency injection error during quick install by removing pre-generated `env.php` before `setup:install`. ([#18](https://github.com/qoliber/magebox/pull/18))
+- **Tideways INI Modifications** - Use `sudo sed` for tideways PHP INI modifications to match the approach used for xdebug. ([#16](https://github.com/qoliber/magebox/pull/16))
+- **Global Config Defaults** - Fixed `magebox init` to respect `default_php` and `default_services` from global configuration. ([#12](https://github.com/qoliber/magebox/pull/12))
+- **Custom MySQL/MariaDB Config** - Fixed mounting of custom MySQL/MariaDB configuration files in docker-compose. ([#12](https://github.com/qoliber/magebox/pull/12))
+- **macOS sed Compatibility** - Use platform-aware sed flags for xdebug enable/disable on macOS. ([#12](https://github.com/qoliber/magebox/pull/12))
+
 ## [1.4.0] - 2026-03-14
 
 Special thanks to [Peter Jaap Blaakmeer](https://github.com/peterjaap) for his contributions to this release.

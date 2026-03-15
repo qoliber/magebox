@@ -8,6 +8,11 @@ Your go-to cheatsheet for MageBox commands. Print it, bookmark it, love it.
 # First-time setup
 magebox bootstrap          # Set up your system (one-time)
 
+# Create new project
+magebox new mystore        # Interactive wizard
+magebox new mystore -q     # Quick install (MageOS defaults)
+magebox new mystore -q --hyva  # Quick install with Hyvä theme
+
 # Project lifecycle
 magebox init               # Initialize project in current directory
 magebox start              # Start all services for project

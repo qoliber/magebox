@@ -60,7 +60,8 @@ export default defineConfig({
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Bootstrap', link: '/guide/bootstrap' },
             { text: 'Laravel Support', link: '/guide/laravel' },
-            { text: 'Common Workflows', link: '/guide/workflows' }
+            { text: 'Common Workflows', link: '/guide/workflows' },
+            { text: 'Hyvä Theme', link: '/guide/hyva' }
           ]
         },
         {
@@ -174,7 +175,8 @@ export default defineConfig({
             { text: 'Quick Start', link: '/guide/quick-start' },
             { text: 'Bootstrap', link: '/guide/bootstrap' },
             { text: 'Laravel Support', link: '/guide/laravel' },
-            { text: 'Common Workflows', link: '/guide/workflows' }
+            { text: 'Common Workflows', link: '/guide/workflows' },
+            { text: 'Hyvä Theme', link: '/guide/hyva' }
           ]
         },
         {
