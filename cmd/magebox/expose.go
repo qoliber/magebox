@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,6 +28,9 @@ Uses cloudflared quick tunnels (no account required) to generate a
 temporary *.trycloudflare.com URL. Traffic is routed to your local
 nginx with the correct Host header so the right project is served.
 
+Automatically updates Magento base URLs to the tunnel URL and reverts
+them when the tunnel is stopped.
+
 Requires cloudflared to be installed (brew install cloudflared).`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runExpose,
@@ -35,7 +39,7 @@ Requires cloudflared to be installed (brew install cloudflared).`,
 var exposeStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the tunnel",
-	Long:  "Stops the running Cloudflare Tunnel for the current project",
+	Long:  "Stops the running Cloudflare Tunnel and reverts Magento base URLs",
 	RunE:  runExposeStop,
 }
 
@@ -50,6 +54,12 @@ func init() {
 	exposeCmd.AddCommand(exposeStopCmd)
 	exposeCmd.AddCommand(exposeStatusCmd)
 	rootCmd.AddCommand(exposeCmd)
+}
+
+// savedBaseURLs stores original Magento base URLs for restoration
+type savedBaseURLs struct {
+	UnsecureBaseURL string `json:"unsecure_base_url"`
+	SecureBaseURL   string `json:"secure_base_url"`
 }
 
 func runExpose(cmd *cobra.Command, args []string) error {
@@ -79,7 +89,6 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	// Determine which domain to expose
 	var domain string
 	if len(args) > 0 {
-		// Validate that the specified domain belongs to this project
 		domain = args[0]
 		found := false
 		for _, d := range cfg.Domains {
@@ -112,7 +121,6 @@ func runExpose(cmd *cobra.Command, args []string) error {
 			cli.PrintInfo("Stop it first with: magebox expose stop")
 			return nil
 		}
-		// Stale pid file, clean up
 		os.Remove(pidFile)
 	}
 
@@ -129,6 +137,14 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Backend: %s\n", cli.Highlight(localURL))
 	fmt.Println()
 
+	// Save current Magento base URLs before starting the tunnel
+	phpBin := p.PHPBinary(cfg.PHP)
+	origURLs := readMagentoBaseURLs(phpBin, cwd)
+	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
+	if err := saveBaseURLs(urlsFile, origURLs); err != nil {
+		cli.PrintWarning("Could not save original base URLs: %v", err)
+	}
+
 	// Start cloudflared tunnel
 	tunnelArgs := []string{
 		"tunnel",
@@ -140,33 +156,27 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	tunnelCmd := exec.Command(cloudflaredPath, tunnelArgs...)
 	tunnelCmd.Env = os.Environ()
 
-	// Capture stderr to extract the tunnel URL
 	stderr, err := tunnelCmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
-	// Start the tunnel process
 	if err := tunnelCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start cloudflared: %w", err)
 	}
 
-	// Save PID for later stop
 	if err := writePidFile(pidFile, tunnelCmd.Process.Pid); err != nil {
 		cli.PrintWarning("Could not save tunnel PID: %v", err)
 	}
 
-	// Also save the URL file path for status
 	urlFile := getTunnelURLFile(p, cfg.Name)
 
-	// Parse stderr for the tunnel URL
 	urlPattern := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.trycloudflare\.com`)
 	scanner := bufio.NewScanner(stderr)
 	tunnelURL := ""
 
 	fmt.Print("Starting tunnel... ")
 
-	// Read lines until we find the URL or process exits
 	go func() {
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -176,12 +186,15 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				fmt.Println()
 				fmt.Printf("Public URL: %s\n", cli.URL(tunnelURL))
 				fmt.Println()
-				cli.PrintInfo("Traffic to the public URL is forwarded to %s", domain)
-				cli.PrintInfo("Press Ctrl+C to stop the tunnel")
-				fmt.Println()
 
-				// Save URL for status command
 				_ = os.WriteFile(urlFile, []byte(tunnelURL), 0644)
+
+				// Update Magento base URLs to the tunnel URL
+				setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/")
+
+				cli.PrintInfo("Magento base URLs updated to tunnel URL")
+				cli.PrintInfo("Press Ctrl+C to stop the tunnel and revert URLs")
+				fmt.Println()
 			}
 		}
 	}()
@@ -193,16 +206,20 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	go func() {
 		<-sigChan
 		fmt.Println()
+
+		// Revert Magento base URLs before stopping
+		revertMagentoBaseURLs(phpBin, cwd, urlsFile)
+
 		fmt.Print("Stopping tunnel... ")
 		_ = tunnelCmd.Process.Signal(syscall.SIGTERM)
 	}()
 
-	// Wait for the process to finish
 	_ = tunnelCmd.Wait()
 
-	// Clean up
+	// Clean up run files
 	os.Remove(pidFile)
 	os.Remove(urlFile)
+	os.Remove(urlsFile)
 
 	if tunnelURL == "" {
 		fmt.Println(cli.Error("failed"))
@@ -238,10 +255,20 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 
 	if !processRunning(pid) {
 		cli.PrintInfo("No tunnel is running for this project")
+		// Still revert URLs in case they weren't restored
+		phpBin := p.PHPBinary(cfg.PHP)
+		urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
+		revertMagentoBaseURLs(phpBin, cwd, urlsFile)
 		os.Remove(pidFile)
 		os.Remove(getTunnelURLFile(p, cfg.Name))
+		os.Remove(urlsFile)
 		return nil
 	}
+
+	// Revert Magento base URLs
+	phpBin := p.PHPBinary(cfg.PHP)
+	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
+	revertMagentoBaseURLs(phpBin, cwd, urlsFile)
 
 	fmt.Print("Stopping tunnel... ")
 	process, err := os.FindProcess(pid)
@@ -257,6 +284,7 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 
 	os.Remove(pidFile)
 	os.Remove(getTunnelURLFile(p, cfg.Name))
+	os.Remove(urlsFile)
 	fmt.Println(cli.Success("done"))
 
 	return nil
@@ -294,7 +322,6 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println("Status: " + cli.Success("running"))
 	fmt.Printf("PID:    %d\n", pid)
 
-	// Try to read the URL file
 	urlFile := getTunnelURLFile(p, cfg.Name)
 	if urlBytes, err := os.ReadFile(urlFile); err == nil {
 		url := strings.TrimSpace(string(urlBytes))
@@ -306,6 +333,114 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// readMagentoBaseURLs reads the current Magento base URLs via bin/magento
+func readMagentoBaseURLs(phpBin, cwd string) savedBaseURLs {
+	urls := savedBaseURLs{}
+
+	unsecureCmd := exec.Command(phpBin, "bin/magento", "config:show", "web/unsecure/base_url")
+	unsecureCmd.Dir = cwd
+	if out, err := unsecureCmd.Output(); err == nil {
+		urls.UnsecureBaseURL = strings.TrimSpace(string(out))
+	}
+
+	secureCmd := exec.Command(phpBin, "bin/magento", "config:show", "web/secure/base_url")
+	secureCmd.Dir = cwd
+	if out, err := secureCmd.Output(); err == nil {
+		urls.SecureBaseURL = strings.TrimSpace(string(out))
+	}
+
+	return urls
+}
+
+// setMagentoBaseURLs updates Magento base URLs and flushes cache
+func setMagentoBaseURLs(phpBin, cwd, baseURL string) {
+	fmt.Print("Updating Magento base URLs... ")
+
+	unsecureCmd := exec.Command(phpBin, "bin/magento", "config:set", "web/unsecure/base_url", baseURL)
+	unsecureCmd.Dir = cwd
+	if err := unsecureCmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		cli.PrintWarning("Could not set unsecure base URL: %v", err)
+		return
+	}
+
+	secureCmd := exec.Command(phpBin, "bin/magento", "config:set", "web/secure/base_url", baseURL)
+	secureCmd.Dir = cwd
+	if err := secureCmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		cli.PrintWarning("Could not set secure base URL: %v", err)
+		return
+	}
+
+	fmt.Println(cli.Success("done"))
+
+	flushMagentoCache(phpBin, cwd)
+}
+
+// revertMagentoBaseURLs restores Magento base URLs from the saved file
+func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
+	urls, err := loadBaseURLs(urlsFile)
+	if err != nil {
+		return
+	}
+
+	fmt.Print("Reverting Magento base URLs... ")
+
+	if urls.UnsecureBaseURL != "" {
+		cmd := exec.Command(phpBin, "bin/magento", "config:set", "web/unsecure/base_url", urls.UnsecureBaseURL)
+		cmd.Dir = cwd
+		_ = cmd.Run()
+	}
+
+	if urls.SecureBaseURL != "" {
+		cmd := exec.Command(phpBin, "bin/magento", "config:set", "web/secure/base_url", urls.SecureBaseURL)
+		cmd.Dir = cwd
+		_ = cmd.Run()
+	}
+
+	fmt.Println(cli.Success("done"))
+
+	flushMagentoCache(phpBin, cwd)
+}
+
+// flushMagentoCache runs bin/magento cache:flush
+func flushMagentoCache(phpBin, cwd string) {
+	fmt.Print("Flushing Magento cache... ")
+	cacheCmd := exec.Command(phpBin, "bin/magento", "cache:flush")
+	cacheCmd.Dir = cwd
+	if err := cacheCmd.Run(); err != nil {
+		fmt.Println(cli.Warning("skipped"))
+	} else {
+		fmt.Println(cli.Success("done"))
+	}
+}
+
+// saveBaseURLs persists the original base URLs to a JSON file
+func saveBaseURLs(path string, urls savedBaseURLs) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(urls)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+// loadBaseURLs reads saved base URLs from a JSON file
+func loadBaseURLs(path string) (*savedBaseURLs, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var urls savedBaseURLs
+	if err := json.Unmarshal(data, &urls); err != nil {
+		return nil, err
+	}
+	return &urls, nil
+}
+
 // getTunnelPidFile returns the path to the tunnel PID file for a project
 func getTunnelPidFile(p *platform.Platform, projectName string) string {
 	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.pid", projectName))
@@ -314,6 +449,11 @@ func getTunnelPidFile(p *platform.Platform, projectName string) string {
 // getTunnelURLFile returns the path to the tunnel URL file for a project
 func getTunnelURLFile(p *platform.Platform, projectName string) string {
 	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.url", projectName))
+}
+
+// getTunnelBaseURLsFile returns the path to the saved base URLs file
+func getTunnelBaseURLsFile(p *platform.Platform, projectName string) string {
+	return filepath.Join(p.MageBoxDir(), "run", fmt.Sprintf("tunnel-%s.baseurls.json", projectName))
 }
 
 // readPidFile reads a PID from a file

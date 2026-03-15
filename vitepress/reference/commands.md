@@ -899,6 +899,8 @@ magebox expose store.mystore.test # Expose a specific domain
 
 Creates a temporary `*.trycloudflare.com` URL that forwards traffic to your local project. No Cloudflare account required.
 
+Automatically updates Magento's `web/unsecure/base_url` and `web/secure/base_url` to the tunnel URL, and reverts them when the tunnel is stopped.
+
 **Arguments:**
 - `domain` - Specific domain to expose (optional, defaults to first domain)
 
@@ -909,7 +911,7 @@ Creates a temporary `*.trycloudflare.com` URL that forwards traffic to your loca
 
 ### `magebox expose stop`
 
-Stop the running tunnel.
+Stop the running tunnel and revert Magento base URLs.
 
 ```bash
 magebox expose stop
