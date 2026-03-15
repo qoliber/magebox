@@ -357,19 +357,15 @@ func readMagentoBaseURLs(phpBin, cwd string) savedBaseURLs {
 func setMagentoBaseURLs(phpBin, cwd, baseURL string) bool {
 	fmt.Print("Updating Magento base URLs... ")
 
-	unsecureCmd := exec.Command(phpBin, "bin/magento", "config:set", "web/unsecure/base_url", baseURL)
-	unsecureCmd.Dir = cwd
-	if out, err := unsecureCmd.CombinedOutput(); err != nil {
+	if err := magentoConfigSet(phpBin, cwd, "web/unsecure/base_url", baseURL); err != nil {
 		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Could not set unsecure base URL: %s", strings.TrimSpace(string(out)))
+		cli.PrintWarning("Could not set unsecure base URL: %s", err)
 		return false
 	}
 
-	secureCmd := exec.Command(phpBin, "bin/magento", "config:set", "web/secure/base_url", baseURL)
-	secureCmd.Dir = cwd
-	if out, err := secureCmd.CombinedOutput(); err != nil {
+	if err := magentoConfigSet(phpBin, cwd, "web/secure/base_url", baseURL); err != nil {
 		fmt.Println(cli.Error("failed"))
-		cli.PrintWarning("Could not set secure base URL: %s", strings.TrimSpace(string(out)))
+		cli.PrintWarning("Could not set secure base URL: %s", err)
 		return false
 	}
 
@@ -390,19 +386,15 @@ func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
 
 	failed := false
 	if urls.UnsecureBaseURL != "" {
-		cmd := exec.Command(phpBin, "bin/magento", "config:set", "web/unsecure/base_url", urls.UnsecureBaseURL)
-		cmd.Dir = cwd
-		if out, err := cmd.CombinedOutput(); err != nil {
-			cli.PrintWarning("Could not revert unsecure base URL: %s", strings.TrimSpace(string(out)))
+		if err := magentoConfigSet(phpBin, cwd, "web/unsecure/base_url", urls.UnsecureBaseURL); err != nil {
+			cli.PrintWarning("Could not revert unsecure base URL: %s", err)
 			failed = true
 		}
 	}
 
 	if urls.SecureBaseURL != "" {
-		cmd := exec.Command(phpBin, "bin/magento", "config:set", "web/secure/base_url", urls.SecureBaseURL)
-		cmd.Dir = cwd
-		if out, err := cmd.CombinedOutput(); err != nil {
-			cli.PrintWarning("Could not revert secure base URL: %s", strings.TrimSpace(string(out)))
+		if err := magentoConfigSet(phpBin, cwd, "web/secure/base_url", urls.SecureBaseURL); err != nil {
+			cli.PrintWarning("Could not revert secure base URL: %s", err)
 			failed = true
 		}
 	}
@@ -412,6 +404,30 @@ func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
 	}
 
 	flushMagentoCache(phpBin, cwd)
+}
+
+// magentoConfigSet sets a Magento config value, falling back to --lock-env
+// if the value is locked in env.php
+func magentoConfigSet(phpBin, cwd, path, value string) error {
+	cmd := exec.Command(phpBin, "bin/magento", "config:set", path, value)
+	cmd.Dir = cwd
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+
+	// If the value is locked in env.php, retry with --lock-env to override it
+	outStr := string(out)
+	if strings.Contains(outStr, "lock") || strings.Contains(outStr, "vergrendeld") {
+		cmd = exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, value)
+		cmd.Dir = cwd
+		out, err = cmd.CombinedOutput()
+		if err == nil {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 }
 
 // flushMagentoCache runs bin/magento cache:flush
