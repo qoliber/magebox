@@ -18,6 +18,7 @@ import (
 
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/docker"
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/platform"
 	"qoliber/magebox/internal/ssl"
@@ -32,8 +33,8 @@ Uses cloudflared quick tunnels (no account required) to generate a
 temporary *.trycloudflare.com URL. The tunnel domain is added to
 .magebox.yaml so nginx serves it alongside your local domains.
 
-Automatically updates Magento base URLs to the tunnel URL and reverts
-them when the tunnel is stopped.
+Automatically updates Magento base URLs (across all scopes) to the
+tunnel URL and reverts them when the tunnel is stopped.
 
 Requires cloudflared to be installed (brew install cloudflared).`,
 	Args: cobra.MaximumNArgs(1),
@@ -60,28 +61,22 @@ func init() {
 	rootCmd.AddCommand(exposeCmd)
 }
 
-// savedBaseURLs stores original Magento base URLs for restoration
-type savedBaseURLs struct {
-	UnsecureBaseURL   string `json:"unsecure_base_url"`
-	SecureBaseURL     string `json:"secure_base_url"`
-	UnsecureMediaURL  string `json:"unsecure_media_url,omitempty"`
-	SecureMediaURL    string `json:"secure_media_url,omitempty"`
-	UnsecureStaticURL string `json:"unsecure_static_url,omitempty"`
-	SecureStaticURL   string `json:"secure_static_url,omitempty"`
+// baseURLConfigPaths lists the Magento config paths for base URLs
+var baseURLConfigPaths = []string{
+	"web/unsecure/base_url",
+	"web/secure/base_url",
+	"web/unsecure/base_media_url",
+	"web/secure/base_media_url",
+	"web/unsecure/base_static_url",
+	"web/secure/base_static_url",
 }
 
-// magentoBaseURLPaths lists all Magento config paths that need to be updated
-// for a full base URL switch (base, media, static × secure/unsecure)
-var magentoBaseURLPaths = []struct {
-	configPath string
-	savedField func(*savedBaseURLs) *string
-}{
-	{"web/unsecure/base_url", func(s *savedBaseURLs) *string { return &s.UnsecureBaseURL }},
-	{"web/secure/base_url", func(s *savedBaseURLs) *string { return &s.SecureBaseURL }},
-	{"web/unsecure/base_media_url", func(s *savedBaseURLs) *string { return &s.UnsecureMediaURL }},
-	{"web/secure/base_media_url", func(s *savedBaseURLs) *string { return &s.SecureMediaURL }},
-	{"web/unsecure/base_static_url", func(s *savedBaseURLs) *string { return &s.UnsecureStaticURL }},
-	{"web/secure/base_static_url", func(s *savedBaseURLs) *string { return &s.SecureStaticURL }},
+// savedConfigRow represents a single core_config_data row
+type savedConfigRow struct {
+	Scope   string `json:"scope"`
+	ScopeID string `json:"scope_id"`
+	Path    string `json:"path"`
+	Value   string `json:"value"`
 }
 
 func runExpose(cmd *cobra.Command, args []string) error {
@@ -146,6 +141,12 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		os.Remove(pidFile)
 	}
 
+	// Get database info for direct SQL operations
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintWarning("Could not determine database info: %v", err)
+	}
+
 	// Determine local URL — cloudflared connects to nginx HTTP
 	httpPort := 80
 	if p.Type == platform.Darwin {
@@ -159,12 +160,10 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Backend: %s\n", cli.Highlight(localURL))
 	fmt.Println()
 
-	// Save current Magento base URLs before starting the tunnel
-	phpBin := p.PHPBinary(cfg.PHP)
-	origURLs := readMagentoBaseURLs(phpBin, cwd)
+	// Save current base URLs from all scopes via direct SQL
 	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
-	if err := saveBaseURLs(urlsFile, origURLs); err != nil {
-		cli.PrintWarning("Could not save original base URLs: %v", err)
+	if db != nil {
+		saveBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
 	}
 
 	// Start cloudflared tunnel — the tunnel hostname passes through as Host
@@ -185,6 +184,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	}
 
 	urlFile := getTunnelURLFile(p, cfg.Name)
+	phpBin := p.PHPBinary(cfg.PHP)
 
 	urlPattern := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.trycloudflare\.com`)
 	scanner := bufio.NewScanner(stderr)
@@ -207,10 +207,13 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				// Add tunnel domain to .magebox.yaml and regenerate nginx vhosts
 				addTunnelDomain(p, cwd, cfg, tunnelHost, domain)
 
-				// Update Magento base URLs to the tunnel URL
-				if setMagentoBaseURLs(phpBin, cwd, tunnelURL+"/") {
-					cli.PrintInfo("Magento base URLs updated to tunnel URL")
+				// Update base URLs across all scopes via direct SQL
+				if db != nil {
+					updateBaseURLsInDB(db, cfg.DatabaseName(), tunnelURL+"/")
 				}
+
+				// Flush Magento cache
+				flushMagentoCache(phpBin, cwd)
 
 				fmt.Println()
 				fmt.Printf("Public URL: %s\n", cli.URL(tunnelURL))
@@ -229,8 +232,11 @@ func runExpose(cmd *cobra.Command, args []string) error {
 		<-sigChan
 		fmt.Println()
 
-		// Revert Magento base URLs
-		revertMagentoBaseURLs(phpBin, cwd, urlsFile)
+		// Revert base URLs from saved data
+		if db != nil {
+			revertBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
+		}
+		flushMagentoCache(phpBin, cwd)
 
 		// Remove tunnel domain from .magebox.yaml and regenerate nginx vhosts
 		removeTunnelDomain(p, cwd, cfg)
@@ -275,8 +281,12 @@ func runExposeStop(cmd *cobra.Command, args []string) error {
 	urlsFile := getTunnelBaseURLsFile(p, cfg.Name)
 	phpBin := p.PHPBinary(cfg.PHP)
 
-	// Always try to revert URLs and remove tunnel domain
-	revertMagentoBaseURLs(phpBin, cwd, urlsFile)
+	// Revert URLs and remove tunnel domain
+	db, _ := getDbInfo(cfg)
+	if db != nil {
+		revertBaseURLsFromDB(db, cfg.DatabaseName(), urlsFile)
+	}
+	flushMagentoCache(phpBin, cwd)
 	removeTunnelDomain(p, cwd, cfg)
 
 	pid, err := readPidFile(pidFile)
@@ -349,6 +359,128 @@ func runExposeStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// saveBaseURLsFromDB reads all base URL entries from core_config_data and saves them
+func saveBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
+	fmt.Print("Saving current base URLs... ")
+
+	// Build WHERE clause for all URL paths
+	pathConditions := make([]string, len(baseURLConfigPaths))
+	for i, p := range baseURLConfigPaths {
+		pathConditions[i] = fmt.Sprintf("'%s'", p)
+	}
+	query := fmt.Sprintf(
+		"SELECT scope, scope_id, path, value FROM core_config_data WHERE path IN (%s)",
+		strings.Join(pathConditions, ","),
+	)
+
+	cmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+		"-N", "-B", dbName, "-e", query)
+	out, err := cmd.Output()
+	if err != nil {
+		fmt.Println(cli.Warning("skipped"))
+		return
+	}
+
+	var rows []savedConfigRow
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		fields := strings.SplitN(line, "\t", 4)
+		if len(fields) == 4 {
+			rows = append(rows, savedConfigRow{
+				Scope:   fields[0],
+				ScopeID: fields[1],
+				Path:    fields[2],
+				Value:   fields[3],
+			})
+		}
+	}
+
+	data, err := json.Marshal(rows)
+	if err != nil {
+		fmt.Println(cli.Warning("skipped"))
+		return
+	}
+
+	dir := filepath.Dir(urlsFile)
+	_ = os.MkdirAll(dir, 0755)
+	if err := os.WriteFile(urlsFile, data, 0644); err != nil {
+		fmt.Println(cli.Warning("skipped"))
+		return
+	}
+
+	fmt.Printf("%s (%d entries)\n", cli.Success("done"), len(rows))
+}
+
+// updateBaseURLsInDB replaces all base URL values in core_config_data with the tunnel URL
+func updateBaseURLsInDB(db *dbInfo, dbName, tunnelBaseURL string) {
+	fmt.Print("Updating Magento base URLs (all scopes)... ")
+
+	// Build a single UPDATE that replaces the domain in all base URL entries.
+	// For media URLs: value ends with /media/, for static: /static/, for base: just /
+	// We set them all to the tunnel URL with the appropriate suffix.
+	var statements []string
+	for _, path := range baseURLConfigPaths {
+		var newValue string
+		switch {
+		case strings.Contains(path, "media"):
+			newValue = tunnelBaseURL + "media/"
+		case strings.Contains(path, "static"):
+			newValue = tunnelBaseURL + "static/"
+		default:
+			newValue = tunnelBaseURL
+		}
+		statements = append(statements,
+			fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE path='%s'", newValue, path),
+		)
+	}
+
+	query := strings.Join(statements, "; ")
+	cmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+		dbName, "-e", query)
+	if err := cmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return
+	}
+	fmt.Println(cli.Success("done"))
+}
+
+// revertBaseURLsFromDB restores all base URL entries from the saved JSON file
+func revertBaseURLsFromDB(db *dbInfo, dbName, urlsFile string) {
+	data, err := os.ReadFile(urlsFile)
+	if err != nil {
+		return
+	}
+
+	var rows []savedConfigRow
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return
+	}
+
+	fmt.Print("Reverting Magento base URLs (all scopes)... ")
+
+	var statements []string
+	for _, row := range rows {
+		statements = append(statements,
+			fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
+				row.Value, row.Scope, row.ScopeID, row.Path),
+		)
+	}
+
+	query := strings.Join(statements, "; ")
+	cmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword,
+		dbName, "-e", query)
+	if err := cmd.Run(); err != nil {
+		fmt.Println(cli.Error("failed"))
+		return
+	}
+	fmt.Println(cli.Success("done"))
 }
 
 // addTunnelDomain adds the tunnel hostname as a domain to .magebox.yaml,
@@ -453,120 +585,10 @@ func regenNginxVhosts(p *platform.Platform, cfg *config.Config, cwd string) {
 	}
 }
 
-// extractHostname extracts the hostname from a URL string
-func extractHostname(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		h := strings.TrimPrefix(rawURL, "https://")
-		h = strings.TrimPrefix(h, "http://")
-		return strings.Split(h, "/")[0]
-	}
-	return u.Hostname()
-}
-
-// readMagentoBaseURLs reads all current Magento base URLs via bin/magento
-func readMagentoBaseURLs(phpBin, cwd string) savedBaseURLs {
-	urls := savedBaseURLs{}
-
-	for _, p := range magentoBaseURLPaths {
-		cmd := exec.Command(phpBin, "bin/magento", "config:show", p.configPath)
-		cmd.Dir = cwd
-		if out, err := cmd.Output(); err == nil {
-			val := strings.TrimSpace(string(out))
-			if val != "" {
-				*p.savedField(&urls) = val
-			}
-		}
-	}
-
-	return urls
-}
-
-// setMagentoBaseURLs updates all Magento base URLs and flushes cache.
-// Returns true if all URLs were set successfully.
-func setMagentoBaseURLs(phpBin, cwd, baseURL string) bool {
-	fmt.Print("Updating Magento base URLs... ")
-
-	// For media and static, append the subpath to the base URL
-	urlMap := map[string]string{
-		"web/unsecure/base_url":        baseURL,
-		"web/secure/base_url":          baseURL,
-		"web/unsecure/base_media_url":  baseURL + "media/",
-		"web/secure/base_media_url":    baseURL + "media/",
-		"web/unsecure/base_static_url": baseURL + "static/",
-		"web/secure/base_static_url":   baseURL + "static/",
-	}
-
-	for _, p := range magentoBaseURLPaths {
-		if err := magentoConfigSet(phpBin, cwd, p.configPath, urlMap[p.configPath]); err != nil {
-			fmt.Println(cli.Error("failed"))
-			cli.PrintWarning("Could not set %s: %s", p.configPath, err)
-			return false
-		}
-	}
-
-	fmt.Println(cli.Success("done"))
-
-	flushMagentoCache(phpBin, cwd)
-	return true
-}
-
-// revertMagentoBaseURLs restores all Magento base URLs from the saved file
-func revertMagentoBaseURLs(phpBin, cwd, urlsFile string) {
-	urls, err := loadBaseURLs(urlsFile)
-	if err != nil {
-		return
-	}
-
-	fmt.Print("Reverting Magento base URLs... ")
-
-	failed := false
-	for _, p := range magentoBaseURLPaths {
-		val := *p.savedField(urls)
-		if val != "" {
-			if err := magentoConfigSet(phpBin, cwd, p.configPath, val); err != nil {
-				cli.PrintWarning("Could not revert %s: %s", p.configPath, err)
-				failed = true
-			}
-		}
-	}
-
-	if !failed {
-		fmt.Println(cli.Success("done"))
-	}
-
-	flushMagentoCache(phpBin, cwd)
-}
-
-// magentoConfigSet sets a Magento config value, falling back to --lock-env
-// if the value is locked in env.php
-func magentoConfigSet(phpBin, cwd, path, value string) error {
-	cmd := exec.Command(phpBin, "bin/magento", "config:set", path, value)
-	cmd.Dir = cwd
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		return nil
-	}
-
-	// If the value is locked in env.php, retry with --lock-env to override it
-	outStr := string(out)
-	if strings.Contains(outStr, "lock") || strings.Contains(outStr, "vergrendeld") {
-		cmd = exec.Command(phpBin, "bin/magento", "config:set", "--lock-env", path, value)
-		cmd.Dir = cwd
-		out, err = cmd.CombinedOutput()
-		if err == nil {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("%s", strings.TrimSpace(string(out)))
-}
-
-// flushMagentoCache runs bin/magento cache:flush and cleans generated content
+// flushMagentoCache runs bin/magento cache:clean and cache:flush
 func flushMagentoCache(phpBin, cwd string) {
 	fmt.Print("Flushing Magento cache... ")
 
-	// Clean first, then flush — ensures both backend and storage are cleared
 	cleanCmd := exec.Command(phpBin, "bin/magento", "cache:clean")
 	cleanCmd.Dir = cwd
 	_ = cleanCmd.Run()
@@ -580,30 +602,15 @@ func flushMagentoCache(phpBin, cwd string) {
 	}
 }
 
-// saveBaseURLs persists the original base URLs to a JSON file
-func saveBaseURLs(path string, urls savedBaseURLs) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	data, err := json.Marshal(urls)
+// extractHostname extracts the hostname from a URL string
+func extractHostname(rawURL string) string {
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return err
+		h := strings.TrimPrefix(rawURL, "https://")
+		h = strings.TrimPrefix(h, "http://")
+		return strings.Split(h, "/")[0]
 	}
-	return os.WriteFile(path, data, 0644)
-}
-
-// loadBaseURLs reads saved base URLs from a JSON file
-func loadBaseURLs(path string) (*savedBaseURLs, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var urls savedBaseURLs
-	if err := json.Unmarshal(data, &urls); err != nil {
-		return nil, err
-	}
-	return &urls, nil
+	return u.Hostname()
 }
 
 // getTunnelPidFile returns the path to the tunnel PID file for a project
