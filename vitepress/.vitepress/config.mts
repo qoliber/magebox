@@ -79,6 +79,7 @@ export default defineConfig({
             { text: 'Project Config (.magebox.yaml)', link: '/guide/project-config' },
             { text: 'Global Config', link: '/guide/global-config' },
             { text: 'Local Overrides', link: '/guide/local-overrides' },
+            { text: 'PHP Extensions', link: '/guide/php-extensions' },
             { text: 'PHP INI Settings', link: '/guide/php-ini' },
             { text: 'Configuration Library', link: '/guide/configuration-library' }
           ]
@@ -196,6 +197,7 @@ export default defineConfig({
             { text: 'Project Config (.magebox.yaml)', link: '/guide/project-config' },
             { text: 'Global Config', link: '/guide/global-config' },
             { text: 'Local Overrides', link: '/guide/local-overrides' },
+            { text: 'PHP Extensions', link: '/guide/php-extensions' },
             { text: 'PHP INI Settings', link: '/guide/php-ini' },
             { text: 'Configuration Library', link: '/guide/configuration-library' }
           ]

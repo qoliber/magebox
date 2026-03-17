@@ -425,6 +425,75 @@ The PHP wrapper automatically uses the correct PHP version for your project.
 See [CLI Wrappers](/guide/php-wrapper) for more details on using `php`, `composer`, and other CLI tools.
 :::
 
+## Extension Commands
+
+### `magebox ext list`
+
+List all loaded PHP extensions for the current project's PHP version.
+
+```bash
+magebox ext list
+```
+
+---
+
+### `magebox ext install <extension> [extension...]`
+
+Install one or more PHP extensions.
+
+```bash
+# System packages (apt/dnf/pacman/pecl)
+magebox ext install redis apcu
+magebox ext install pgsql
+
+# Custom extensions via PIE (vendor/package format)
+magebox ext install noisebynorthwest/php-spx
+```
+
+Prompts to select which installed PHP version(s) to install for, with "All installed" as the default.
+
+For standard extension names (e.g., `redis`), uses the system package manager. For `vendor/package` format, uses [PIE](https://github.com/php/pie) (PHP Installer for Extensions) and automatically installs PIE and the PHP dev tools if needed.
+
+---
+
+### `magebox ext remove <extension> [extension...]`
+
+Remove one or more PHP extensions.
+
+```bash
+magebox ext remove redis
+magebox ext remove noisebynorthwest/php-spx
+```
+
+Prompts to select which PHP version(s) to remove from.
+
+---
+
+### `magebox ext search <query>`
+
+Search for available PHP extension packages.
+
+```bash
+magebox ext search redis
+magebox ext search mongo
+```
+
+Shows matching packages from the system package manager with installed/not-installed status.
+
+---
+
+### `magebox ext pie`
+
+Install [PIE](https://github.com/php/pie) (PHP Installer for Extensions), the official PECL replacement.
+
+```bash
+magebox ext pie
+```
+
+PIE is required to install custom extensions using the `vendor/package` format from [Packagist](https://packagist.org/extensions). It is installed automatically when you first run `magebox ext install vendor/package`.
+
+---
+
 ## Mode Commands
 
 ### `magebox dev`
