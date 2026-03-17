@@ -2,6 +2,20 @@
 
 All notable changes to MageBox will be documented here.
 
+## [1.7.0] - 2026-03-17
+
+### New Features
+
+- **PHP Extension Management** - New `magebox ext` command with `install`, `remove`, `list`, and `search` subcommands for managing PHP extensions across all installed PHP versions. Automatically resolves platform-specific package names (apt/dnf/pacman/pecl) from a single canonical extension name.
+- **PIE Integration** - Install custom PHP extensions from Packagist using the `vendor/package` format (e.g., `magebox ext install noisebynorthwest/php-spx`). Uses [PIE](https://github.com/php/pie), the official PECL replacement from the PHP Foundation. PIE and PHP dev tools are installed automatically on first use.
+- **PHP Version Selection** - Extension install and remove commands prompt to select which installed PHP version(s) to target, with "All installed" as the default.
+- **Custom Docker Compose Support** - New `compose_file` config option to reference a project-level `docker-compose.yml`. On `magebox start`/`stop`, MageBox prompts to manage these containers and connects them to the MageBox Docker network for service discovery. ([#27](https://github.com/qoliber/magebox/pull/27))
+
+### Documentation
+
+- New [PHP Extensions](/guide/php-extensions) guide page covering system packages, PIE extensions, and platform-specific package mappings.
+- Added Extension Commands section to the [CLI Commands](/reference/commands) reference.
+
 ## [1.6.0] - 2026-03-15
 
 ### New Features
