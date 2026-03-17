@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -513,6 +515,11 @@ func runVarnishVCLImport(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(cli.Success("done"))
 
+	// Check if backend host needs updating for Docker-based Varnish
+	if err := checkVCLBackendHost(destPath); err != nil {
+		cli.PrintWarning("Could not check backend host: %v", err)
+	}
+
 	// Reload Varnish if running
 	ctrl := varnish.NewController(p, destPath)
 	if ctrl.IsRunning() {
@@ -655,6 +662,75 @@ func runVarnishAdmin(cmd *cobra.Command, args []string) error {
 	admCmd.Stderr = os.Stderr
 
 	return admCmd.Run()
+}
+
+// checkVCLBackendHost reads a VCL file, looks for backend .host values that
+// are not "host.docker.internal", and offers to rewrite them. Varnish runs in
+// Docker, so "localhost" or "127.0.0.1" in .host won't reach the host machine.
+func checkVCLBackendHost(vclPath string) error {
+	data, err := os.ReadFile(vclPath)
+	if err != nil {
+		return err
+	}
+
+	content := string(data)
+
+	// Match .host = "..." lines, capturing the host value
+	re := regexp.MustCompile(`(\.host\s*=\s*)"([^"]+)"`)
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	var needsUpdate bool
+	for _, m := range matches {
+		host := m[2]
+		if host != "host.docker.internal" {
+			needsUpdate = true
+			break
+		}
+	}
+
+	if !needsUpdate {
+		return nil
+	}
+
+	// Show what we found
+	fmt.Println()
+	cli.PrintWarning("Backend host may not work with Docker-based Varnish")
+	fmt.Println()
+	for _, m := range matches {
+		host := m[2]
+		if host != "host.docker.internal" {
+			fmt.Printf("  Found: .host = %s\n", cli.Highlight(fmt.Sprintf("%q", host)))
+		}
+	}
+	fmt.Println()
+	fmt.Println("  Varnish runs inside Docker, so the backend host must be")
+	fmt.Printf("  %s to reach Nginx on the host machine.\n", cli.Highlight("host.docker.internal"))
+	fmt.Println()
+	fmt.Print("Update backend host to host.docker.internal? [Y/n]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(strings.ToLower(input))
+
+	if input != "" && input != "y" && input != "yes" {
+		return nil
+	}
+
+	// Replace all non-matching .host values
+	updated := re.ReplaceAllStringFunc(content, func(match string) string {
+		sub := re.FindStringSubmatch(match)
+		if sub[2] != "host.docker.internal" {
+			return sub[1] + `"host.docker.internal"`
+		}
+		return match
+	})
+
+	if err := os.WriteFile(vclPath, []byte(updated), 0644); err != nil {
+		return fmt.Errorf("failed to update VCL: %w", err)
+	}
+
+	fmt.Printf("Updated backend host to %s\n", cli.Success("host.docker.internal"))
+	return nil
 }
 
 // copyFile copies a file from src to dst
