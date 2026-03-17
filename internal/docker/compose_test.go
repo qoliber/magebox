@@ -426,8 +426,8 @@ func TestComposeService_Elasticsearch_WithStandardPort(t *testing.T) {
 	if len(svc.Ports) != 2 {
 		t.Fatalf("Ports = %v, want 2 port mappings (version-specific + standard)", svc.Ports)
 	}
-	if !strings.Contains(svc.Ports[0], "9457:9200") {
-		t.Errorf("Ports[0] = %v, want 9457:9200", svc.Ports[0])
+	if !strings.Contains(svc.Ports[0], "9657:9200") {
+		t.Errorf("Ports[0] = %v, want 9657:9200", svc.Ports[0])
 	}
 	if !strings.Contains(svc.Ports[1], "9200:9200") {
 		t.Errorf("Ports[1] = %v, want 9200:9200", svc.Ports[1])
@@ -465,13 +465,13 @@ func TestGetElasticsearchPort(t *testing.T) {
 		version  string
 		expected int
 	}{
-		{"7.6", 9446},
-		{"7.17", 9457},
-		{"8.0", 9460},
-		{"8.11", 9471},
-		{"8.17", 9477},
-		{"8.11.3", 9471}, // patch version should be stripped
-		{"9.0", 9480},    // unknown version uses formula
+		{"7.6", 9646},
+		{"7.17", 9657},
+		{"8.0", 9660},
+		{"8.11", 9671},
+		{"8.17", 9677},
+		{"8.11.3", 9671}, // patch version should be stripped
+		{"9.0", 9680},    // unknown version uses formula
 	}
 
 	for _, tt := range tests {

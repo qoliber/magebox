@@ -18,8 +18,8 @@ Reference for all service ports used by MageBox.
 | OpenSearch 1.3 | 9223 | HTTP | Search |
 | OpenSearch 2.19 | 9259 | HTTP | Search |
 | OpenSearch 3.3 | 9263 | HTTP | Search |
-| Elasticsearch 7.17 | 9457 | HTTP | Search |
-| Elasticsearch 8.11 | 9471 | HTTP | Search |
+| Elasticsearch 7.17 | 9657 | HTTP | Search |
+| Elasticsearch 8.11 | 9671 | HTTP | Search |
 | RabbitMQ AMQP | 5672 | AMQP | Message queue |
 | RabbitMQ Management | 15672 | HTTP | Management UI |
 | Mailpit SMTP | 1025 | SMTP | Email capture |
@@ -127,22 +127,22 @@ curl http://127.0.0.1:9263
 
 ### Elasticsearch
 
-Port convention: `9300 + major*20 + minor`
+Port convention: `9500 + major*20 + minor`
 
 | Version | Calculation | Port |
 |---------|-------------|------|
-| Elasticsearch 7.6 | 9300 + 7×20 + 6 | 9446 |
-| Elasticsearch 7.17 | 9300 + 7×20 + 17 | 9457 |
-| Elasticsearch 8.0 | 9300 + 8×20 + 0 | 9460 |
-| Elasticsearch 8.11 | 9300 + 8×20 + 11 | 9471 |
-| Elasticsearch 8.17 | 9300 + 8×20 + 17 | 9477 |
+| Elasticsearch 7.6 | 9500 + 7×20 + 6 | 9646 |
+| Elasticsearch 7.17 | 9500 + 7×20 + 17 | 9657 |
+| Elasticsearch 8.0 | 9500 + 8×20 + 0 | 9660 |
+| Elasticsearch 8.11 | 9500 + 8×20 + 11 | 9671 |
+| Elasticsearch 8.17 | 9500 + 8×20 + 17 | 9677 |
 
 ```bash
 # Elasticsearch 7.17
-curl http://127.0.0.1:9457
+curl http://127.0.0.1:9657
 
 # Elasticsearch 8.11
-curl http://127.0.0.1:9471
+curl http://127.0.0.1:9671
 ```
 
 ### Why Different Search Ports?
@@ -314,7 +314,7 @@ Services bind to localhost only:
 127.0.0.1:33080 → container:3306  (MySQL 8.0)
 127.0.0.1:6379  → container:6379  (Redis)
 127.0.0.1:9259  → container:9200  (OpenSearch 2.19)
-127.0.0.1:9457  → container:9200  (Elasticsearch 7.17)
+127.0.0.1:9657  → container:9200  (Elasticsearch 7.17)
 ```
 
 This means services are only accessible from your machine, not from the network.

@@ -679,7 +679,8 @@ func normalizeSearchVersion(version string) string {
 }
 
 // computeSearchPort calculates a port from base + major*20 + minor.
-// This guarantees unique ports for versions where major < 5 and minor < 20.
+// This guarantees unique ports for versions where minor < 20.
+// OpenSearch uses base 9200, Elasticsearch uses base 9500 to avoid range overlap.
 func computeSearchPort(basePort int, version string) int {
 	normalized := normalizeSearchVersion(version)
 	parts := strings.SplitN(normalized, ".", 2)
@@ -717,27 +718,27 @@ func GetOpenSearchPort(version string) int {
 }
 
 // GetElasticsearchPort returns the host port for an Elasticsearch version.
-// Port convention: 9300 + major*20 + minor (e.g., ES 7.17 → 9457, ES 8.11 → 9471).
+// Port convention: 9500 + major*20 + minor (e.g., ES 7.17 → 9657, ES 8.11 → 9671).
 func GetElasticsearchPort(version string) int {
 	normalized := normalizeSearchVersion(version)
 	ports := map[string]int{
-		"7.6":  9446,
-		"7.9":  9449,
-		"7.10": 9450,
-		"7.16": 9456,
-		"7.17": 9457,
-		"8.0":  9460,
-		"8.4":  9464,
-		"8.7":  9467,
-		"8.11": 9471,
-		"8.14": 9474,
-		"8.15": 9475,
-		"8.17": 9477,
+		"7.6":  9646,
+		"7.9":  9649,
+		"7.10": 9650,
+		"7.16": 9656,
+		"7.17": 9657,
+		"8.0":  9660,
+		"8.4":  9664,
+		"8.7":  9667,
+		"8.11": 9671,
+		"8.14": 9674,
+		"8.15": 9675,
+		"8.17": 9677,
 	}
 	if port, ok := ports[normalized]; ok {
 		return port
 	}
-	return computeSearchPort(9300, normalized)
+	return computeSearchPort(9500, normalized)
 }
 
 // ComposeDir returns the compose directory path
