@@ -126,7 +126,6 @@ export default defineConfig({
             { text: 'Xdebug', link: '/guide/xdebug' },
             { text: 'Testing & Code Quality', link: '/guide/testing-tools' },
             { text: 'Logs & Reports', link: '/guide/logs' },
-            { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' },
             { text: 'Integration Testing', link: '/guide/testing' },
             { text: 'Expose / Share', link: '/guide/expose' }
@@ -244,7 +243,6 @@ export default defineConfig({
             { text: 'Xdebug', link: '/guide/xdebug' },
             { text: 'Testing & Code Quality', link: '/guide/testing-tools' },
             { text: 'Logs & Reports', link: '/guide/logs' },
-            { text: 'Admin Commands', link: '/guide/admin' },
             { text: 'Linux Installers', link: '/guide/linux-installers' },
             { text: 'Integration Testing', link: '/guide/testing' },
             { text: 'Expose / Share', link: '/guide/expose' }

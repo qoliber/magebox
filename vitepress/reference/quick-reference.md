@@ -62,9 +62,6 @@ magebox blackfire off
 magebox tideways on
 magebox tideways off
 
-# Quick mode switching
-magebox dev                # Dev mode: Xdebug ON, OPcache OFF
-magebox prod               # Prod mode: Xdebug OFF, OPcache ON
 ```
 
 ## Testing & Code Quality
@@ -131,10 +128,6 @@ magebox varnish on         # Enable Varnish caching
 magebox varnish off        # Bypass Varnish
 magebox varnish purge      # Clear Varnish cache
 
-# Queue (RabbitMQ)
-magebox queue status       # View queue status
-magebox queue flush        # Purge all queues
-magebox queue consumer     # Run queue consumers
 ```
 
 ## Configuration
@@ -216,7 +209,6 @@ magebox --help             # General help
 magebox <command> --help   # Command-specific help
 magebox --version          # Check version
 magebox check              # System health check
-magebox report             # Generate debug report
 ```
 
 ---

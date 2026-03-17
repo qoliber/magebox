@@ -4,10 +4,9 @@ MageBox provides powerful tools for viewing Magento logs and error reports in re
 
 ## Overview
 
-Debugging Magento issues often requires watching multiple log files simultaneously. MageBox includes two commands to make this easier:
+Debugging Magento issues often requires watching multiple log files simultaneously. MageBox includes a command to make this easier:
 
 - **`magebox logs`** - View system.log and exception.log side-by-side
-- **`magebox report`** - Watch for new error reports in var/report
 
 ## magebox logs
 
@@ -79,72 +78,6 @@ sudo dnf install multitail
 # Ubuntu/Debian
 sudo apt install multitail
 ```
-
-## magebox report
-
-Watches the `var/report` directory for Magento error reports and displays them automatically.
-
-### Usage
-
-```bash
-cd /path/to/magento
-magebox report
-```
-
-### What It Shows
-
-When an unhandled exception occurs, Magento writes a report file to `var/report/`. This command:
-
-1. Shows the **latest existing report** immediately
-2. **Watches for new reports** and displays them as they're created
-3. Clears the screen and formats the report for readability
-
-### Example Output
-
-```
-═══════════════════════════════════════════════════════════
-                    Magento Error Report
-═══════════════════════════════════════════════════════════
-
-File: 1234567890123
-Time: 2025-12-13 10:15:23
-------------------------------------------------------------
-
-a]0]:4:"type";i:1;s:7:"message";s:45:"Call to undefined method
-Magento\Catalog\Model\Product::getInvalidMethod()";s:5:"file";
-s:89:"/var/www/mystore/app/code/Vendor/Module/Controller/Index.php";
-s:4:"line";i:42;s:5:"trace";s:2048:"#0 /var/www/mystore/vendor/
-magento/framework/App/Action/Action.php(107): Vendor\Module\
-Controller\Index->execute()
-#1 /var/www/mystore/vendor/magento/framework/Interception/...
-
-------------------------------------------------------------
-
-Watching for new reports... (Ctrl+C to stop)
-```
-
-### How It Works
-
-1. **Initial Display**: Shows the most recent report file on startup
-2. **File Watching**: Uses filesystem notifications (fsnotify) to detect new files
-3. **Auto-Refresh**: New reports are displayed immediately when created
-4. **Clean Display**: Clears screen and formats each report for easy reading
-
-### Triggering Test Errors
-
-To test the report watcher, you can trigger an error:
-
-```bash
-# In another terminal, cause an error:
-curl "https://mystore.test/nonexistent/page/that/causes/error"
-
-# Or in PHP:
-php -r "throw new Exception('Test error');"
-```
-
-### Stopping the Watcher
-
-Press `Ctrl+C` to stop watching for new reports.
 
 ## Service-Specific Logs
 
@@ -246,15 +179,9 @@ magebox logs
 magebox logs php -f
 ```
 
-**Terminal 3:**
-```bash
-magebox report
-```
-
 This gives you:
 - Real-time Magento log monitoring (system + exceptions)
 - PHP-FPM error tracking
-- Instant notification of crash reports
 
 ## Tips
 

@@ -77,12 +77,6 @@ Typical improvement: **2-5x faster** page loads compared to full Docker setups.
 3. **Use Redis/Valkey** for sessions and cache
 4. **Enable Varnish** for full-page caching
 
-Quick mode switch:
-```bash
-magebox prod   # Production mode: fast
-magebox dev    # Development mode: debugging enabled
-```
-
 ### My site is still slow. What should I check?
 
 1. Run `magebox status` to verify services are running
@@ -313,9 +307,8 @@ cat /etc/hosts | grep mystore
 
 ### How do I report a bug?
 
-1. Run `magebox report` to generate debug info
-2. Open an issue at [github.com/qoliber/magebox](https://github.com/qoliber/magebox/issues)
-3. Include the report output and steps to reproduce
+1. Open an issue at [github.com/qoliber/magebox](https://github.com/qoliber/magebox/issues)
+2. Include steps to reproduce and any relevant log output
 
 ---
 
