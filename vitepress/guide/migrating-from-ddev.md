@@ -48,7 +48,7 @@ domains:
 
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19"
   mailpit: true
 ```

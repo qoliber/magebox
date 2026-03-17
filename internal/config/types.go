@@ -159,6 +159,7 @@ type Services struct {
 	MySQL         *ServiceConfig `yaml:"mysql,omitempty"`
 	MariaDB       *ServiceConfig `yaml:"mariadb,omitempty"`
 	Redis         *ServiceConfig `yaml:"redis,omitempty"`
+	Valkey        *ServiceConfig `yaml:"valkey,omitempty"`
 	OpenSearch    *ServiceConfig `yaml:"opensearch,omitempty"`
 	Elasticsearch *ServiceConfig `yaml:"elasticsearch,omitempty"`
 	RabbitMQ      *ServiceConfig `yaml:"rabbitmq,omitempty"`
@@ -360,6 +361,32 @@ func (s *Services) HasMariaDB() bool {
 // HasRedis returns true if Redis service is configured
 func (s *Services) HasRedis() bool {
 	return s.Redis != nil && s.Redis.Enabled
+}
+
+// HasValkey returns true if Valkey service is configured
+func (s *Services) HasValkey() bool {
+	return s.Valkey != nil && s.Valkey.Enabled
+}
+
+// HasCacheService returns true if any Redis-compatible cache service (Redis or Valkey) is configured
+func (s *Services) HasCacheService() bool {
+	return s.HasRedis() || s.HasValkey()
+}
+
+// GetCacheServiceName returns the Docker compose service name for the cache service
+func (s *Services) GetCacheServiceName() string {
+	if s.HasValkey() {
+		return "valkey"
+	}
+	return "redis"
+}
+
+// GetCacheServiceDisplayName returns a human-readable name for the cache service
+func (s *Services) GetCacheServiceDisplayName() string {
+	if s.HasValkey() {
+		return "Valkey"
+	}
+	return "Redis"
 }
 
 // HasOpenSearch returns true if OpenSearch service is configured

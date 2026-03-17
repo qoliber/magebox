@@ -257,6 +257,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		}{
 			{"MySQL 8.0", "mysql80", 33080},
 			{"Redis", "redis", 6379},
+			{"Valkey", "valkey", 6379},
 			{"Mailpit", "mailpit", 8025},
 		}
 

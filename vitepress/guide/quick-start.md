@@ -61,7 +61,7 @@ The `--quick` flag installs:
 - **MageOS** (no Adobe authentication required)
 - **PHP 8.3**
 - **MySQL 8.0**
-- **Redis** (cache + sessions)
+- **Redis** (cache + sessions) — or use Valkey as alternative
 - **OpenSearch 2.19** (with ICU and Phonetic plugins)
 - **RabbitMQ**
 - **Mailpit**
@@ -95,7 +95,7 @@ The wizard guides you through:
 4. **Composer Auth** - Marketplace keys (Magento) or skip (MageOS)
 5. **Database** - MySQL 8.0/8.4 or MariaDB 10.6/11.4
 6. **Search Engine** - OpenSearch, Elasticsearch, or none
-7. **Services** - Redis, RabbitMQ, Mailpit
+7. **Services** - Redis/Valkey, RabbitMQ, Mailpit
 8. **Sample Data** - Optional demo products
 9. **Project Details** - Name and domain
 
@@ -264,6 +264,6 @@ Each project uses its own PHP version and services.
 
 - [Project Configuration](/guide/project-config) - Detailed config options
 - [PHP INI Settings](/guide/php-ini) - Customize PHP settings per project
-- [Services](/guide/services-overview) - Configure MySQL, Redis, etc.
+- [Services](/guide/services-overview) - Configure MySQL, Redis/Valkey, etc.
 - [Custom Commands](/guide/custom-commands) - Define project shortcuts
 - [PHP Version Wrapper](/guide/php-wrapper) - How automatic PHP switching works

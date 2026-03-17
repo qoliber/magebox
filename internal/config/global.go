@@ -73,6 +73,7 @@ type DefaultServices struct {
 	MySQL         string `yaml:"mysql,omitempty"`
 	MariaDB       string `yaml:"mariadb,omitempty"`
 	Redis         bool   `yaml:"redis,omitempty"`
+	Valkey        bool   `yaml:"valkey,omitempty"`
 	OpenSearch    string `yaml:"opensearch,omitempty"`
 	Elasticsearch string `yaml:"elasticsearch,omitempty"`
 	RabbitMQ      bool   `yaml:"rabbitmq,omitempty"`

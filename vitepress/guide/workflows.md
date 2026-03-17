@@ -113,8 +113,6 @@ magebox xdebug on
 magebox xdebug off
 ```
 
-**Quick tip**: Use `magebox dev` to enable Xdebug + disable OPcache in one command.
-
 ---
 
 ## Profiling Performance Issues

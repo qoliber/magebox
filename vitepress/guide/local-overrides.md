@@ -146,7 +146,7 @@ php: "8.2"
 
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19.4"
   rabbitmq: true
   mailpit: true

@@ -57,7 +57,7 @@ domains:
 
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19"
   mailpit: true
 ```
@@ -82,7 +82,7 @@ bin/magento cache:flush
 |--|------|---------|
 | PHP version | Global | Per-project |
 | MySQL | Herd DBngin | Docker container |
-| Redis | Manual | Docker container |
+| Redis/Valkey | Manual | Docker container |
 | OpenSearch | Manual | Docker container |
 
 ## Database Connection

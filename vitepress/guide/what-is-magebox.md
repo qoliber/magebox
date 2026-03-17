@@ -10,7 +10,7 @@ Your Machine
 ├── PHP-FPM (native)
 └── Docker
     ├── MySQL/MariaDB
-    ├── Redis
+    ├── Redis/Valkey
     ├── OpenSearch
     ├── RabbitMQ
     └── Mailpit

@@ -238,8 +238,10 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		compose.Volumes[fmt.Sprintf("mariadb%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
 
-	// Add Redis if needed
-	if requiredServices.redis {
+	// Add Redis or Valkey (cache service)
+	if requiredServices.valkey {
+		compose.Services["valkey"] = g.getValkeyService()
+	} else if requiredServices.redis {
 		compose.Services["redis"] = g.getRedisService()
 	}
 
@@ -305,6 +307,7 @@ type requiredServices struct {
 	mysql         map[string]*config.ServiceConfig
 	mariadb       map[string]*config.ServiceConfig
 	redis         bool
+	valkey        bool
 	opensearch    map[string]*config.ServiceConfig
 	elasticsearch map[string]*config.ServiceConfig
 	rabbitmq      bool
@@ -330,6 +333,9 @@ func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) req
 		}
 		if cfg.Services.HasRedis() {
 			rs.redis = true
+		}
+		if cfg.Services.HasValkey() {
+			rs.valkey = true
 		}
 		if cfg.Services.HasOpenSearch() {
 			rs.opensearch[cfg.Services.OpenSearch.Version] = cfg.Services.OpenSearch
@@ -451,6 +457,24 @@ func (g *ComposeGenerator) getRedisService() ComposeService {
 		Restart:       "unless-stopped",
 		HealthCheck: &HealthCheck{
 			Test:     []string{"CMD", "redis-cli", "ping"},
+			Interval: "10s",
+			Timeout:  "5s",
+			Retries:  5,
+		},
+	}
+}
+
+// getValkeyService returns a Valkey service configuration
+// Valkey is a Redis-compatible fork; it uses the same port and protocol.
+func (g *ComposeGenerator) getValkeyService() ComposeService {
+	return ComposeService{
+		ContainerName: "magebox-valkey",
+		Image:         "valkey/valkey:8-alpine",
+		Ports:         []string{"6379:6379"},
+		Networks:      []string{"magebox"},
+		Restart:       "unless-stopped",
+		HealthCheck: &HealthCheck{
+			Test:     []string{"CMD", "valkey-cli", "ping"},
 			Interval: "10s",
 			Timeout:  "5s",
 			Retries:  5,
@@ -960,11 +984,11 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 		compose.Volumes["mysql80_data"] = ComposeVolume{}
 	}
 
-	// Add Redis
-	if globalCfg.DefaultServices.Redis {
-		compose.Services["redis"] = g.getRedisService()
+	// Add cache service (Valkey or Redis)
+	if globalCfg.DefaultServices.Valkey {
+		compose.Services["valkey"] = g.getValkeyService()
 	} else {
-		// Default to including Redis
+		// Default to Redis
 		compose.Services["redis"] = g.getRedisService()
 	}
 

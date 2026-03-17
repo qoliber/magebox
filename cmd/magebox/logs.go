@@ -295,15 +295,17 @@ func runLogsRedis(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
+	if !cfg.Services.HasCacheService() {
+		cli.PrintError("Neither Redis nor Valkey is configured in %s", config.ConfigFileName)
 		return nil
 	}
 
 	composeGen := docker.NewComposeGenerator(p)
 	composeFile := composeGen.ComposeFilePath()
 
-	return streamDockerLogs(composeFile, "redis", "Redis")
+	svcName := cfg.Services.GetCacheServiceName()
+	displayName := cfg.Services.GetCacheServiceDisplayName()
+	return streamDockerLogs(composeFile, svcName, displayName)
 }
 
 func runLogsVarnish(cmd *cobra.Command, args []string) error {

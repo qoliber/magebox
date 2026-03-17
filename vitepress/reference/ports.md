@@ -14,7 +14,7 @@ Reference for all service ports used by MageBox.
 | MariaDB 10.4 | 33104 | TCP | Database |
 | MariaDB 10.6 | 33106 | TCP | Database |
 | MariaDB 11.4 | 33114 | TCP | Database |
-| Redis | 6379 | TCP | Cache/Sessions |
+| Redis/Valkey | 6379 | TCP | Cache/Sessions |
 | OpenSearch 1.3 | 9223 | HTTP | Search |
 | OpenSearch 2.19 | 9259 | HTTP | Search |
 | OpenSearch 3.3 | 9263 | HTTP | Search |
@@ -93,7 +93,7 @@ Access your site:
 
 ## Cache & Search Ports
 
-### Redis
+### Redis / Valkey
 
 | Port | Protocol |
 |------|----------|
@@ -195,7 +195,7 @@ Access Web UI: http://localhost:8025
 ]
 ```
 
-### Redis
+### Redis / Valkey
 
 ```php
 'session' => [
@@ -289,7 +289,7 @@ lsof -i :33080
 |------|-------------------|
 | 80/443 | Apache, other web servers |
 | 3306 | Local MySQL installation |
-| 6379 | Local Redis installation |
+| 6379 | Local Redis/Valkey installation |
 | 9200 | Local Elasticsearch |
 
 ### Resolution

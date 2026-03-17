@@ -180,11 +180,13 @@ services:
 Only configure `mysql` OR `mariadb`, not both.
 :::
 
-#### Redis
+#### Redis / Valkey
 
 ```yaml
 services:
-  redis: true  # Enable/disable
+  redis: true   # Enable/disable
+  # or
+  valkey: true  # Redis-compatible alternative
 ```
 
 #### OpenSearch
@@ -240,7 +242,7 @@ Path to a project-specific `docker-compose.yml` for custom Docker containers:
 compose_file: docker-compose.yml
 ```
 
-When set, `magebox start` and `magebox stop` will prompt you to start/stop these containers alongside the standard MageBox services. The containers are automatically connected to the MageBox Docker network, so they can communicate with MySQL, Redis, OpenSearch, and other MageBox services.
+When set, `magebox start` and `magebox stop` will prompt you to start/stop these containers alongside the standard MageBox services. The containers are automatically connected to the MageBox Docker network, so they can communicate with MySQL, Redis/Valkey, OpenSearch, and other MageBox services.
 
 **Example:** A Magento project with a Python microservice for PDF generation:
 

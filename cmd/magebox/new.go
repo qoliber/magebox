@@ -470,9 +470,25 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 	// Additional services
 	fmt.Println("  Additional Services:")
-	fmt.Print("  Enable Redis cache? [Y/n]: ")
-	redisChoice, _ := reader.ReadString('\n')
-	enableRedis := strings.ToLower(strings.TrimSpace(redisChoice)) != "n"
+	fmt.Println("  Cache service:")
+	fmt.Println("  [1] → Redis (default)")
+	fmt.Println("  [2]   Valkey")
+	fmt.Println("  [3]   None")
+	fmt.Print("  Choose [1]: ")
+	cacheChoice, _ := reader.ReadString('\n')
+	cacheChoice = strings.TrimSpace(cacheChoice)
+	var enableRedis, enableValkey bool
+	switch cacheChoice {
+	case "2":
+		enableValkey = true
+		fmt.Println("  → Valkey selected")
+	case "3":
+		fmt.Println("  → No cache service")
+	default:
+		enableRedis = true
+		fmt.Println("  → Redis selected")
+	}
+	fmt.Println()
 
 	fmt.Print("  Enable RabbitMQ? [y/N]: ")
 	rabbitChoice, _ := reader.ReadString('\n')
@@ -537,7 +553,11 @@ func runNew(cmd *cobra.Command, args []string) error {
 	if searchEngine != "" {
 		fmt.Printf("  Search:          %s %s\n", cli.Highlight(searchEngine), cli.Highlight(searchVersion))
 	}
-	fmt.Printf("  Redis:           %s\n", cli.Status(enableRedis))
+	if enableValkey {
+		fmt.Printf("  Cache:           %s\n", cli.Highlight("Valkey"))
+	} else {
+		fmt.Printf("  Cache:           %s\n", cli.Status(enableRedis))
+	}
 	fmt.Printf("  RabbitMQ:        %s\n", cli.Status(enableRabbitMQ))
 	fmt.Printf("  Mailpit:         %s\n", cli.Status(enableMailpit))
 	fmt.Printf("  Sample Data:     %s\n", cli.Status(installSampleData))
@@ -621,8 +641,10 @@ services:
 		mageboxConfig += fmt.Sprintf("  elasticsearch:\n    version: \"%s\"\n    memory: \"2g\"\n", searchVersion)
 	}
 
-	// Add other services
-	if enableRedis {
+	// Add cache service
+	if enableValkey {
+		mageboxConfig += "  valkey: true\n"
+	} else if enableRedis {
 		mageboxConfig += "  redis: true\n"
 	}
 	if enableRabbitMQ {
@@ -801,8 +823,8 @@ commands:
     --elasticsearch-timeout=15`, searchPort)
 	}
 
-	// Add Redis config
-	if enableRedis {
+	// Add cache config (Valkey is Redis-compatible, same Magento flags)
+	if enableRedis || enableValkey {
 		installCmd += ` \
     --session-save=redis \
     --session-save-redis-host=127.0.0.1 \

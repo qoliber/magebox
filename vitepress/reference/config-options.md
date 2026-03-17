@@ -66,7 +66,7 @@ Docker services configuration.
 ```yaml
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19.4"
   rabbitmq: true
   mailpit: true
@@ -89,6 +89,7 @@ Use either `mysql` OR `mariadb`, not both.
 | Option | Type | Port(s) | Description |
 |--------|------|---------|-------------|
 | `redis` | boolean | 6379 | In-memory cache/session |
+| `valkey` | boolean | 6379 | In-memory cache/session (Redis alternative) |
 | `opensearch` | string/boolean | 9200 | Catalog search |
 | `elasticsearch` | string/boolean | 9200 | Catalog search (alternative) |
 | `rabbitmq` | boolean | 5672, 15672 | Message queue |
@@ -107,7 +108,7 @@ Path to a project-specific Docker Compose file for custom containers.
 compose_file: docker-compose.yml
 ```
 
-When configured, `magebox start` and `magebox stop` prompt to start/stop these containers. They are automatically connected to the MageBox Docker network so they can communicate with MySQL, Redis, and other MageBox services.
+When configured, `magebox start` and `magebox stop` prompt to start/stop these containers. They are automatically connected to the MageBox Docker network so they can communicate with MySQL, Redis/Valkey, and other MageBox services.
 
 The path is relative to the project root unless an absolute path is given.
 
@@ -336,7 +337,7 @@ php: "8.2"
 
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19.4"
   rabbitmq: true
   mailpit: true

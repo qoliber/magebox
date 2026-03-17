@@ -252,6 +252,36 @@ func TestServices_HasMethods(t *testing.T) {
 			method:   (*Services).HasOpenSearch,
 			expected: true,
 		},
+		{
+			name:     "HasValkey with enabled Valkey",
+			services: Services{Valkey: enabled},
+			method:   (*Services).HasValkey,
+			expected: true,
+		},
+		{
+			name:     "HasValkey with nil",
+			services: Services{},
+			method:   (*Services).HasValkey,
+			expected: false,
+		},
+		{
+			name:     "HasCacheService with Redis",
+			services: Services{Redis: enabled},
+			method:   (*Services).HasCacheService,
+			expected: true,
+		},
+		{
+			name:     "HasCacheService with Valkey",
+			services: Services{Valkey: enabled},
+			method:   (*Services).HasCacheService,
+			expected: true,
+		},
+		{
+			name:     "HasCacheService with neither",
+			services: Services{},
+			method:   (*Services).HasCacheService,
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {

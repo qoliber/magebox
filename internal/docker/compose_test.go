@@ -483,6 +483,65 @@ func TestGetElasticsearchPort(t *testing.T) {
 	}
 }
 
+func TestComposeService_Valkey(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	svc := g.getValkeyService()
+
+	if !strings.Contains(svc.Image, "valkey") {
+		t.Errorf("Image = %v, should contain valkey", svc.Image)
+	}
+	if svc.ContainerName != "magebox-valkey" {
+		t.Errorf("ContainerName = %v, want magebox-valkey", svc.ContainerName)
+	}
+	if len(svc.Ports) != 1 || svc.Ports[0] != "6379:6379" {
+		t.Errorf("Ports = %v, want [6379:6379]", svc.Ports)
+	}
+	if svc.HealthCheck == nil {
+		t.Error("HealthCheck should not be nil")
+	}
+	if svc.HealthCheck != nil && svc.HealthCheck.Test[1] != "valkey-cli" {
+		t.Errorf("HealthCheck test = %v, should use valkey-cli", svc.HealthCheck.Test)
+	}
+}
+
+func TestComposeGenerator_GenerateWithValkey(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	configs := []*config.Config{
+		{
+			Name: "valkeyproject",
+			Services: config.Services{
+				MySQL:  &config.ServiceConfig{Enabled: true, Version: "8.0"},
+				Valkey: &config.ServiceConfig{Enabled: true},
+			},
+		},
+	}
+
+	err := g.GenerateGlobalServices(configs)
+	if err != nil {
+		t.Fatalf("GenerateGlobalServices failed: %v", err)
+	}
+
+	content, err := os.ReadFile(g.ComposeFilePath())
+	if err != nil {
+		t.Fatalf("Failed to read compose file: %v", err)
+	}
+
+	var compose ComposeConfig
+	if err := yaml.Unmarshal(content, &compose); err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	// Should have Valkey, not Redis
+	if _, ok := compose.Services["valkey"]; !ok {
+		t.Error("Compose should contain valkey service")
+	}
+	if _, ok := compose.Services["redis"]; ok {
+		t.Error("Compose should NOT contain redis service when valkey is configured")
+	}
+}
+
 func TestComposeService_RabbitMQ(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 

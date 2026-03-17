@@ -69,7 +69,7 @@ Running `magebox bootstrap` will:
 6. **Start Docker Services**
    - Pull required Docker images
    - Start database containers
-   - Start Redis, Mailpit, etc.
+   - Start Redis/Valkey, Mailpit, etc.
 
 7. **Configure DNS (dnsmasq by default)**
    - Install and configure dnsmasq for wildcard `*.test` DNS
@@ -368,7 +368,7 @@ Services running after bootstrap:
 | Service | Address | Credentials |
 |---------|---------|-------------|
 | MySQL 8.0 | localhost:33080 | root / magebox |
-| Redis | localhost:6379 | - |
+| Redis/Valkey | localhost:6379 | - |
 | Mailpit | http://localhost:8025 | - |
 
 ## Troubleshooting

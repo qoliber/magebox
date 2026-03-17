@@ -495,44 +495,6 @@ PIE is required to install custom extensions using the `vendor/package` format f
 
 ---
 
-## Mode Commands
-
-### `magebox dev`
-
-Switch to development mode optimized for debugging.
-
-```bash
-magebox dev
-```
-
-This command configures:
-- **OPcache:** Disabled (code changes apply immediately)
-- **Xdebug:** Enabled (step debugging available)
-- **Blackfire:** Disabled (conflicts with Xdebug)
-
-Settings are persisted in `.magebox.local.yaml`.
-
----
-
-### `magebox prod`
-
-Switch to production mode optimized for performance.
-
-```bash
-magebox prod
-```
-
-This command configures:
-- **OPcache:** Enabled (faster PHP execution)
-- **Xdebug:** Disabled (no debugging overhead)
-- **Blackfire:** Disabled (enable manually when profiling)
-
-Settings are persisted in `.magebox.local.yaml`.
-
-::: tip
-Use `magebox dev` during active development, and `magebox prod` when testing production-like performance.
-:::
-
 ## Custom Commands
 
 ### `magebox run <name>`
@@ -718,6 +680,8 @@ magebox db snapshot delete mybackup
 
 ## Redis Commands
 
+These commands work with both Redis and Valkey.
+
 ### `magebox redis shell`
 
 Open Redis CLI.
@@ -730,7 +694,7 @@ magebox redis shell
 
 ### `magebox redis flush`
 
-Clear all Redis data.
+Clear all Redis/Valkey data.
 
 ```bash
 magebox redis flush
@@ -740,64 +704,11 @@ magebox redis flush
 
 ### `magebox redis info`
 
-Show Redis statistics.
+Show Redis/Valkey statistics.
 
 ```bash
 magebox redis info
 ```
-
-## Queue Commands
-
-Commands for managing RabbitMQ message queues.
-
-### `magebox queue status`
-
-View RabbitMQ queue status with message counts.
-
-```bash
-magebox queue status
-```
-
-Shows all queues with:
-- Queue name
-- Message count (ready/unacked)
-- Consumer count
-
-Uses the RabbitMQ Management API.
-
----
-
-### `magebox queue flush`
-
-Purge all messages from all queues.
-
-```bash
-magebox queue flush
-```
-
-::: danger
-This permanently deletes all queued messages. Use with caution!
-:::
-
----
-
-### `magebox queue consumer [name]`
-
-Run Magento queue consumers.
-
-```bash
-# Run a specific consumer
-magebox queue consumer product_action_attribute.update
-
-# Run all consumers via cron
-magebox queue consumer --all
-```
-
-**Arguments:**
-- `name` - Consumer name (optional if using `--all`)
-
-**Options:**
-- `--all` - Start all configured consumers via Magento cron
 
 ## Log Commands
 
@@ -866,14 +777,14 @@ Auto-detects whether the project uses MySQL or MariaDB.
 
 ### `magebox logs redis`
 
-Stream Redis Docker container logs.
+Stream Redis (or Valkey) Docker container logs.
 
 ```bash
 magebox logs redis          # Stream logs (Ctrl+C to stop)
 magebox logs redis -n 200   # Show last 200 lines
 ```
 
-Requires Redis to be configured in `.magebox.yaml`.
+Requires Redis or Valkey to be configured in `.magebox.yaml`.
 
 ---
 
@@ -888,20 +799,6 @@ magebox logs varnish    # Stream varnishlog output (Ctrl+C to stop)
 Equivalent to `magebox varnish logs`.
 
 ---
-
-### `magebox report`
-
-Watch for Magento error reports.
-
-```bash
-magebox report
-```
-
-Monitors `var/report/` directory and displays:
-- Latest error report on startup
-- New reports as they're created in real-time
-
-Press `Ctrl+C` to stop watching.
 
 ## Varnish Commands
 
@@ -1535,53 +1432,6 @@ magebox self-update check
 ```
 
 Shows available updates without installing.
-
-## Admin Commands
-
-### `magebox admin list`
-
-List all Magento admin users.
-
-```bash
-magebox admin list
-```
-
----
-
-### `magebox admin create`
-
-Create a new admin user interactively.
-
-```bash
-magebox admin create
-```
-
-Prompts for username, email, password, first name, and last name.
-
----
-
-### `magebox admin password <email> [password]`
-
-Reset admin user password.
-
-```bash
-magebox admin password admin@example.com newpassword
-magebox admin password admin@example.com  # Interactive
-```
-
----
-
-### `magebox admin disable-2fa`
-
-Disable Two-Factor Authentication for local development.
-
-```bash
-magebox admin disable-2fa
-```
-
-::: warning
-Only use this for local development, never on production.
-:::
 
 ## Xdebug Commands
 

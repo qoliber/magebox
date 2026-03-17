@@ -284,9 +284,9 @@ Disable DNS over HTTPS in your browser:
 - **Chrome**: Settings → Privacy → Security → Use secure DNS → Off
 - **Firefox**: Settings → Network Settings → Enable DNS over HTTPS → Off
 
-## Redis Issues
+## Redis / Valkey Issues
 
-### Cannot Connect to Redis
+### Cannot Connect to Redis/Valkey
 
 ```
 Redis connection refused
@@ -302,7 +302,7 @@ docker ps | grep redis
 redis-cli -h 127.0.0.1 -p 6379 ping
 ```
 
-### Redis Out of Memory
+### Redis/Valkey Out of Memory
 
 **Solution:**
 
@@ -368,7 +368,7 @@ php bin/magento indexer:reindex catalogsearch_fulltext
    php bin/magento cache:enable
    ```
 
-3. Check Redis is being used for cache/sessions
+3. Check Redis/Valkey is being used for cache/sessions
 
 4. Increase PHP memory in `.magebox.yaml`:
    ```yaml

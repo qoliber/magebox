@@ -14,28 +14,28 @@ import (
 
 var redisCmd = &cobra.Command{
 	Use:   "redis",
-	Short: "Redis operations",
-	Long:  "Redis cache management commands",
+	Short: "Redis/Valkey operations",
+	Long:  "Redis/Valkey cache management commands",
 }
 
 var redisFlushCmd = &cobra.Command{
 	Use:   "flush",
-	Short: "Flush Redis cache",
-	Long:  "Flushes all data from the Redis cache",
+	Short: "Flush cache",
+	Long:  "Flushes all data from the Redis/Valkey cache",
 	RunE:  runRedisFlush,
 }
 
 var redisShellCmd = &cobra.Command{
 	Use:   "shell",
-	Short: "Open Redis shell",
-	Long:  "Opens a Redis CLI shell",
+	Short: "Open cache shell",
+	Long:  "Opens a Redis/Valkey CLI shell",
 	RunE:  runRedisShell,
 }
 
 var redisInfoCmd = &cobra.Command{
 	Use:   "info",
-	Short: "Show Redis info",
-	Long:  "Shows Redis server information and statistics",
+	Short: "Show cache info",
+	Long:  "Shows Redis/Valkey server information and statistics",
 	RunE:  runRedisInfo,
 }
 
@@ -44,6 +44,18 @@ func init() {
 	redisCmd.AddCommand(redisShellCmd)
 	redisCmd.AddCommand(redisInfoCmd)
 	rootCmd.AddCommand(redisCmd)
+}
+
+// getCacheServiceInfo returns the compose service name, CLI binary, and display name
+// based on which cache service is configured for the project.
+func getCacheServiceInfo(cfg *config.Config) (serviceName, cliBinary, displayName string, ok bool) {
+	if cfg.Services.HasValkey() {
+		return "valkey", "valkey-cli", "Valkey", true
+	}
+	if cfg.Services.HasRedis() {
+		return "redis", "redis-cli", "Redis", true
+	}
+	return "", "", "", false
 }
 
 func runRedisFlush(cmd *cobra.Command, args []string) error {
@@ -62,26 +74,26 @@ func runRedisFlush(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
+	serviceName, cliBinary, displayName, hasCache := getCacheServiceInfo(cfg)
+	if !hasCache {
+		cli.PrintError("Neither Redis nor Valkey is configured in %s", config.ConfigFileName)
 		return nil
 	}
 
 	composeGen := docker.NewComposeGenerator(p)
 	composeFile := composeGen.ComposeFilePath()
 
-	cli.PrintInfo("Flushing Redis cache...")
+	cli.PrintInfo("Flushing %s cache...", displayName)
 
-	// Run redis-cli FLUSHALL
-	flushCmd := docker.BuildComposeCmd(composeFile, "exec", "-T", "redis", "redis-cli", "FLUSHALL")
+	flushCmd := docker.BuildComposeCmd(composeFile, "exec", "-T", serviceName, cliBinary, "FLUSHALL")
 	output, err := flushCmd.CombinedOutput()
 	if err != nil {
-		cli.PrintError("Failed to flush Redis: %v", err)
+		cli.PrintError("Failed to flush %s: %v", displayName, err)
 		return nil
 	}
 
 	if strings.TrimSpace(string(output)) == "OK" {
-		cli.PrintSuccess("Redis cache flushed successfully")
+		cli.PrintSuccess("%s cache flushed successfully", displayName)
 	} else {
 		fmt.Println(string(output))
 	}
@@ -105,19 +117,19 @@ func runRedisShell(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
+	serviceName, cliBinary, displayName, hasCache := getCacheServiceInfo(cfg)
+	if !hasCache {
+		cli.PrintError("Neither Redis nor Valkey is configured in %s", config.ConfigFileName)
 		return nil
 	}
 
 	composeGen := docker.NewComposeGenerator(p)
 	composeFile := composeGen.ComposeFilePath()
 
-	cli.PrintInfo("Connecting to Redis...")
+	cli.PrintInfo("Connecting to %s...", displayName)
 	fmt.Println()
 
-	// Open interactive redis-cli
-	shellCmd := docker.BuildComposeCmd(composeFile, "exec", "redis", "redis-cli")
+	shellCmd := docker.BuildComposeCmd(composeFile, "exec", serviceName, cliBinary)
 	shellCmd.Stdin = os.Stdin
 	shellCmd.Stdout = os.Stdout
 	shellCmd.Stderr = os.Stderr
@@ -141,22 +153,22 @@ func runRedisInfo(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !cfg.Services.HasRedis() {
-		cli.PrintError("Redis is not configured in %s", config.ConfigFileName)
+	serviceName, cliBinary, displayName, hasCache := getCacheServiceInfo(cfg)
+	if !hasCache {
+		cli.PrintError("Neither Redis nor Valkey is configured in %s", config.ConfigFileName)
 		return nil
 	}
 
 	composeGen := docker.NewComposeGenerator(p)
 	composeFile := composeGen.ComposeFilePath()
 
-	cli.PrintTitle("Redis Information")
+	cli.PrintTitle("%s Information", displayName)
 	fmt.Println()
 
-	// Get Redis info
-	infoCmd := docker.BuildComposeCmd(composeFile, "exec", "-T", "redis", "redis-cli", "INFO")
+	infoCmd := docker.BuildComposeCmd(composeFile, "exec", "-T", serviceName, cliBinary, "INFO")
 	output, err := infoCmd.Output()
 	if err != nil {
-		cli.PrintError("Failed to get Redis info: %v", err)
+		cli.PrintError("Failed to get %s info: %v", displayName, err)
 		return nil
 	}
 
@@ -197,7 +209,7 @@ func runRedisInfo(cmd *cobra.Command, args []string) error {
 
 			// Highlight important values
 			switch key {
-			case "redis_version", "used_memory_human", "connected_clients",
+			case "redis_version", "valkey_version", "used_memory_human", "connected_clients",
 				"total_connections_received", "total_commands_processed",
 				"keyspace_hits", "keyspace_misses":
 				fmt.Printf("  %s: %s\n", key, cli.Highlight(value))

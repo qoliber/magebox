@@ -1,10 +1,12 @@
-# Redis
+# Redis / Valkey
 
-MageBox runs Redis in Docker for caching, sessions, and full-page cache storage.
+MageBox runs Redis or Valkey in Docker for caching, sessions, and full-page cache storage.
+
+[Valkey](https://valkey.io/) is a Redis-compatible fork maintained by the Linux Foundation. It uses the same protocol, port, and CLI commands, making it a drop-in replacement.
 
 ## Overview
 
-Redis is a high-performance in-memory data store used by Magento for:
+Redis/Valkey is a high-performance in-memory data store used by Magento for:
 
 - **Cache storage** - Configuration, layout, block HTML
 - **Session storage** - Customer sessions
@@ -20,6 +22,19 @@ In `.magebox.yaml`:
 services:
   redis: true
 ```
+
+### Enabling Valkey
+
+In `.magebox.yaml`:
+
+```yaml
+services:
+  valkey: true
+```
+
+::: tip
+Valkey is wire-compatible with Redis. The Magento configuration (`env.php`) is identical for both — only the Docker container differs.
+:::
 
 ### Connection Details
 
@@ -49,6 +64,10 @@ php bin/magento setup:install \
     --page-cache-redis-db=1 \
     # ... other options
 ```
+
+::: info
+Magento uses `redis` as the backend name in all commands and configuration, even when using Valkey.
+:::
 
 ### Via env.php
 
@@ -103,7 +122,7 @@ php bin/magento setup:install \
 
 ### Database Separation
 
-Best practice is to use separate Redis databases:
+Best practice is to use separate databases:
 
 | Database | Purpose |
 |----------|---------|
@@ -111,15 +130,17 @@ Best practice is to use separate Redis databases:
 | `1` | Full Page Cache |
 | `2` | Sessions |
 
-## Redis Commands
+## Cache Commands
 
-### Open Redis CLI
+The `magebox redis` commands work with both Redis and Valkey. They automatically detect which service is configured and use the appropriate CLI tool (`redis-cli` or `valkey-cli`).
+
+### Open CLI Shell
 
 ```bash
 magebox redis shell
 ```
 
-This opens an interactive Redis CLI connected to the container.
+This opens an interactive CLI connected to the container.
 
 ### Flush All Data
 
@@ -127,9 +148,9 @@ This opens an interactive Redis CLI connected to the container.
 magebox redis flush
 ```
 
-This clears all Redis databases (cache, FPC, sessions).
+This clears all databases (cache, FPC, sessions).
 
-### Show Redis Info
+### Show Server Info
 
 ```bash
 magebox redis info
@@ -137,10 +158,10 @@ magebox redis info
 
 Displays server statistics, memory usage, and connection info.
 
-### Direct Redis CLI
+### Direct CLI Access
 
 ```bash
-# Connect directly
+# Connect directly (works for both Redis and Valkey)
 redis-cli -h 127.0.0.1 -p 6379
 
 # Run specific command
@@ -196,29 +217,41 @@ redis-cli -h 127.0.0.1 -n 2 DBSIZE
 ### Container Status
 
 ```bash
+# Redis
 docker ps | grep redis
+
+# Valkey
+docker ps | grep valkey
 ```
 
 ### Container Logs
 
 ```bash
+# Redis
 docker logs magebox-redis
 
+# Valkey
+docker logs magebox-valkey
+
 # Follow logs
-docker logs -f magebox-redis
+magebox logs redis
 ```
 
 ### Restart Container
 
 ```bash
+# Redis
 docker restart magebox-redis
+
+# Valkey
+docker restart magebox-valkey
 ```
 
 ## Performance Tuning
 
 ### Memory Limits
 
-By default, Redis uses available memory. For production-like testing, you can limit memory:
+By default, the cache service uses available memory. For production-like testing, you can limit memory:
 
 ```bash
 # Set max memory to 512MB
@@ -228,7 +261,7 @@ redis-cli -h 127.0.0.1 CONFIG SET maxmemory-policy allkeys-lru
 
 ### Persistence
 
-MageBox Redis runs without persistence (data is lost on container restart). This is intentional for development speed.
+MageBox runs the cache service without persistence (data is lost on container restart). This is intentional for development speed.
 
 For persistent data, consider backing up before container operations:
 
@@ -247,9 +280,9 @@ Redis connection refused
 
 **Solutions:**
 
-1. Check if Redis container is running:
+1. Check if the container is running:
    ```bash
-   docker ps | grep redis
+   docker ps | grep -E "redis|valkey"
    ```
 
 2. Start services:
@@ -270,7 +303,7 @@ OOM command not allowed when used memory > 'maxmemory'
 
 **Solutions:**
 
-1. Flush Redis:
+1. Flush the cache:
    ```bash
    magebox redis flush
    ```
@@ -287,7 +320,7 @@ OOM command not allowed when used memory > 'maxmemory'
 
 ### Slow Performance
 
-Check if Redis is being used correctly:
+Check if the cache is being used correctly:
 
 ```bash
 # Check hit rate
@@ -301,7 +334,7 @@ redis-cli -h 127.0.0.1 SLOWLOG GET 10
 
 If sessions are not persisting:
 
-1. Verify Redis configuration in `env.php`
+1. Verify configuration in `env.php`
 2. Check session database:
    ```bash
    redis-cli -h 127.0.0.1 -n 2 KEYS "*"

@@ -105,7 +105,7 @@ The `config show` command also displays default service settings. These are conf
 ```yaml
 default_services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19.4"
   rabbitmq: false
   mailpit: true
@@ -165,7 +165,7 @@ elasticvue: false
 auto_start: false
 default_services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
 ```
 
 ## Directory Structure

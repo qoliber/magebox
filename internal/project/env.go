@@ -110,8 +110,8 @@ func (g *envGenerator) buildTemplateData() EnvPHPData {
 		DatabaseUser:     "root",
 		DatabasePassword: "magebox",
 
-		// Service flags
-		HasRedis:   g.config.Services.HasRedis(),
+		// Service flags (Valkey is Redis-compatible, same Magento configuration)
+		HasRedis:   g.config.Services.HasCacheService(),
 		HasVarnish: g.config.Services.HasVarnish(),
 		HasMailpit: true, // Always enabled for local dev safety
 

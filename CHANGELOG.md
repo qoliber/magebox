@@ -5,6 +5,15 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-03-17
+
+### Added
+
+- **Valkey Support** - Valkey is now available as a Redis alternative, configurable per project with `valkey: true` in `.magebox.yaml`. Valkey is a Redis-compatible fork by the Linux Foundation that uses the same port (6379) and protocol. The `magebox redis` commands automatically detect which cache service is configured. ([#36](https://github.com/qoliber/magebox/pull/36))
+- **Open Command** - New `magebox open` command to quickly open the project's first domain in the default browser. ([#35](https://github.com/qoliber/magebox/pull/35))
+- **Version-Specific Search Ports** - OpenSearch and Elasticsearch now use unique host ports per version (e.g., OS 2.19 → 9259, ES 7.17 → 9457), preventing port conflicts when running multiple projects with different search engine versions. When only one search service is configured, the standard port 9200 is additionally mapped for backward compatibility. ([#35](https://github.com/qoliber/magebox/pull/35))
+- **Magento 2.4.8-p4, 2.4.7-p9, 2.4.6-p14** - Added latest Magento Open Source patch releases to the version matrix.
+
 ## [1.7.3] - 2026-03-17
 
 ### Added

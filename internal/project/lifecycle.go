@@ -304,10 +304,11 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 				IsRunning: dockerController.IsServiceRunning(serviceName),
 			}
 		}
-		if cfg.Services.HasRedis() {
-			status.Services["redis"] = ServiceStatus{
-				Name:      "Redis",
-				IsRunning: dockerController.IsServiceRunning("redis"),
+		if cfg.Services.HasCacheService() {
+			svcName := cfg.Services.GetCacheServiceName()
+			status.Services[svcName] = ServiceStatus{
+				Name:      cfg.Services.GetCacheServiceDisplayName(),
+				IsRunning: dockerController.IsServiceRunning(svcName),
 			}
 		}
 		if cfg.Services.HasOpenSearch() {
@@ -334,9 +335,10 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 				IsRunning: false,
 			}
 		}
-		if cfg.Services.HasRedis() {
-			status.Services["redis"] = ServiceStatus{
-				Name:      "Redis (test mode)",
+		if cfg.Services.HasCacheService() {
+			svcName := cfg.Services.GetCacheServiceName()
+			status.Services[svcName] = ServiceStatus{
+				Name:      cfg.Services.GetCacheServiceDisplayName() + " (test mode)",
 				IsRunning: false,
 			}
 		}
@@ -581,7 +583,9 @@ func (m *Manager) Init(projectPath string, projectName string, projectType strin
 	if defaults.MariaDB != "" {
 		services.WriteString(fmt.Sprintf("  mariadb: \"%s\"\n", defaults.MariaDB))
 	}
-	if defaults.Redis {
+	if defaults.Valkey {
+		services.WriteString("  valkey: true\n")
+	} else if defaults.Redis {
 		services.WriteString("  redis: true\n")
 	}
 	if defaults.OpenSearch != "" {
@@ -659,7 +663,7 @@ func (m *Manager) ValidateConfig(projectPath string) (*config.Config, []string, 
 	return cfg, warnings, nil
 }
 
-// flushRedis flushes all Redis databases
+// flushRedis flushes all Redis/Valkey databases
 func (m *Manager) flushRedis() error {
 	// Skip in test mode
 	if testmode.SkipDocker() {
@@ -669,13 +673,15 @@ func (m *Manager) flushRedis() error {
 	composeFile := m.composeGen.ComposeFilePath()
 	dockerController := docker.NewDockerController(composeFile)
 
-	// Check if Redis is running
-	if !dockerController.IsServiceRunning("redis") {
-		return nil // Redis not running, nothing to flush
+	// Try Valkey first, then Redis
+	if dockerController.IsServiceRunning("valkey") {
+		return dockerController.ExecSilent("valkey", "valkey-cli", "FLUSHALL")
+	}
+	if dockerController.IsServiceRunning("redis") {
+		return dockerController.ExecSilent("redis", "redis-cli", "FLUSHALL")
 	}
 
-	// Flush all Redis databases
-	return dockerController.ExecSilent("redis", "redis-cli", "FLUSHALL")
+	return nil // No cache service running, nothing to flush
 }
 
 // ensureEnvPHP generates or updates Magento's app/etc/env.php

@@ -16,7 +16,7 @@ Project A (PHP 8.2)     Project B (PHP 8.3)     Project C (PHP 8.4)
      └───────────────────────┴───────────────────────┘
                              │
                     Shared Docker Services
-                    (MySQL, Redis, etc.)
+                    (MySQL, Redis/Valkey, etc.)
 ```
 
 ## Setup
@@ -189,7 +189,7 @@ Services use consistent ports:
 |---------|------|-----------|
 | MySQL 8.0 | 33080 | storea, storeb |
 | MariaDB 10.6 | 33106 | storec |
-| Redis | 6379 | All projects |
+| Redis/Valkey | 6379 | All projects |
 | Mailpit | 8025 | All projects |
 
 ## Resource Management

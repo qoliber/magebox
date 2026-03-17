@@ -62,9 +62,6 @@ magebox blackfire off
 magebox tideways on
 magebox tideways off
 
-# Quick mode switching
-magebox dev                # Dev mode: Xdebug ON, OPcache OFF
-magebox prod               # Prod mode: Xdebug OFF, OPcache ON
 ```
 
 ## Testing & Code Quality
@@ -122,8 +119,8 @@ magebox docker up          # Start Docker services
 magebox docker down        # Stop Docker services
 magebox docker status      # Check container status
 
-# Redis
-magebox redis flush        # Clear all Redis data
+# Redis (also works with Valkey)
+magebox redis flush        # Clear all Redis/Valkey data
 magebox redis cli          # Redis CLI access
 
 # Varnish
@@ -131,10 +128,6 @@ magebox varnish on         # Enable Varnish caching
 magebox varnish off        # Bypass Varnish
 magebox varnish purge      # Clear Varnish cache
 
-# Queue (RabbitMQ)
-magebox queue status       # View queue status
-magebox queue flush        # Purge all queues
-magebox queue consumer     # Run queue consumers
 ```
 
 ## Configuration
@@ -164,7 +157,7 @@ magebox dns status         # Check DNS configuration
 |---------|------|------|------|----------|
 | MySQL 8.0 | localhost | 33080 | root | magebox |
 | MariaDB 10.6 | localhost | 33106 | root | magebox |
-| Redis | localhost | 6379 | - | - |
+| Redis/Valkey | localhost | 6379 | - | - |
 | RabbitMQ | localhost | 15672 | guest | guest |
 | Mailpit | localhost | 8025 | - | - |
 
@@ -216,7 +209,6 @@ magebox --help             # General help
 magebox <command> --help   # Command-specific help
 magebox --version          # Check version
 magebox check              # System health check
-magebox report             # Generate debug report
 ```
 
 ---

@@ -423,12 +423,11 @@ This section lists all MageBox commands and their compatibility with test mode.
 | `magebox blackfire config` | - | ✅ Yes | Sets credentials |
 | `magebox blackfire install` | - | 🔒 Root | Installs system packages |
 
-### Logs & Reports
+### Logs
 
 | Command | Subcommands | Test Mode | Notes |
 |---------|-------------|-----------|-------|
 | `magebox logs` | - | ✅ Yes | Reads Magento log files |
-| `magebox report` | - | ✅ Yes | Reads Magento report files |
 
 ### Database (Requires Docker)
 
@@ -458,15 +457,6 @@ This section lists all MageBox commands and their compatibility with test mode.
 | `magebox varnish flush` | - | ❌ No | Needs Varnish container |
 | `magebox varnish purge` | - | ❌ No | Needs Varnish container |
 | `magebox varnish status` | - | ❌ No | Needs Varnish container |
-
-### Admin (Requires Database)
-
-| Command | Subcommands | Test Mode | Notes |
-|---------|-------------|-----------|-------|
-| `magebox admin create` | - | ❌ No | Needs DB connection |
-| `magebox admin list` | - | ❌ No | Needs DB connection |
-| `magebox admin password` | - | ❌ No | Needs DB connection |
-| `magebox admin disable-2fa` | - | ❌ No | Needs DB connection |
 
 ### Global Services
 
@@ -510,17 +500,16 @@ This section lists all MageBox commands and their compatibility with test mode.
 | SSL Commands | 2 | 1 fully, 1 needs root |
 | DNS Commands | 2 | 1 fully, 1 needs root |
 | PHP Tools | 10 | 9 fully, 1 needs root |
-| Log Commands | 2 | 2 fully |
+| Log Commands | 1 | 1 fully |
 | Database Commands | 6 | 0 (needs Docker) |
 | Redis Commands | 3 | 0 (needs Docker) |
 | Varnish Commands | 5 | 0 (needs Docker) |
-| Admin Commands | 4 | 0 (needs Docker) |
 | Global Commands | 3 | 1 partial |
 | Team Commands | 5 | 5 fully |
 | Other Commands | 8 | 4 fully, 2 partial, 2 need root |
 
-**Total: ~66 commands/subcommands**
-- **~35 work fully** in test mode
+**Total: ~61 commands/subcommands**
+- **~34 work fully** in test mode
 - **~6 work partially** in test mode
-- **~18 require Docker** (skipped)
+- **~14 require Docker** (skipped)
 - **~7 require root** access

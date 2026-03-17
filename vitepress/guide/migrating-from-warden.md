@@ -48,7 +48,7 @@ domains:
 
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19"
   mailpit: true
 ```
@@ -76,7 +76,7 @@ bin/magento cache:flush
 | `PHP_VERSION` | `php` |
 | `MYSQL_VERSION` | `services.mysql` |
 | `MARIADB_VERSION` | `services.mariadb` |
-| `REDIS_VERSION` | `services.redis: true` |
+| `REDIS_VERSION` | `services.redis: true` (or `services.valkey: true`) |
 | `ELASTICSEARCH_VERSION` | `services.opensearch` |
 
 ## Port Differences

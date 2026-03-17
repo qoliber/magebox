@@ -8,7 +8,7 @@ MageBox runs supporting services in Docker containers while keeping PHP and Ngin
 Native (Full Speed)          Docker (Isolated)
 ───────────────────          ─────────────────
 PHP-FPM ◄─────────────────►  MySQL/MariaDB
-Nginx   ◄─────────────────►  Redis
+Nginx   ◄─────────────────►  Redis/Valkey
                              OpenSearch
                              RabbitMQ
                              Mailpit
@@ -22,7 +22,7 @@ Enable services in your `.magebox.yaml` file:
 ```yaml
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: "2.19.4"
   rabbitmq: true
   mailpit: true
@@ -36,6 +36,7 @@ services:
 | MySQL | 5.7, 8.0, 8.4 | 33057, 33080, 33084 |
 | MariaDB | 10.4, 10.6, 11.4 | 33104, 33106, 33114 |
 | Redis | latest | 6379 |
+| Valkey | latest | 6379 |
 | OpenSearch | 2.x | 9200 |
 | Elasticsearch | 7.x, 8.x | 9200 |
 | RabbitMQ | latest | 5672, 15672 |
@@ -218,7 +219,7 @@ docker volume ls | grep magebox
 
 Volumes are named:
 - `magebox_mysql80_data`
-- `magebox_redis_data`
+- `magebox_redis_data` (or `magebox_valkey_data`)
 - `magebox_opensearch_data`
 - etc.
 
@@ -233,7 +234,7 @@ compose_file: docker-compose.yml
 
 When you run `magebox start`, MageBox will list the custom services and ask for confirmation before starting them. The containers are automatically connected to the MageBox Docker network, so they can:
 
-- **Reach MageBox services** like MySQL (`magebox-mysql-8.0:3306`), Redis (`magebox-redis:6379`), etc.
+- **Reach MageBox services** like MySQL (`magebox-mysql-8.0:3306`), Redis/Valkey (`magebox-redis:6379`), etc.
 - **Be reached from your PHP application** via `localhost:<mapped-port>`
 
 On `magebox stop`, MageBox asks again before stopping the custom containers.
@@ -254,7 +255,7 @@ To reduce resource usage, disable unused services:
 # .magebox.yaml or .magebox.local.yaml
 services:
   mysql: "8.0"
-  redis: true
+  redis: true          # or valkey: true
   opensearch: false   # Disabled
   rabbitmq: false     # Disabled
   mailpit: false      # Disabled

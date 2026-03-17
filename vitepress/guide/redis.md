@@ -1,15 +1,28 @@
-# Redis
+# Redis / Valkey
 
-Redis provides fast in-memory caching and session storage for Magento.
+Redis and Valkey provide fast in-memory caching and session storage for Magento.
+
+[Valkey](https://valkey.io/) is a Redis-compatible fork maintained by the Linux Foundation. It uses the same protocol and port, so the Magento configuration is identical.
 
 ## Configuration
 
-Enable Redis in your `.magebox.yaml` file:
+Enable Redis or Valkey in your `.magebox.yaml` file:
 
 ```yaml
+# Option 1: Redis (default)
 services:
   redis: true
 ```
+
+```yaml
+# Option 2: Valkey
+services:
+  valkey: true
+```
+
+::: tip
+Valkey is wire-compatible with Redis. The Magento configuration (env.php) is identical for both — only the Docker container differs.
+:::
 
 ## Connection Details
 
@@ -19,11 +32,11 @@ services:
 | Port | 6379 |
 | Password | None (no authentication) |
 
-## Redis Commands
+## Cache Commands
 
-### Redis Shell
+### Cache Shell
 
-Connect to Redis CLI:
+Connect to Redis/Valkey CLI:
 
 ```bash
 magebox redis shell
@@ -31,7 +44,7 @@ magebox redis shell
 
 ### Flush All Data
 
-Clear all Redis data:
+Clear all cache data:
 
 ```bash
 magebox redis flush
@@ -39,17 +52,21 @@ magebox redis flush
 
 ### View Info
 
-Show Redis statistics:
+Show server statistics:
 
 ```bash
 magebox redis info
 ```
 
+::: info
+The `magebox redis` commands automatically detect whether Redis or Valkey is configured and use the appropriate CLI tool.
+:::
+
 ## Magento Configuration
 
 ### Session Storage
 
-Store sessions in Redis (`app/etc/env.php`):
+Store sessions in Redis/Valkey (`app/etc/env.php`):
 
 ```php
 'session' => [
@@ -79,7 +96,7 @@ Store sessions in Redis (`app/etc/env.php`):
 
 ### Default Cache
 
-Use Redis for the default cache:
+Use Redis/Valkey for the default cache:
 
 ```php
 'cache' => [
@@ -100,7 +117,7 @@ Use Redis for the default cache:
 
 ### Page Cache
 
-Use Redis for full page cache:
+Use Redis/Valkey for full page cache:
 
 ```php
 'cache' => [
@@ -122,9 +139,13 @@ Use Redis for full page cache:
 ]
 ```
 
+::: tip
+Magento's `env.php` uses `redis` as the backend name even when using Valkey, since Valkey is protocol-compatible.
+:::
+
 ## Database Allocation
 
-Recommended Redis database allocation for Magento:
+Recommended database allocation for Magento:
 
 | Database | Purpose |
 |----------|---------|
@@ -150,7 +171,7 @@ magebox redis shell
 
 ### Monitor Operations
 
-Watch real-time Redis commands:
+Watch real-time commands:
 
 ```bash
 magebox redis shell
@@ -178,10 +199,10 @@ magebox redis shell
 
 ### Connection Refused
 
-Check if Redis container is running:
+Check if the cache container is running:
 
 ```bash
-docker ps | grep redis
+docker ps | grep -E "redis|valkey"
 ```
 
 Start services:
@@ -192,17 +213,10 @@ magebox global start
 
 ### Cache Not Working
 
-Verify Redis is configured in Magento:
+Verify the cache service is configured in Magento:
 
 ```bash
 magebox cli config:show | grep redis
-```
-
-Check Redis connection from Magento:
-
-```bash
-magebox shell
-php -r "echo (new Redis())->connect('127.0.0.1', 6379) ? 'Connected' : 'Failed';"
 ```
 
 ### Memory Full
@@ -216,16 +230,16 @@ magebox redis info | grep used_memory
 If memory is full, consider:
 
 1. Flush old data: `magebox redis flush`
-2. Configure memory limits in Redis
+2. Configure memory limits
 3. Review cache TTL settings
 
 ### Sessions Lost
 
 If sessions are being lost:
 
-1. Check Redis is running
+1. Check the cache service is running
 2. Verify session config in `env.php`
-3. Check Redis database 0 has data:
+3. Check the session database has data:
 
 ```bash
 magebox redis shell

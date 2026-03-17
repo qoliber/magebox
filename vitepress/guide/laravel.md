@@ -74,7 +74,7 @@ redis: true
 
 Available services:
 - **MySQL** / **MariaDB** - Database
-- **Redis** - Cache, sessions, queues
+- **Redis** / **Valkey** - Cache, sessions, queues
 - **Mailpit** - Email testing
 - **OpenSearch** - Full-text search (Laravel Scout)
 - **RabbitMQ** - Queue driver
@@ -157,7 +157,7 @@ mbox init --type laravel
 mbox start
 ```
 
-All projects share the same MySQL, Redis, and other Docker services but have separate nginx vhosts and PHP-FPM pools.
+All projects share the same MySQL, Redis/Valkey, and other Docker services but have separate nginx vhosts and PHP-FPM pools.
 
 ## Isolated PHP-FPM
 

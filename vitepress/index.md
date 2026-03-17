@@ -23,7 +23,7 @@ features:
 
   - icon: 🐳
     title: Docker Services
-    details: MySQL, Redis, OpenSearch, RabbitMQ in containers. Zero conflicts.
+    details: MySQL, Redis/Valkey, OpenSearch, RabbitMQ in containers. Zero conflicts.
 
   - icon: 🔄
     title: Multi-PHP
@@ -58,7 +58,7 @@ magebox new mystore
 ## Supported Services
 
 - **Database**: MySQL 5.7, 8.0, 8.4 / MariaDB 10.4, 10.6, 11.4
-- **Cache**: Redis
+- **Cache**: Redis / Valkey
 - **Search**: OpenSearch 2.x / Elasticsearch 7.x, 8.x
 - **Queue**: RabbitMQ
 - **Mail**: Mailpit
