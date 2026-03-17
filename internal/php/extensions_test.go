@@ -249,3 +249,28 @@ func TestPIEInstallCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestPieExtensionName(t *testing.T) {
+	p := &platform.Platform{Type: platform.Linux, LinuxDistro: platform.DistroDebian}
+	mgr := NewExtensionManager(p)
+
+	tests := []struct {
+		pkg  string
+		want string
+	}{
+		{"noisebynorthwest/php-spx", "spx"},
+		{"openswoole/openswoole", "openswoole"},
+		{"vendor/php-extension", "extension"},
+		{"org/myext", "myext"},
+		{"invalid", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.pkg, func(t *testing.T) {
+			got := mgr.pieExtensionName(tt.pkg)
+			if got != tt.want {
+				t.Errorf("pieExtensionName(%q) = %q, want %q", tt.pkg, got, tt.want)
+			}
+		})
+	}
+}

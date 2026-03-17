@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"qoliber/magebox/internal/platform"
@@ -149,15 +150,109 @@ func (m *ExtensionManager) InstallViaPIE(pkg, phpVersion string) error {
 	return nil
 }
 
-// RemoveViaPIE removes an extension using PIE for the given PHP version.
+// RemoveViaPIE removes a PIE-installed extension for the given PHP version.
+// PIE has no remove command, so we manually remove the .so, INI file, and conf.d symlinks.
 func (m *ExtensionManager) RemoveViaPIE(pkg, phpVersion string) error {
+	// Derive the extension name from vendor/package (e.g., "noisebynorthwest/php-spx" -> "spx")
+	extName := m.pieExtensionName(pkg)
+	if extName == "" {
+		return fmt.Errorf("could not determine extension name from package %s", pkg)
+	}
+
+	v := normalizeVersion(phpVersion)
 	phpConfigBin := m.phpConfigBinary(phpVersion)
 
-	cmd := exec.Command("sudo", "pie", "remove", "--with-php-config="+phpConfigBin, pkg)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("pie remove failed: %w", err)
+	// Get extension directory from php-config
+	extDir := ""
+	if cmd, err := exec.Command(phpConfigBin, "--extension-dir").Output(); err == nil {
+		extDir = strings.TrimSpace(string(cmd))
+	}
+
+	var errors []string
+
+	// Remove the .so file
+	if extDir != "" {
+		soFile := filepath.Join(extDir, extName+".so")
+		if _, err := os.Stat(soFile); err == nil {
+			if err := runSudo("rm", "-f", soFile); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to remove %s: %v", soFile, err))
+			}
+		}
+	}
+
+	// Platform-specific INI cleanup
+	switch m.platform.Type {
+	case platform.Darwin:
+		// macOS Homebrew: INI files in the conf.d directory
+		base := "/usr/local"
+		if m.platform.IsAppleSilicon {
+			base = "/opt/homebrew"
+		}
+		confDir := filepath.Join(base, "etc", "php", v, "conf.d")
+		m.removeINIFiles(confDir, extName, &errors)
+
+	case platform.Linux:
+		switch m.platform.LinuxDistro {
+		case platform.DistroDebian:
+			// Ondrej: mods-available + conf.d symlinks per SAPI
+			modsAvail := fmt.Sprintf("/etc/php/%s/mods-available", v)
+			m.removeINIFiles(modsAvail, extName, &errors)
+			// Remove symlinks from all SAPIs (cli, fpm, apache2, etc.)
+			sapiDirs, _ := filepath.Glob(fmt.Sprintf("/etc/php/%s/*/conf.d", v))
+			for _, confDir := range sapiDirs {
+				m.removeINIFiles(confDir, extName, &errors)
+			}
+		case platform.DistroFedora:
+			vnd := strings.ReplaceAll(v, ".", "")
+			confDir := fmt.Sprintf("/etc/opt/remi/php%s/php.d", vnd)
+			m.removeINIFiles(confDir, extName, &errors)
+		case platform.DistroArch:
+			confDir := "/etc/php/conf.d"
+			m.removeINIFiles(confDir, extName, &errors)
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("removal incomplete: %s", strings.Join(errors, "; "))
+	}
+	return nil
+}
+
+// removeINIFiles removes INI files (and symlinks) matching an extension name in a directory.
+func (m *ExtensionManager) removeINIFiles(dir, extName string, errors *[]string) {
+	// Match patterns like "80-spx.ini", "spx.ini", "20-spx.ini"
+	patterns := []string{
+		filepath.Join(dir, fmt.Sprintf("*-%s.ini", extName)),
+		filepath.Join(dir, fmt.Sprintf("%s.ini", extName)),
+	}
+	for _, pattern := range patterns {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			if err := runSudo("rm", "-f", match); err != nil {
+				*errors = append(*errors, fmt.Sprintf("failed to remove %s: %v", match, err))
+			}
+		}
+	}
+}
+
+// pieExtensionName derives the PHP extension name from a PIE vendor/package string.
+// e.g., "noisebynorthwest/php-spx" -> "spx", "openswoole/openswoole" -> "openswoole"
+func (m *ExtensionManager) pieExtensionName(pkg string) string {
+	parts := strings.SplitN(pkg, "/", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	name := parts[1]
+	// Strip common "php-" prefix
+	name = strings.TrimPrefix(name, "php-")
+	return name
+}
+
+// runSudo runs a command with sudo.
+func runSudo(args ...string) error {
+	cmd := exec.Command("sudo", args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
