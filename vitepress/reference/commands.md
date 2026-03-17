@@ -1039,7 +1039,7 @@ Enable the Elasticvue web UI for OpenSearch/Elasticsearch.
 magebox elasticvue enable
 ```
 
-Starts the Elasticvue container on port 8080. Access at http://localhost:8080.
+Starts the Elasticvue container on port 8090. Access at http://localhost:8090.
 
 ---
 

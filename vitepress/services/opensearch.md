@@ -345,7 +345,7 @@ magebox config set elasticvue true
 
 ### Accessing Elasticvue
 
-Once enabled, open **http://localhost:8080** in your browser.
+Once enabled, open **http://localhost:8090** in your browser.
 
 On first launch, add your cluster:
 - Click "Add Cluster"
@@ -377,7 +377,7 @@ magebox elasticvue status
 Elasticvue runs as a Docker container (`magebox-elasticvue`) with:
 
 - **Image**: `cars10/elasticvue:latest`
-- **Port**: 8080 (Web UI)
+- **Port**: 8090 (Web UI)
 - **Network**: magebox (can access search containers directly)
 
 ## Performance Tips

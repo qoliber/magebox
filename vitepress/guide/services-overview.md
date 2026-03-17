@@ -41,7 +41,7 @@ services:
 | RabbitMQ | latest | 5672, 15672 |
 | Mailpit | latest | 1025, 8025 |
 | Varnish | latest | 6081 |
-| Elasticvue | latest | 8080 |
+| Elasticvue | latest | 8090 |
 
 ## Service Management
 

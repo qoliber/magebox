@@ -35,7 +35,7 @@ magebox global start
 
 | Setting | Value |
 |---------|-------|
-| Web UI | `http://localhost:8080` |
+| Web UI | `http://localhost:8090` |
 
 ## Getting Started
 
@@ -44,7 +44,7 @@ magebox global start
    magebox elasticvue enable
    ```
 
-2. Open **http://localhost:8080** in your browser
+2. Open **http://localhost:8090** in your browser
 
 3. Add your cluster:
    - Click **Add Cluster**
@@ -76,7 +76,7 @@ Stops the container and removes it from docker-compose.
 Elasticvue runs as a Docker container (`magebox-elasticvue`) with:
 
 - **Image**: `cars10/elasticvue:latest`
-- **Port**: 8080 (Web UI)
+- **Port**: 8090 (Web UI)
 - **Network**: magebox
 
 ## Troubleshooting
@@ -95,10 +95,10 @@ If not, start services:
 magebox global start
 ```
 
-### Port 8080 Already in Use
+### Port 8090 Already in Use
 
-If another service is using port 8080, stop it before enabling Elasticvue:
+If another service is using port 8090, stop it before enabling Elasticvue:
 
 ```bash
-lsof -i :8080
+lsof -i :8090
 ```

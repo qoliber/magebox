@@ -565,7 +565,7 @@ func (g *ComposeGenerator) getElasticvueService() ComposeService {
 	return ComposeService{
 		ContainerName: "magebox-elasticvue",
 		Image:         "cars10/elasticvue:latest",
-		Ports:         []string{"8080:8080"},
+		Ports:         []string{"8090:8080"},
 		Networks:      []string{"magebox"},
 		Restart:       "unless-stopped",
 	}

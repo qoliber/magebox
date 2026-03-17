@@ -88,7 +88,7 @@ Enable [Elasticvue](https://elasticvue.com/) web UI for browsing OpenSearch/Elas
 magebox config set elasticvue true
 ```
 
-Access at `http://localhost:8080` after enabling. You can also use `magebox elasticvue enable`.
+Access at `http://localhost:8090` after enabling. You can also use `magebox elasticvue enable`.
 
 ### auto_start
 

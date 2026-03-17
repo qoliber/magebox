@@ -353,7 +353,7 @@ MageBox can run [Elasticvue](https://elasticvue.com/), a browser-based UI for in
 # Enable
 magebox elasticvue enable
 
-# Access at http://localhost:8080
+# Access at http://localhost:8090
 # Add cluster URI: http://localhost:9200
 ```
 

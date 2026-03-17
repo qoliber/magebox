@@ -83,6 +83,12 @@ func runGlobalStart(cmd *cobra.Command, args []string) error {
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		cli.PrintWarning("Docker services not configured. Run %s first.", cli.Command("magebox bootstrap"))
 	} else {
+		// Regenerate compose file to pick up any changes
+		configs := discoverAllConfigs(p)
+		if err := composeGen.GenerateGlobalServices(configs); err != nil {
+			cli.PrintWarning("Could not regenerate docker-compose: %v", err)
+		}
+
 		fmt.Print("  Docker services... ")
 		dockerCtrl := docker.NewDockerController(composeFile)
 		if err := dockerCtrl.Up(); err != nil {
