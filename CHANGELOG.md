@@ -5,6 +5,26 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-03-17
+
+### Added
+
+- **PHP Extension Management** - New `magebox ext` command with `install`, `remove`, `list`, and `search` subcommands for managing PHP extensions across all installed PHP versions. Automatically resolves platform-specific package names (apt/dnf/pacman/pecl) from a single canonical extension name. ([#31](https://github.com/qoliber/magebox/pull/31))
+- **PIE Integration** - Install custom PHP extensions from Packagist using the `vendor/package` format (e.g., `magebox ext install noisebynorthwest/php-spx`). Uses [PIE](https://github.com/php/pie), the official PECL replacement from the PHP Foundation. PIE and PHP dev tools are installed automatically on first use.
+- **PHP Version Selection** - Extension install and remove commands prompt to select which installed PHP version(s) to target, with "All installed" as the default.
+- **Custom Docker Compose Support** - New `compose_file` config option to reference a project-level `docker-compose.yml`. On `magebox start`/`stop`, MageBox prompts to manage these containers and connects them to the MageBox Docker network for service discovery. ([#27](https://github.com/qoliber/magebox/pull/27))
+
+## [1.6.0] - 2026-03-15
+
+### Added
+
+- **Service-Specific Log Tailing** - New `magebox logs php/nginx/mysql/redis` subcommands for viewing per-service logs. PHP-FPM and Nginx tail local log files with multitail support, while MySQL and Redis stream Docker container logs. Supports `-f` (follow) and `-n` (lines) flags. ([#26](https://github.com/qoliber/magebox/pull/26))
+- **Expose / Share via Cloudflare Tunnels** - New `magebox expose` command to share local projects via public Cloudflare Tunnel URLs. Automatically backs up and updates Magento base URLs, nginx vhosts, and env.php, with full revert on Ctrl+C. ([#25](https://github.com/qoliber/magebox/pull/25))
+- **Auto Document Root Discovery** - MageBox now automatically discovers the document root directory, removing the need to manually configure it in most cases. ([#24](https://github.com/qoliber/magebox/pull/24))
+- **Elasticvue Integration** - New `magebox elasticvue enable/disable/status` commands for managing the Elasticvue web UI for OpenSearch/Elasticsearch. ([#23](https://github.com/qoliber/magebox/pull/23))
+- **Database Process Monitor** - New `magebox db top` command for real-time MySQL/MariaDB process monitoring using innotop or mysqladmin processlist. ([#23](https://github.com/qoliber/magebox/pull/23))
+- **VCL Import/Reset** - New `magebox varnish vcl-import` and `magebox varnish vcl-reset` commands for custom Varnish VCL management. ([#23](https://github.com/qoliber/magebox/pull/23))
+
 ## [1.5.0] - 2026-03-15
 
 ### Added
