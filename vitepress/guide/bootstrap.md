@@ -95,6 +95,18 @@ Running `magebox bootstrap` will:
 magebox bootstrap
 ```
 
+### Command Flags
+
+| Flag | Description |
+|------|-------------|
+| `--unattended` | Run without interactive prompts (auto-accept all defaults). Useful for Ubuntu autoinstall and automated provisioning. |
+| `--tld <domain>` | Set the top-level domain for local development (default: `test`). Example: `--tld local` |
+
+```bash
+# Fully automated bootstrap with custom TLD
+magebox bootstrap --unattended --tld local
+```
+
 You may be prompted for your password (sudo) **once** to:
 - Install port forwarding rules (macOS)
 - Modify Nginx configuration

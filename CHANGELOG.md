@@ -5,6 +5,13 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.3] - 2026-03-17
+
+### Added
+
+- **Unattended Bootstrap** - New `--unattended` flag for `magebox bootstrap` that auto-accepts all interactive prompts, enabling use in Ubuntu autoinstall and other automated provisioning contexts.
+- **Bootstrap TLD Flag** - New `--tld` flag for `magebox bootstrap` to set the top-level domain during setup (e.g., `--tld local`), saving it to the global config before DNS and vhost configuration runs.
+
 ## [1.7.2] - 2026-03-17
 
 ### Added
