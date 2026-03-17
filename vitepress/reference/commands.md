@@ -877,6 +877,18 @@ Requires Redis to be configured in `.magebox.yaml`.
 
 ---
 
+### `magebox logs varnish`
+
+Stream Varnish logs from the container.
+
+```bash
+magebox logs varnish    # Stream varnishlog output (Ctrl+C to stop)
+```
+
+Equivalent to `magebox varnish logs`.
+
+---
+
 ### `magebox report`
 
 Watch for Magento error reports.
@@ -972,6 +984,50 @@ magebox varnish vcl-reset
 ```
 
 Regenerates the default VCL from project configuration, removing any custom VCL. Varnish is reloaded automatically if running.
+
+---
+
+### `magebox varnish logs`
+
+Stream Varnish logs.
+
+```bash
+magebox varnish logs
+```
+
+Streams `varnishlog` output from the Varnish container. Press Ctrl+C to stop.
+
+Also available as `magebox logs varnish`.
+
+---
+
+### `magebox varnish hist`
+
+Show a live histogram of request processing times.
+
+```bash
+magebox varnish hist
+```
+
+Runs `varnishhist` inside the Varnish container. Press Ctrl+C to stop.
+
+Also available as `magebox varnish history`.
+
+---
+
+### `magebox varnish admin [command]`
+
+Run varnishadm commands.
+
+```bash
+magebox varnish admin                  # Interactive session
+magebox varnish admin backend.list     # List backends
+magebox varnish admin vcl.list         # List loaded VCLs
+magebox varnish admin param.show       # Show parameters
+magebox varnish admin ban req.url ~ /  # Ban all URLs
+```
+
+Without arguments, opens an interactive `varnishadm` session. With arguments, runs the command and exits.
 
 ## Elasticvue Commands
 

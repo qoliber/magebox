@@ -30,6 +30,7 @@ Service-specific logs:
   magebox logs nginx    # Nginx access/error logs
   magebox logs mysql    # MySQL/MariaDB container logs
   magebox logs redis    # Redis container logs
+  magebox logs varnish  # Varnish logs
 
 Press 'q' to quit, 'b' to scroll back in history (multitail views).
 Use -f to follow (tail) file-based logs, or Ctrl+C to stop container log streams.`,
@@ -77,6 +78,15 @@ Press Ctrl+C to stop.`,
 	RunE: runLogsRedis,
 }
 
+var logsVarnishCmd = &cobra.Command{
+	Use:   "varnish",
+	Short: "View Varnish logs",
+	Long: `Streams varnishlog output from the Varnish container.
+
+Press Ctrl+C to stop.`,
+	RunE: runLogsVarnish,
+}
+
 func init() {
 	logsCmd.PersistentFlags().BoolVarP(&logsFollowFlag, "follow", "f", false, "Follow log output (tail -f)")
 	logsCmd.PersistentFlags().IntVarP(&logsLinesFlag, "lines", "n", 100, "Number of lines to show")
@@ -85,6 +95,7 @@ func init() {
 	logsCmd.AddCommand(logsNginxCmd)
 	logsCmd.AddCommand(logsMysqlCmd)
 	logsCmd.AddCommand(logsRedisCmd)
+	logsCmd.AddCommand(logsVarnishCmd)
 	rootCmd.AddCommand(logsCmd)
 }
 
@@ -293,6 +304,10 @@ func runLogsRedis(cmd *cobra.Command, args []string) error {
 	composeFile := composeGen.ComposeFilePath()
 
 	return streamDockerLogs(composeFile, "redis", "Redis")
+}
+
+func runLogsVarnish(cmd *cobra.Command, args []string) error {
+	return runVarnishLogs(cmd, args)
 }
 
 // streamDockerLogs streams logs from a Docker Compose service

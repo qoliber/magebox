@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -75,6 +76,40 @@ var varnishVCLResetCmd = &cobra.Command{
 	RunE:  runVarnishVCLReset,
 }
 
+var varnishLogsCmd = &cobra.Command{
+	Use:   "logs",
+	Short: "View Varnish logs",
+	Long: `Streams varnishlog output from the Varnish container.
+
+Press Ctrl+C to stop.`,
+	RunE: runVarnishLogs,
+}
+
+var varnishHistCmd = &cobra.Command{
+	Use:     "hist",
+	Aliases: []string{"history"},
+	Short:   "Show Varnish request histogram",
+	Long: `Shows a live histogram of request processing times using varnishhist.
+
+Press Ctrl+C to stop.`,
+	RunE: runVarnishHist,
+}
+
+var varnishAdminCmd = &cobra.Command{
+	Use:   "admin [command]",
+	Short: "Run varnishadm commands",
+	Long: `Opens an interactive varnishadm session, or runs a single command.
+
+Examples:
+  magebox varnish admin                  # Interactive session
+  magebox varnish admin backend.list     # Single command
+  magebox varnish admin vcl.list         # List loaded VCLs
+  magebox varnish admin param.show       # Show parameters
+  magebox varnish admin ban req.url ~ /  # Ban all URLs`,
+	RunE:               runVarnishAdmin,
+	DisableFlagParsing: true,
+}
+
 func init() {
 	varnishCmd.AddCommand(varnishPurgeCmd)
 	varnishCmd.AddCommand(varnishFlushCmd)
@@ -83,6 +118,9 @@ func init() {
 	varnishCmd.AddCommand(varnishDisableCmd)
 	varnishCmd.AddCommand(varnishVCLImportCmd)
 	varnishCmd.AddCommand(varnishVCLResetCmd)
+	varnishCmd.AddCommand(varnishLogsCmd)
+	varnishCmd.AddCommand(varnishHistCmd)
+	varnishCmd.AddCommand(varnishAdminCmd)
 	rootCmd.AddCommand(varnishCmd)
 }
 
@@ -227,8 +265,16 @@ func runVarnishEnable(cmd *cobra.Command, args []string) error {
 
 	// Check if already enabled
 	if cfg.Services.HasVarnish() {
-		cli.PrintInfo("Varnish is already enabled for this project")
-		return nil
+		// Verify it's actually running
+		vclGen := varnish.NewVCLGenerator(p)
+		ctrl := varnish.NewController(p, vclGen.VCLFilePath())
+		if ctrl.IsRunning() {
+			cli.PrintInfo("Varnish is already enabled and running for this project")
+			return nil
+		}
+		// Enabled in config but not running — fall through to start it
+		cli.PrintWarning("Varnish is enabled but not running, restarting...")
+		fmt.Println()
 	}
 
 	// Update config to enable Varnish
@@ -263,6 +309,38 @@ func runVarnishEnable(cmd *cobra.Command, args []string) error {
 	if err := dockerCtrl.Up(); err != nil {
 		fmt.Println(cli.Error("failed"))
 		return fmt.Errorf("failed to start Varnish: %w", err)
+	}
+	fmt.Println(cli.Success("done"))
+
+	// Verify the container is actually running (catches VCL compilation errors etc.)
+	fmt.Print("Verifying Varnish is healthy... ")
+	vclGenCheck := varnish.NewVCLGenerator(p)
+	ctrlCheck := varnish.NewController(p, vclGenCheck.VCLFilePath())
+
+	healthy := false
+	for i := 0; i < 5; i++ {
+		if ctrlCheck.IsRunning() {
+			healthy = true
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	if !healthy {
+		fmt.Println(cli.Error("failed"))
+		fmt.Println()
+
+		// Show container logs for debugging
+		cli.PrintError("Varnish container failed to start")
+		logsCmd := exec.Command("docker", "logs", "--tail", "20", "magebox-varnish")
+		logsOutput, _ := logsCmd.CombinedOutput()
+		if len(logsOutput) > 0 {
+			fmt.Println()
+			fmt.Println("Container logs:")
+			fmt.Println(strings.TrimSpace(string(logsOutput)))
+		}
+
+		return fmt.Errorf("varnish failed to start - check the logs above for errors")
 	}
 	fmt.Println(cli.Success("done"))
 
@@ -499,6 +577,84 @@ func runVarnishVCLReset(cmd *cobra.Command, args []string) error {
 	cli.PrintSuccess("VCL reset to default!")
 
 	return nil
+}
+
+func runVarnishLogs(cmd *cobra.Command, args []string) error {
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	vclGen := varnish.NewVCLGenerator(p)
+	ctrl := varnish.NewController(p, vclGen.VCLFilePath())
+
+	if !ctrl.IsRunning() {
+		cli.PrintWarning("Varnish is not running")
+		return nil
+	}
+
+	cli.PrintInfo("Streaming Varnish logs (Ctrl+C to stop)...")
+	fmt.Println()
+
+	logCmd := exec.Command("docker", "exec", "-it", "magebox-varnish", "varnishlog")
+	logCmd.Stdin = os.Stdin
+	logCmd.Stdout = os.Stdout
+	logCmd.Stderr = os.Stderr
+
+	return logCmd.Run()
+}
+
+func runVarnishHist(cmd *cobra.Command, args []string) error {
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	vclGen := varnish.NewVCLGenerator(p)
+	ctrl := varnish.NewController(p, vclGen.VCLFilePath())
+
+	if !ctrl.IsRunning() {
+		cli.PrintWarning("Varnish is not running")
+		return nil
+	}
+
+	cli.PrintInfo("Showing Varnish request histogram (Ctrl+C to stop)...")
+	fmt.Println()
+
+	histCmd := exec.Command("docker", "exec", "-it", "magebox-varnish", "varnishhist")
+	histCmd.Stdin = os.Stdin
+	histCmd.Stdout = os.Stdout
+	histCmd.Stderr = os.Stderr
+
+	return histCmd.Run()
+}
+
+func runVarnishAdmin(cmd *cobra.Command, args []string) error {
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	vclGen := varnish.NewVCLGenerator(p)
+	ctrl := varnish.NewController(p, vclGen.VCLFilePath())
+
+	if !ctrl.IsRunning() {
+		cli.PrintWarning("Varnish is not running")
+		return nil
+	}
+
+	dockerArgs := []string{"exec", "-it", "magebox-varnish", "varnishadm"}
+	if len(args) > 0 {
+		// Pass all arguments to varnishadm
+		dockerArgs = append(dockerArgs, args...)
+	}
+
+	admCmd := exec.Command("docker", dockerArgs...)
+	admCmd.Stdin = os.Stdin
+	admCmd.Stdout = os.Stdout
+	admCmd.Stderr = os.Stderr
+
+	return admCmd.Run()
 }
 
 // copyFile copies a file from src to dst
