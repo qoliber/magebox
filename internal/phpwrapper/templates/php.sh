@@ -114,8 +114,10 @@ if [[ -n "$project_dir" ]]; then
     if [[ -n "$php_version" ]]; then
         php_bin=$(find_php_binary "$php_version")
         if [[ -n "$php_bin" ]]; then
-            # Set Magento-friendly defaults for CLI (unlimited memory for compile/deploy)
-            exec "$php_bin" -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
+            # Unset MAGEBOX_PHP_WRAPPER so child processes spawned by the real PHP
+            # binary (e.g. #!/usr/bin/env php scripts run by GrumPHP tasks) do not
+            # inherit the recursion guard and falsely trigger the error.
+            exec env -u MAGEBOX_PHP_WRAPPER "$php_bin" -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
         else
             echo "Error: PHP $php_version not found. Install with: brew install php@$php_version" >&2
             exit 1
@@ -125,11 +127,11 @@ fi
 
 # Fallback to system PHP (no config file found)
 if command -v /opt/homebrew/bin/php &> /dev/null; then
-    exec /opt/homebrew/bin/php -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
+    exec env -u MAGEBOX_PHP_WRAPPER /opt/homebrew/bin/php -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
 elif command -v /usr/local/bin/php &> /dev/null; then
-    exec /usr/local/bin/php -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
+    exec env -u MAGEBOX_PHP_WRAPPER /usr/local/bin/php -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
 elif command -v /usr/bin/php &> /dev/null; then
-    exec /usr/bin/php -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
+    exec env -u MAGEBOX_PHP_WRAPPER /usr/bin/php -d memory_limit=-1 -d opcache.enable_cli=0 "$@"
 else
     echo "Error: No PHP installation found" >&2
     exit 1
