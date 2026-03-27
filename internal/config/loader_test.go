@@ -333,6 +333,131 @@ commands:
 	}
 }
 
+func TestLoader_PullConfig(t *testing.T) {
+	t.Run("full pull config", func(t *testing.T) {
+		dir := t.TempDir()
+		configContent := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.2"
+services:
+  mysql: "8.0"
+pull:
+  default: staging
+  strip: "@stripped @trade @search"
+  exclude:
+    - custom_log
+    - temp_import
+  magerun: n98-magerun2
+  root_path: /data/web/project/current/
+`
+		err := os.WriteFile(filepath.Join(dir, ".magebox"), []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if config.Pull == nil {
+			t.Fatal("Pull config should not be nil")
+		}
+		if config.Pull.Default != "staging" {
+			t.Errorf("Pull.Default = %q, want %q", config.Pull.Default, "staging")
+		}
+		if config.Pull.GetStrip() != "@stripped @trade @search" {
+			t.Errorf("Pull.GetStrip() = %q, want %q", config.Pull.GetStrip(), "@stripped @trade @search")
+		}
+		if len(config.Pull.Exclude) != 2 {
+			t.Errorf("len(Pull.Exclude) = %d, want 2", len(config.Pull.Exclude))
+		}
+		if config.Pull.Exclude[0] != "custom_log" {
+			t.Errorf("Pull.Exclude[0] = %q, want %q", config.Pull.Exclude[0], "custom_log")
+		}
+		if config.Pull.GetMagerun() != "n98-magerun2" {
+			t.Errorf("Pull.GetMagerun() = %q, want %q", config.Pull.GetMagerun(), "n98-magerun2")
+		}
+		if config.Pull.GetRootPath() != "/data/web/project/current/" {
+			t.Errorf("Pull.GetRootPath() = %q, want %q", config.Pull.GetRootPath(), "/data/web/project/current/")
+		}
+	})
+
+	t.Run("no pull config", func(t *testing.T) {
+		dir := t.TempDir()
+		configContent := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.2"
+`
+		err := os.WriteFile(filepath.Join(dir, ".magebox"), []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if config.Pull != nil {
+			t.Error("Pull config should be nil when not specified")
+		}
+
+		// Nil-safe getters should return defaults
+		var pullCfg *PullConfig
+		if pullCfg.GetMagerun() != "magerun2" {
+			t.Errorf("nil PullConfig.GetMagerun() = %q, want %q", pullCfg.GetMagerun(), "magerun2")
+		}
+		if pullCfg.GetStrip() != "@stripped" {
+			t.Errorf("nil PullConfig.GetStrip() = %q, want %q", pullCfg.GetStrip(), "@stripped")
+		}
+	})
+
+	t.Run("minimal pull config uses defaults", func(t *testing.T) {
+		dir := t.TempDir()
+		configContent := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.2"
+pull:
+  default: staging
+`
+		err := os.WriteFile(filepath.Join(dir, ".magebox"), []byte(configContent), 0644)
+		if err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if config.Pull == nil {
+			t.Fatal("Pull config should not be nil")
+		}
+		if config.Pull.Default != "staging" {
+			t.Errorf("Pull.Default = %q, want %q", config.Pull.Default, "staging")
+		}
+		if config.Pull.GetMagerun() != "magerun2" {
+			t.Errorf("Pull.GetMagerun() = %q, want default %q", config.Pull.GetMagerun(), "magerun2")
+		}
+		if config.Pull.GetStrip() != "@stripped" {
+			t.Errorf("Pull.GetStrip() = %q, want default %q", config.Pull.GetStrip(), "@stripped")
+		}
+		if len(config.Pull.Exclude) != 0 {
+			t.Errorf("len(Pull.Exclude) = %d, want 0", len(config.Pull.Exclude))
+		}
+	})
+}
+
 func TestLoader_Commands(t *testing.T) {
 	t.Run("string command syntax", func(t *testing.T) {
 		dir := t.TempDir()

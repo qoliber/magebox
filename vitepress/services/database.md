@@ -141,6 +141,72 @@ magebox db export -
 mysql -h 127.0.0.1 -P 33080 -u root -pmagebox mystore
 ```
 
+## Pull from Remote Environment
+
+Pull a database directly from a remote server (staging, production, etc.) using magerun2 over SSH. The dump automatically strips sensitive customer data.
+
+### Setup
+
+1. Add a remote environment with the project root path:
+
+```bash
+magebox env add staging --user app --host staging.example.com --root-path /data/web/project/current/
+```
+
+2. Optionally configure pull settings in `.magebox.yaml`:
+
+```yaml
+pull:
+  default: staging                   # Default environment for `magebox db pull`
+  strip: "@stripped @trade @search"  # Magerun strip groups (default: @stripped)
+  exclude:                           # Additional tables to exclude
+    - custom_log_table
+    - temp_import
+  magerun: magerun2                  # Magerun binary on remote (default: magerun2)
+  root_path: /data/web/current/      # Default remote project root
+```
+
+### Usage
+
+```bash
+magebox db pull                        # Pull from default environment
+magebox db pull staging                # Pull from specific environment
+magebox db pull staging -y             # Skip confirmation prompt
+magebox db pull staging --no-import    # Download only, don't import
+magebox db pull staging --no-compress  # Skip gzip (faster on fast networks)
+magebox db pull staging --backup       # Create snapshot before importing
+magebox db pull staging --no-strip     # Include all data (no stripping)
+```
+
+### How It Works
+
+The command streams the database dump directly from the remote server into your local MySQL — no intermediate files are created:
+
+1. SSH into the remote environment
+2. Run `magerun2 db:dump --strip='@stripped' --stdout | gzip`
+3. Stream through gunzip into local MySQL
+
+::: tip
+The `root_path` can be set per environment (via `magebox env add --root-path`) or as a default in `.magebox.yaml`. The environment setting takes precedence.
+:::
+
+::: warning
+Pulling will overwrite your local database. The command asks for confirmation before proceeding. Use `-y` to skip for automated workflows.
+:::
+
+### Snapshots
+
+Create snapshots to quickly backup and restore database state:
+
+```bash
+magebox db snapshot create before-update   # Create named snapshot
+magebox db snapshot list                   # List all snapshots
+magebox db snapshot restore before-update  # Restore a snapshot
+magebox db snapshot delete before-update   # Delete a snapshot
+```
+
+Use `--backup` with `db pull` to automatically create a `pre-pull` snapshot before importing.
+
 ## Docker Container
 
 ### Viewing Container Status

@@ -26,6 +26,7 @@ type Config struct {
 	Commands    map[string]Command `yaml:"commands,omitempty"`
 	Testing     *TestingConfig     `yaml:"testing,omitempty"`
 	ComposeFile string             `yaml:"compose_file,omitempty"` // Path to project-specific docker-compose.yml
+	Pull        *PullConfig        `yaml:"pull,omitempty"`
 }
 
 // GetType returns the project type, defaulting to "magento"
@@ -106,6 +107,39 @@ type PHPMDTestConfig struct {
 	Ruleset string   `yaml:"ruleset,omitempty"`
 	Config  string   `yaml:"config,omitempty"`
 	Paths   []string `yaml:"paths,omitempty"`
+}
+
+// PullConfig represents configuration for pulling databases from remote environments
+type PullConfig struct {
+	Default  string   `yaml:"default,omitempty"`   // Default environment name
+	Strip    string   `yaml:"strip,omitempty"`     // Magerun strip groups/tables (e.g. "@stripped @trade @search")
+	Exclude  []string `yaml:"exclude,omitempty"`   // Additional tables to exclude from dump
+	Magerun  string   `yaml:"magerun,omitempty"`   // Magerun binary name (default: "magerun2")
+	RootPath string   `yaml:"root_path,omitempty"` // Default remote project root path
+}
+
+// GetMagerun returns the magerun binary name, defaulting to "magerun2"
+func (p *PullConfig) GetMagerun() string {
+	if p == nil || p.Magerun == "" {
+		return "magerun2"
+	}
+	return p.Magerun
+}
+
+// GetStrip returns the strip argument, defaulting to "@stripped"
+func (p *PullConfig) GetStrip() string {
+	if p == nil || p.Strip == "" {
+		return "@stripped"
+	}
+	return p.Strip
+}
+
+// GetRootPath returns the default root path for remote environments
+func (p *PullConfig) GetRootPath() string {
+	if p == nil {
+		return ""
+	}
+	return p.RootPath
 }
 
 // Command represents a custom command that can be run via "magebox run <name>"

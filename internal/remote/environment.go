@@ -19,6 +19,7 @@ type Environment struct {
 	Port       int    `yaml:"port,omitempty"`
 	SSHKeyPath string `yaml:"ssh_key,omitempty"`
 	SSHCommand string `yaml:"ssh_command,omitempty"` // Custom SSH command for tunnels
+	RootPath   string `yaml:"root_path,omitempty"`   // Remote project root path
 }
 
 // DefaultPort is the default SSH port
@@ -79,6 +80,35 @@ func (e *Environment) BuildSSHCommand(additionalArgs ...string) *exec.Cmd {
 
 	// Add user@host
 	args = append(args, fmt.Sprintf("%s@%s", e.User, e.Host))
+
+	return exec.Command("ssh", args...)
+}
+
+// BuildRemoteCommand builds an SSH command that executes a command on the remote server
+func (e *Environment) BuildRemoteCommand(remoteCmd string) *exec.Cmd {
+	// If custom SSH command is specified, append the remote command
+	if e.SSHCommand != "" {
+		return exec.Command("sh", "-c", e.SSHCommand+" "+remoteCmd)
+	}
+
+	// Build standard SSH command
+	args := []string{}
+
+	// Add SSH key if specified
+	if e.SSHKeyPath != "" {
+		args = append(args, "-i", e.SSHKeyPath)
+	}
+
+	// Add port if non-standard
+	if e.GetPort() != DefaultPort {
+		args = append(args, "-p", strconv.Itoa(e.GetPort()))
+	}
+
+	// Add user@host
+	args = append(args, fmt.Sprintf("%s@%s", e.User, e.Host))
+
+	// Add remote command
+	args = append(args, remoteCmd)
 
 	return exec.Command("ssh", args...)
 }

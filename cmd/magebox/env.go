@@ -91,6 +91,7 @@ var (
 	envPort       int
 	envSSHKey     string
 	envSSHCommand string
+	envRootPath   string
 )
 
 func init() {
@@ -107,6 +108,7 @@ func init() {
 	envAddCmd.Flags().IntVarP(&envPort, "port", "p", 22, "SSH port")
 	envAddCmd.Flags().StringVarP(&envSSHKey, "key", "k", "", "Path to SSH private key")
 	envAddCmd.Flags().StringVar(&envSSHCommand, "ssh-command", "", "Custom SSH command (for tunnels/jump hosts)")
+	envAddCmd.Flags().StringVar(&envRootPath, "root-path", "", "Remote project root path (for db pull)")
 
 	// Add to root command
 	rootCmd.AddCommand(envCmd)
@@ -193,6 +195,7 @@ func runEnvAdd(_ *cobra.Command, args []string) error {
 		Port:       envPort,
 		SSHKeyPath: sshKeyPath,
 		SSHCommand: envSSHCommand,
+		RootPath:   envRootPath,
 	}
 
 	// For custom SSH commands, validation is different
@@ -324,6 +327,9 @@ func runEnvShow(_ *cobra.Command, args []string) error {
 		fmt.Printf("  Port: %d\n", env.GetPort())
 		if env.SSHKeyPath != "" {
 			fmt.Printf("  SSH Key: %s\n", env.SSHKeyPath)
+		}
+		if env.RootPath != "" {
+			fmt.Printf("  Root Path: %s\n", env.RootPath)
 		}
 	}
 

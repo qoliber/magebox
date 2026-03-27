@@ -293,6 +293,151 @@ func TestServices_HasMethods(t *testing.T) {
 	}
 }
 
+func TestPullConfig_GetMagerun(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *PullConfig
+		want string
+	}{
+		{"nil config", nil, "magerun2"},
+		{"empty magerun", &PullConfig{}, "magerun2"},
+		{"custom magerun", &PullConfig{Magerun: "n98-magerun2"}, "n98-magerun2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.GetMagerun(); got != tt.want {
+				t.Errorf("GetMagerun() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPullConfig_GetStrip(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *PullConfig
+		want string
+	}{
+		{"nil config", nil, "@stripped"},
+		{"empty strip", &PullConfig{}, "@stripped"},
+		{"custom strip", &PullConfig{Strip: "@stripped @trade @search"}, "@stripped @trade @search"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.GetStrip(); got != tt.want {
+				t.Errorf("GetStrip() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPullConfig_GetRootPath(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *PullConfig
+		want string
+	}{
+		{"nil config", nil, ""},
+		{"empty root_path", &PullConfig{}, ""},
+		{"custom root_path", &PullConfig{RootPath: "/data/web/current/"}, "/data/web/current/"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.GetRootPath(); got != tt.want {
+				t.Errorf("GetRootPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPullConfig_YAMLParsing(t *testing.T) {
+	yamlData := `
+pull:
+  default: staging
+  strip: "@stripped @trade @search"
+  exclude:
+    - custom_log
+    - temp_import
+  magerun: magerun2
+  root_path: /data/web/project/current/
+`
+	var cfg struct {
+		Pull *PullConfig `yaml:"pull"`
+	}
+	if err := yaml.Unmarshal([]byte(yamlData), &cfg); err != nil {
+		t.Fatalf("failed to parse YAML: %v", err)
+	}
+
+	if cfg.Pull == nil {
+		t.Fatal("Pull config should not be nil")
+	}
+	if cfg.Pull.Default != "staging" {
+		t.Errorf("Default = %q, want %q", cfg.Pull.Default, "staging")
+	}
+	if cfg.Pull.GetStrip() != "@stripped @trade @search" {
+		t.Errorf("Strip = %q, want %q", cfg.Pull.GetStrip(), "@stripped @trade @search")
+	}
+	if len(cfg.Pull.Exclude) != 2 {
+		t.Errorf("Exclude length = %d, want 2", len(cfg.Pull.Exclude))
+	}
+	if cfg.Pull.GetMagerun() != "magerun2" {
+		t.Errorf("Magerun = %q, want %q", cfg.Pull.GetMagerun(), "magerun2")
+	}
+	if cfg.Pull.GetRootPath() != "/data/web/project/current/" {
+		t.Errorf("RootPath = %q, want %q", cfg.Pull.GetRootPath(), "/data/web/project/current/")
+	}
+}
+
+func TestPullConfig_BuildStripArgument(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *PullConfig
+		wantBase string
+	}{
+		{
+			name:     "nil config uses default strip",
+			cfg:      nil,
+			wantBase: "@stripped",
+		},
+		{
+			name:     "custom strip groups",
+			cfg:      &PullConfig{Strip: "@stripped @trade @search"},
+			wantBase: "@stripped @trade @search",
+		},
+		{
+			name: "strip with exclude tables appended",
+			cfg: &PullConfig{
+				Strip:   "@stripped @trade",
+				Exclude: []string{"custom_log", "temp_data"},
+			},
+			wantBase: "@stripped @trade",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GetStrip()
+			if got != tt.wantBase {
+				t.Errorf("GetStrip() = %q, want %q", got, tt.wantBase)
+			}
+
+			// Simulate the exclude append logic from db_pull.go
+			if tt.cfg != nil && len(tt.cfg.Exclude) > 0 {
+				combined := got + " " + tt.cfg.Exclude[0]
+				for _, tbl := range tt.cfg.Exclude[1:] {
+					combined += " " + tbl
+				}
+				if combined != "@stripped @trade custom_log temp_data" {
+					t.Errorf("combined strip = %q, want %q", combined, "@stripped @trade custom_log temp_data")
+				}
+			}
+		})
+	}
+}
+
 func TestServices_GetDatabaseService(t *testing.T) {
 	mysql := &ServiceConfig{Enabled: true, Version: "8.0"}
 	mariadb := &ServiceConfig{Enabled: true, Version: "10.6"}

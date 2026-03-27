@@ -300,6 +300,82 @@ func TestEnvironment_BuildSSHCommand(t *testing.T) {
 	}
 }
 
+func TestEnvironment_BuildRemoteCommand(t *testing.T) {
+	tests := []struct {
+		name      string
+		env       Environment
+		remoteCmd string
+		wantPath  string
+		wantArgs  []string
+	}{
+		{
+			name: "basic remote command",
+			env: Environment{
+				User: "deploy",
+				Host: "staging.example.com",
+			},
+			remoteCmd: "ls -la",
+			wantPath:  "ssh",
+			wantArgs:  []string{"ssh", "deploy@staging.example.com", "ls -la"},
+		},
+		{
+			name: "with custom port and key",
+			env: Environment{
+				User:       "deploy",
+				Host:       "staging.example.com",
+				Port:       2222,
+				SSHKeyPath: "/path/to/key",
+			},
+			remoteCmd: "cd /data/web && magerun2 db:dump --stdout",
+			wantPath:  "ssh",
+			wantArgs:  []string{"ssh", "-i", "/path/to/key", "-p", "2222", "deploy@staging.example.com", "cd /data/web && magerun2 db:dump --stdout"},
+		},
+		{
+			name: "custom SSH command",
+			env: Environment{
+				SSHCommand: "ssh -J jump@bastion deploy@internal",
+			},
+			remoteCmd: "ls -la",
+			wantPath:  "sh",
+			wantArgs:  []string{"sh", "-c", "ssh -J jump@bastion deploy@internal ls -la"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := tt.env.BuildRemoteCommand(tt.remoteCmd)
+
+			if !contains(cmd.Path, tt.wantPath) {
+				t.Errorf("BuildRemoteCommand() path = %q, want to contain %q", cmd.Path, tt.wantPath)
+			}
+
+			if len(cmd.Args) != len(tt.wantArgs) {
+				t.Errorf("BuildRemoteCommand() args length = %d, want %d\nGot:  %v\nWant: %v", len(cmd.Args), len(tt.wantArgs), cmd.Args, tt.wantArgs)
+				return
+			}
+
+			for i, arg := range tt.wantArgs {
+				if cmd.Args[i] != arg {
+					t.Errorf("BuildRemoteCommand() args[%d] = %q, want %q", i, cmd.Args[i], arg)
+				}
+			}
+		})
+	}
+}
+
+func TestEnvironment_RootPath(t *testing.T) {
+	env := Environment{
+		Name:     "staging",
+		User:     "deploy",
+		Host:     "staging.example.com",
+		RootPath: "/data/web/project/current/",
+	}
+
+	if env.RootPath != "/data/web/project/current/" {
+		t.Errorf("RootPath = %q, want %q", env.RootPath, "/data/web/project/current/")
+	}
+}
+
 func TestManager_AddAndGet(t *testing.T) {
 	mgr := NewManager(nil)
 
