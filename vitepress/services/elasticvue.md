@@ -55,6 +55,14 @@ You can now browse your Magento search indices (e.g., `magento2_product_1`), vie
 
 ## MageBox Commands
 
+### Open in Browser
+
+```bash
+magebox elasticvue open
+```
+
+Opens the Elasticvue web UI in your default browser.
+
 ### Check Status
 
 ```bash

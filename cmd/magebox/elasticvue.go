@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,6 +14,25 @@ import (
 	"qoliber/magebox/internal/platform"
 	"qoliber/magebox/internal/project"
 )
+
+const elasticvueDefaultPort = "8090"
+
+// getElasticvueURL returns the Elasticvue URL, reading the actual port from the running container.
+// Falls back to the default port if the container is not running.
+func getElasticvueURL() string {
+	portCmd := exec.Command("docker", "port", "magebox-elasticvue", "8080")
+	output, err := portCmd.Output()
+	if err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+			line = strings.TrimSpace(line)
+			if idx := strings.LastIndex(line, ":"); idx != -1 {
+				port := line[idx+1:]
+				return fmt.Sprintf("http://localhost:%s", port)
+			}
+		}
+	}
+	return fmt.Sprintf("http://localhost:%s", elasticvueDefaultPort)
+}
 
 var elasticvueCmd = &cobra.Command{
 	Use:   "elasticvue",
@@ -41,10 +61,18 @@ var elasticvueStatusCmd = &cobra.Command{
 	RunE:  runElasticvueStatus,
 }
 
+var elasticvueOpenCmd = &cobra.Command{
+	Use:   "open",
+	Short: "Open Elasticvue in browser",
+	Long:  "Opens the Elasticvue web UI in the default browser",
+	RunE:  runElasticvueOpen,
+}
+
 func init() {
 	elasticvueCmd.AddCommand(elasticvueEnableCmd)
 	elasticvueCmd.AddCommand(elasticvueDisableCmd)
 	elasticvueCmd.AddCommand(elasticvueStatusCmd)
+	elasticvueCmd.AddCommand(elasticvueOpenCmd)
 	rootCmd.AddCommand(elasticvueCmd)
 }
 
@@ -62,7 +90,7 @@ func runElasticvueEnable(cmd *cobra.Command, args []string) error {
 	if globalCfg.Elasticvue {
 		cli.PrintInfo("Elasticvue is already enabled")
 		fmt.Println()
-		fmt.Printf("  Web UI: %s\n", cli.Highlight("http://localhost:8080"))
+		fmt.Printf("  Web UI: %s\n", cli.Highlight(getElasticvueURL()))
 		return nil
 	}
 
@@ -95,7 +123,7 @@ func runElasticvueEnable(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintSuccess("Elasticvue enabled!")
 	fmt.Println()
-	fmt.Printf("  Web UI: %s\n", cli.Highlight("http://localhost:8080"))
+	fmt.Printf("  Web UI: %s\n", cli.Highlight(getElasticvueURL()))
 	fmt.Println()
 	cli.PrintInfo("Add your cluster in the Elasticvue UI using http://localhost:<port>")
 	cli.PrintInfo("Check 'magebox status' or the ports reference for your search engine's port")
@@ -177,7 +205,7 @@ func runElasticvueStatus(cmd *cobra.Command, args []string) error {
 	output, err := checkCmd.Output()
 	if err == nil && len(strings.TrimSpace(string(output))) > 0 {
 		fmt.Println("Status:  " + cli.Success("running"))
-		fmt.Printf("Web UI:  %s\n", cli.Highlight("http://localhost:8080"))
+		fmt.Printf("Web UI:  %s\n", cli.Highlight(getElasticvueURL()))
 	} else {
 		fmt.Println("Status:  " + cli.Warning("stopped"))
 		fmt.Println()
@@ -185,6 +213,31 @@ func runElasticvueStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func runElasticvueOpen(cmd *cobra.Command, args []string) error {
+	// Check if container is running
+	checkCmd := exec.Command("docker", "ps", "--filter", "name=magebox-elasticvue", "--filter", "status=running", "-q")
+	output, err := checkCmd.Output()
+	if err != nil || len(strings.TrimSpace(string(output))) == 0 {
+		cli.PrintError("Elasticvue is not running")
+		fmt.Println()
+		cli.PrintInfo("Enable with: magebox elasticvue enable")
+		return nil
+	}
+
+	url := getElasticvueURL()
+	cli.PrintInfo("Opening %s", cli.URL(url))
+
+	var openCmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		openCmd = exec.Command("open", url)
+	default:
+		openCmd = exec.Command("xdg-open", url)
+	}
+
+	return openCmd.Start()
 }
 
 // discoverAllConfigs loads configs from all registered MageBox projects
