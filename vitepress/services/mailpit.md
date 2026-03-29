@@ -163,6 +163,24 @@ php -r "mail('test@example.com', 'Test Subject', 'Test body');"
 open http://localhost:8025
 ```
 
+## MageBox Commands
+
+### Open in Browser
+
+```bash
+magebox mailpit open
+```
+
+Opens the Mailpit web UI in your default browser.
+
+### Check Status
+
+```bash
+magebox mailpit status
+```
+
+Shows whether Mailpit is running and its connection details.
+
 ## Docker Container
 
 ### Container Status
