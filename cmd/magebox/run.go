@@ -5,8 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
 	"qoliber/magebox/internal/config"
@@ -30,22 +32,85 @@ Example .magebox commands:
       run: "php bin/magento setup:upgrade && php bin/magento cache:flush"
 
 Then run with: magebox run deploy`,
-	Args:              cobra.MinimumNArgs(1),
 	RunE:              runCustomCommand,
 	ValidArgsFunction: completeCustomCommands,
 }
 
+var runListFlag bool
+
 func init() {
+	runCmd.Flags().BoolVarP(&runListFlag, "list", "l", false, "List available commands without interactive selection")
 	rootCmd.AddCommand(runCmd)
+}
+
+func selectCommand(cfg *config.Config) (string, error) {
+	if len(cfg.Commands) == 0 {
+		fmt.Printf("No commands defined in %s\n", config.ConfigFileName)
+		fmt.Println()
+		fmt.Printf("Add commands to your %s file:\n", config.ConfigFileName)
+		fmt.Println()
+		fmt.Println("  commands:")
+		fmt.Println("    deploy: \"php bin/magento deploy:mode:set production\"")
+		fmt.Println("    reindex:")
+		fmt.Println("      description: \"Reindex all Magento indexes\"")
+		fmt.Println("      run: \"php bin/magento indexer:reindex\"")
+		return "", fmt.Errorf("no commands available")
+	}
+
+	// Sort command names for stable ordering
+	names := make([]string, 0, len(cfg.Commands))
+	for name := range cfg.Commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Build select options
+	options := make([]huh.Option[string], 0, len(names))
+	for _, name := range names {
+		label := name
+		if cfg.Commands[name].Description != "" {
+			label = name + " — " + cfg.Commands[name].Description
+		}
+		options = append(options, huh.NewOption(label, name))
+	}
+
+	var selected string
+	err := huh.NewSelect[string]().
+		Title("Select a command to run").
+		Options(options...).
+		Value(&selected).
+		Run()
+	if err != nil {
+		return "", err
+	}
+
+	return selected, nil
+}
+
+func listAvailableCommands(cfg *config.Config) {
+	if len(cfg.Commands) == 0 {
+		fmt.Printf("No commands defined in %s\n", config.ConfigFileName)
+		return
+	}
+
+	names := make([]string, 0, len(cfg.Commands))
+	for name := range cfg.Commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fmt.Println("Available commands:")
+	for _, name := range names {
+		if cfg.Commands[name].Description != "" {
+			fmt.Printf("  %-15s %s\n", name, cfg.Commands[name].Description)
+		} else {
+			fmt.Printf("  %s\n", name)
+		}
+	}
 }
 
 func runCustomCommand(cmd *cobra.Command, args []string) error {
 	cwd, err := getCwd()
-	if err != nil {
-		return err
-	}
-
-	p, err := getPlatform()
 	if err != nil {
 		return err
 	}
@@ -55,34 +120,38 @@ func runCustomCommand(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if runListFlag {
+		listAvailableCommands(cfg)
+		return nil
+	}
+
+	// No arguments: show interactive selector
+	if len(args) == 0 {
+		selected, err := selectCommand(cfg)
+		if err != nil {
+			return err
+		}
+		args = []string{selected}
+	}
+
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
 	cmdName := args[0]
 
 	// Check if command exists
 	command, ok := cfg.Commands[cmdName]
 	if !ok {
-		// List available commands
 		fmt.Printf("Command '%s' not found in .magebox\n\n", cmdName)
-		if len(cfg.Commands) > 0 {
-			fmt.Println("Available commands:")
-			for name, cmd := range cfg.Commands {
-				if cmd.Description != "" {
-					fmt.Printf("  %-15s %s\n", name, cmd.Description)
-				} else {
-					fmt.Printf("  %s\n", name)
-				}
-			}
-		} else {
-			fmt.Printf("No commands defined in %s\n", config.ConfigFileName)
-			fmt.Println()
-			fmt.Printf("Add commands to your %s file:\n", config.ConfigFileName)
-			fmt.Println()
-			fmt.Println("  commands:")
-			fmt.Println("    deploy: \"php bin/magento deploy:mode:set production\"")
-			fmt.Println("    reindex:")
-			fmt.Println("      description: \"Reindex all Magento indexes\"")
-			fmt.Println("      run: \"php bin/magento indexer:reindex\"")
+		selected, selectErr := selectCommand(cfg)
+		if selectErr != nil {
+			return selectErr
 		}
-		return nil
+		args = []string{selected}
+		cmdName = selected
+		command = cfg.Commands[cmdName]
 	}
 
 	// Get PHP path

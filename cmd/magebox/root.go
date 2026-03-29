@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/verbose"
 )
 
@@ -16,6 +17,30 @@ var version = "dev"
 var verbosity int
 
 func main() {
+	// If the first non-flag argument is not a known command,
+	// check if it's a custom command from .magebox and delegate to "run".
+	if len(os.Args) > 1 {
+		firstArg := os.Args[1]
+		// Skip flags
+		if firstArg != "" && firstArg[0] != '-' {
+			cmd, _, _ := rootCmd.Find(os.Args[1:])
+			if cmd == rootCmd {
+				// Not a known subcommand — check if it's a custom project command
+				if cwd, err := os.Getwd(); err == nil {
+					if cfg, err := config.LoadFromPath(cwd); err == nil {
+						if _, ok := cfg.Commands[firstArg]; ok {
+							// Insert "run" before the unknown command
+							newArgs := make([]string, 0, len(os.Args)+1)
+							newArgs = append(newArgs, os.Args[0], "run")
+							newArgs = append(newArgs, os.Args[1:]...)
+							os.Args = newArgs
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
