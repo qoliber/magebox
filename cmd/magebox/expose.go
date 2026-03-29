@@ -176,7 +176,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 	}
 
 	// Start cloudflared tunnel
-	tunnelCmd := exec.Command(cloudflaredPath, "tunnel", "--url", localURL)
+	tunnelCmd := exec.Command(cloudflaredPath, "tunnel", "--url", localURL, "--output", "json", "--loglevel", "debug")
 	tunnelCmd.Env = os.Environ()
 
 	stderr, err := tunnelCmd.StderrPipe()
@@ -200,6 +200,7 @@ func runExpose(cmd *cobra.Command, args []string) error {
 
 	fmt.Print("Starting tunnel... ")
 
+	lastReq := &tunnelRequest{}
 	go func() {
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -225,6 +226,12 @@ func runExpose(cmd *cobra.Command, args []string) error {
 				fmt.Println()
 				cli.PrintInfo("Press Ctrl+C to stop the tunnel and revert URLs")
 				fmt.Println()
+				continue
+			}
+
+			// After tunnel is established, show request logs from cloudflared
+			if tunnelURL != "" {
+				printTunnelRequestLog(line, lastReq)
 			}
 		}
 	}()
@@ -709,6 +716,98 @@ func flushMagentoCache(phpBin, cwd string) {
 		fmt.Println(cli.Success("done"))
 	}
 
+}
+
+// cloudflaredLogEntry represents a JSON log line from cloudflared (--output json --loglevel debug)
+type cloudflaredLogEntry struct {
+	Level         string              `json:"level"`
+	Message       string              `json:"message"`
+	Time          string              `json:"time"`
+	Path          string              `json:"path"`
+	Host          string              `json:"host"`
+	OriginService string              `json:"originService"`
+	ContentLength int                 `json:"content-length"`
+	Headers       map[string][]string `json:"headers"`
+}
+
+// statusCodePattern matches HTTP status codes at the start of cloudflared response messages (e.g. "200 OK", "404 File not found")
+var statusCodePattern = regexp.MustCompile(`^(\d{3})\s`)
+
+// requestLinePattern matches cloudflared request messages (e.g. "GET https://... HTTP/1.1")
+var requestLinePattern = regexp.MustCompile(`^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s`)
+
+// printTunnelRequestLog parses a cloudflared JSON log line and prints
+// HTTP request details in a human-readable format.
+// Cloudflared emits two lines per request at debug level:
+//   - Request:  {"message":"GET https://host/path HTTP/1.1", "path":"/path", "headers":{...}, ...}
+//   - Response: {"message":"200 OK", "content-length":1234, ...}
+//
+// We display responses as: "STATUS METHOD PATH (IP)" by correlating
+// the two via a simple last-request tracker.
+func printTunnelRequestLog(line string, lastReq *tunnelRequest) {
+	var entry cloudflaredLogEntry
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		return
+	}
+
+	// Request line: extract method, path, and client IP for the next response
+	if requestLinePattern.MatchString(entry.Message) {
+		parts := strings.SplitN(entry.Message, " ", 3)
+		lastReq.Method = parts[0]
+		lastReq.Path = entry.Path
+		if entry.Path == "" {
+			lastReq.Path = "/"
+		}
+		// Extract client IP from Cf-Connecting-Ip header
+		if ips, ok := entry.Headers["Cf-Connecting-Ip"]; ok && len(ips) > 0 {
+			lastReq.IP = ips[0]
+		} else {
+			lastReq.IP = ""
+		}
+		return
+	}
+
+	// Response line: extract status code and print the formatted log entry
+	if matches := statusCodePattern.FindStringSubmatch(entry.Message); matches != nil {
+		statusCode, _ := strconv.Atoi(matches[1])
+		statusStr := matches[1]
+
+		switch {
+		case statusCode >= 500:
+			statusStr = cli.Error(statusStr)
+		case statusCode >= 400:
+			statusStr = cli.Warning(statusStr)
+		default:
+			statusStr = cli.Success(statusStr)
+		}
+
+		method := lastReq.Method
+		if method == "" {
+			method = "???"
+		}
+		path := lastReq.Path
+		if path == "" {
+			path = "/"
+		}
+
+		if lastReq.IP != "" {
+			fmt.Printf("%s %s %s (%s)\n", statusStr, method, path, lastReq.IP)
+		} else {
+			fmt.Printf("%s %s %s\n", statusStr, method, path)
+		}
+
+		// Reset for next request
+		lastReq.Method = ""
+		lastReq.Path = ""
+		lastReq.IP = ""
+	}
+}
+
+// tunnelRequest holds state between a cloudflared request/response log pair
+type tunnelRequest struct {
+	Method string
+	Path   string
+	IP     string
 }
 
 // extractHostname extracts the hostname from a URL string
