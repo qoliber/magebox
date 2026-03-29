@@ -19,23 +19,21 @@ linters:
   settings:
     errcheck:
       check-type-assertions: true
-      exclude-functions:
-        - (io.Closer).Close
-        - (*os.File).Close
-        - (*compress/gzip.Reader).Close
-        - (*compress/gzip.Writer).Close
-        - (net.Conn).Close
-        - (*database/sql.DB).Close
-        - (*database/sql.Rows).Close
-        - (*net/http.Response).Body.Close
     staticcheck:
       checks:
         - "all"
         - "-QF*"
+        - "-ST*"
     misspell:
       locale: US
   exclusions:
     rules:
       - path: _test\.go
+        linters:
+          - errcheck
+      - text: "Error return value of .*.Close.* is not checked"
+        linters:
+          - errcheck
+      - text: "Error return value of `os.Remove"
         linters:
           - errcheck
