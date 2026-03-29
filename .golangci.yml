@@ -1,36 +1,39 @@
+version: "2"
+
 run:
-  timeout: 5m
   modules-download-mode: readonly
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-  govet:
-    check-shadowing: false
-  gofmt:
-    simplify: true
-  misspell:
-    locale: US
-
-issues:
-  exclude-rules:
-    # Ignore long lines in generated files
-    - path: _test\.go
-      linters:
-        - errcheck
-    # Ignore certain patterns
-    - text: "should have comment"
-      linters:
-        - golint
+  settings:
+    errcheck:
+      check-type-assertions: true
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"
+        - "-ST*"
+    misspell:
+      locale: US
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+      - text: "Error return value of .*.Close.* is not checked"
+        linters:
+          - errcheck
+      - text: "Error return value of `os.Remove"
+        linters:
+          - errcheck
