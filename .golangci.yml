@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
@@ -14,7 +16,7 @@ linters:
     - goimports
     - misspell
 
-linters-settings:
+settings:
   errcheck:
     check-type-assertions: true
   govet:
@@ -26,11 +28,6 @@ linters-settings:
 
 issues:
   exclude-rules:
-    # Ignore long lines in generated files
     - path: _test\.go
       linters:
         - errcheck
-    # Ignore certain patterns
-    - text: "should have comment"
-      linters:
-        - golint
