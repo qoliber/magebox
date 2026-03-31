@@ -76,6 +76,14 @@ var dbTopCmd = &cobra.Command{
 	RunE:  runDbTop,
 }
 
+var dbQueryCmd = &cobra.Command{
+	Use:   "query [sql]",
+	Short: "Execute a SQL query",
+	Long:  "Executes a SQL query against the project database and prints the result",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runDbQuery,
+}
+
 var dbSnapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Database snapshots",
@@ -121,6 +129,7 @@ func init() {
 	dbCmd.AddCommand(dbDropCmd)
 	dbCmd.AddCommand(dbResetCmd)
 	dbCmd.AddCommand(dbTopCmd)
+	dbCmd.AddCommand(dbQueryCmd)
 	dbCmd.AddCommand(dbSnapshotCmd)
 
 	// Snapshot subcommands
@@ -575,6 +584,38 @@ func runDbTop(cmd *cobra.Command, args []string) error {
 	topCmd.Stderr = os.Stderr
 
 	return topCmd.Run()
+}
+
+func runDbQuery(cmd *cobra.Command, args []string) error {
+	cwd, err := getCwd()
+	if err != nil {
+		return err
+	}
+
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
+		return nil
+	}
+
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		cli.PrintError("%v", err)
+		return nil
+	}
+
+	dbName := cfg.DatabaseName()
+	query := args[0]
+
+	queryCmd := exec.Command("docker", "exec", db.ContainerName,
+		"mysql", "-uroot", "-p"+docker.DefaultDBRootPassword, dbName, "-e", query)
+	queryCmd.Stdout = os.Stdout
+	queryCmd.Stderr = os.Stderr
+
+	if err := queryCmd.Run(); err != nil {
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil
 }
 
 // getSnapshotDir returns the directory for storing snapshots
