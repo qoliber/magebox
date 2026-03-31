@@ -140,7 +140,6 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 	if g.platform.Type == platform.Darwin {
 		httpPort = 8080
 		httpsPort = 8443
-		enableIPv6 = false
 	}
 
 	for _, domain := range cfg.Domains {
@@ -326,7 +325,7 @@ func (g *VhostGenerator) GenerateProxyVhost(cfg ProxyConfig) error {
 	if g.platform.Type == platform.Darwin {
 		cfg.HTTPPort = 8080
 		cfg.HTTPSPort = 8443
-		cfg.EnableIPv6 = false
+		cfg.EnableIPv6 = true
 	}
 
 	// Generate SSL certificate if enabled

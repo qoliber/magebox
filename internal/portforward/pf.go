@@ -35,7 +35,7 @@ func NewManager() *Manager {
 
 // launchDaemonVersion is incremented when the plist content changes
 // This ensures existing users get updates when they run bootstrap
-const launchDaemonVersion = "3"
+const launchDaemonVersion = "4"
 
 // Setup installs the port forwarding rules and LaunchDaemon
 func (m *Manager) Setup() error {
@@ -49,10 +49,17 @@ func (m *Manager) Setup() error {
 	if m.IsInstalled() {
 		verbose.Debug("Port forwarding plist exists, checking version...")
 
+		// Always ensure pf rules and config are up to date
+		if err := m.createPfRules(); err != nil {
+			return fmt.Errorf("failed to update pf rules: %w", err)
+		}
+		if err := m.reloadPfRules(); err != nil {
+			return fmt.Errorf("failed to reload pf rules: %w", err)
+		}
+
 		// Check if we need to upgrade the LaunchDaemon
 		if m.needsUpgrade() {
 			verbose.Debug("LaunchDaemon needs upgrade, reinstalling...")
-			// Unload old daemon, install new one
 			_ = m.unloadLaunchDaemon()
 			if err := m.createLaunchDaemon(); err != nil {
 				return fmt.Errorf("failed to upgrade launch daemon: %w", err)
@@ -63,13 +70,8 @@ func (m *Manager) Setup() error {
 			verbose.Debug("LaunchDaemon upgraded to version %s", launchDaemonVersion)
 		}
 
-		// Verify rules are active
-		if m.areRulesActive() {
-			verbose.Debug("Port forwarding already configured and active")
-			return nil
-		}
-		verbose.Debug("Rules not active, reloading...")
-		return m.reloadPfRules()
+		verbose.Debug("Port forwarding configured and active")
+		return nil
 	}
 
 	verbose.Debug("Installing port forwarding (requires sudo)...")
@@ -99,7 +101,7 @@ func (m *Manager) Setup() error {
 		return fmt.Errorf("failed to reload pf rules: %w", err)
 	}
 
-	verbose.Debug("Port forwarding configured: 80 → 8080, 443 → 8443")
+	verbose.Debug("Port forwarding configured: 80 → 8080, 443 → 8443 (IPv4 + IPv6)")
 	return nil
 }
 
@@ -165,9 +167,11 @@ func (m *Manager) Remove() error {
 // createPfRules creates the pf (packet filter) rules file
 func (m *Manager) createPfRules() error {
 	rules := `# MageBox port forwarding rules
-# Forward privileged ports to unprivileged ports
+# Forward privileged ports to unprivileged ports (IPv4 and IPv6)
 rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port 8080
 rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
+rdr pass on lo0 inet6 proto tcp from any to ::1 port 80 -> ::1 port 8080
+rdr pass on lo0 inet6 proto tcp from any to ::1 port 443 -> ::1 port 8443
 `
 
 	// Ensure directory exists
