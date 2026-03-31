@@ -50,6 +50,9 @@ type GlobalConfig struct {
 
 	// Environments stores remote server configurations
 	Environments []remote.Environment `yaml:"environments,omitempty"`
+
+	// Sandbox configures the bubblewrap sandbox for AI coding agents
+	Sandbox *SandboxConfig `yaml:"sandbox,omitempty"`
 }
 
 // ProfilingConfig contains credentials for profiling tools

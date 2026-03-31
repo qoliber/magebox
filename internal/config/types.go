@@ -26,6 +26,7 @@ type Config struct {
 	Commands    map[string]Command `yaml:"commands,omitempty"`
 	Testing     *TestingConfig     `yaml:"testing,omitempty"`
 	ComposeFile string             `yaml:"compose_file,omitempty"` // Path to project-specific docker-compose.yml
+	Sandbox     *SandboxConfig     `yaml:"sandbox,omitempty"`
 }
 
 // GetType returns the project type, defaulting to "magento"
@@ -106,6 +107,30 @@ type PHPMDTestConfig struct {
 	Ruleset string   `yaml:"ruleset,omitempty"`
 	Config  string   `yaml:"config,omitempty"`
 	Paths   []string `yaml:"paths,omitempty"`
+}
+
+// SandboxConfig configures the bubblewrap sandbox for AI coding agents
+type SandboxConfig struct {
+	// DefaultTool is the default command to run (default: "claude")
+	DefaultTool string `yaml:"default_tool,omitempty"`
+	// ExtraROBinds are additional read-only bind mounts
+	ExtraROBinds []string `yaml:"extra_ro_binds,omitempty"`
+	// ExtraBinds are additional read-write bind mounts
+	ExtraBinds []string `yaml:"extra_binds,omitempty"`
+	// ToolProfiles overrides for known tool configs
+	ToolProfiles map[string]SandboxToolProfile `yaml:"tool_profiles,omitempty"`
+}
+
+// SandboxToolProfile defines sandbox config for a specific AI tool
+type SandboxToolProfile struct {
+	// Command is the binary name or path to execute
+	Command string `yaml:"command,omitempty"`
+	// Args are default arguments for this tool
+	Args []string `yaml:"args,omitempty"`
+	// ConfigDirs are directories to bind read-write (e.g., ~/.claude)
+	ConfigDirs []string `yaml:"config_dirs,omitempty"`
+	// ConfigFiles are individual files to bind read-write
+	ConfigFiles []string `yaml:"config_files,omitempty"`
 }
 
 // Command represents a custom command that can be run via "magebox run <name>"
