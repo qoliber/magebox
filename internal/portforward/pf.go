@@ -63,6 +63,15 @@ func (m *Manager) Setup() error {
 			verbose.Debug("LaunchDaemon upgraded to version %s", launchDaemonVersion)
 		}
 
+		// Check if pf rules need IPv6 update
+		if m.needsIPv6Update() {
+			verbose.Debug("Adding IPv6 port forwarding rules...")
+			if err := m.createPfRules(); err != nil {
+				return fmt.Errorf("failed to update pf rules with IPv6: %w", err)
+			}
+			return m.reloadPfRules()
+		}
+
 		// Verify rules are active
 		if m.areRulesActive() {
 			verbose.Debug("Port forwarding already configured and active")
@@ -99,7 +108,7 @@ func (m *Manager) Setup() error {
 		return fmt.Errorf("failed to reload pf rules: %w", err)
 	}
 
-	verbose.Debug("Port forwarding configured: 80 → 8080, 443 → 8443")
+	verbose.Debug("Port forwarding configured: 80 → 8080, 443 → 8443 (IPv4 + IPv6)")
 	return nil
 }
 
@@ -165,9 +174,11 @@ func (m *Manager) Remove() error {
 // createPfRules creates the pf (packet filter) rules file
 func (m *Manager) createPfRules() error {
 	rules := `# MageBox port forwarding rules
-# Forward privileged ports to unprivileged ports
+# Forward privileged ports to unprivileged ports (IPv4 and IPv6)
 rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port 8080
 rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
+rdr pass on lo0 inet6 proto tcp from any to any port 80 -> ::1 port 8080
+rdr pass on lo0 inet6 proto tcp from any to any port 443 -> ::1 port 8443
 `
 
 	// Ensure directory exists
@@ -351,6 +362,15 @@ func (m *Manager) areRulesActive() bool {
 
 	verbose.Debug("PF rules check: port80=%v, port443=%v", hasPort80, hasPort443)
 	return hasPort80 && hasPort443
+}
+
+// needsIPv6Update checks if the pf rules file needs IPv6 rules added
+func (m *Manager) needsIPv6Update() bool {
+	content, err := os.ReadFile(pfRulesFile)
+	if err != nil {
+		return false
+	}
+	return !strings.Contains(string(content), "inet6")
 }
 
 // addAnchorToPfConf adds MageBox anchor references to /etc/pf.conf
