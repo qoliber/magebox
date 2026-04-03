@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -36,11 +37,13 @@ func (l *Loader) Load() (*Config, error) {
 	legacyConfigPath := filepath.Join(l.basePath, ConfigFileNameLegacy)
 	localConfigPath := filepath.Join(l.basePath, LocalConfigFileName)
 
+	visited := make(map[string]bool)
+
 	// Try to load new format first, fall back to legacy
-	mainConfig, err := l.loadFile(mainConfigPath)
+	mainConfig, err := l.loadFileWithIncludes(mainConfigPath, visited)
 	if err != nil && os.IsNotExist(err) {
 		// Try legacy format
-		mainConfig, err = l.loadFile(legacyConfigPath)
+		mainConfig, err = l.loadFileWithIncludes(legacyConfigPath, visited)
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, &ConfigNotFoundError{Path: mainConfigPath}
@@ -53,10 +56,10 @@ func (l *Loader) Load() (*Config, error) {
 
 	// Load local config (optional) - try new format first, fall back to legacy
 	legacyLocalConfigPath := filepath.Join(l.basePath, LocalConfigFileNameLegacy)
-	localConfig, err := l.loadFile(localConfigPath)
+	localConfig, err := l.loadFileWithIncludes(localConfigPath, visited)
 	if err != nil && os.IsNotExist(err) {
 		// Try legacy format
-		localConfig, err = l.loadFile(legacyLocalConfigPath)
+		localConfig, err = l.loadFileWithIncludes(legacyLocalConfigPath, visited)
 	}
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to load local config: %w", err)
@@ -73,19 +76,97 @@ func (l *Loader) Load() (*Config, error) {
 	return config, nil
 }
 
-// loadFile loads a single configuration file
-func (l *Loader) loadFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+// loadFileWithIncludes loads a config file and recursively processes include_config entries.
+// visited tracks absolute paths that have already been loaded to detect circular includes.
+func (l *Loader) loadFileWithIncludes(path string, visited map[string]bool) (*Config, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve path %s: %w", path, err)
+	}
+
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, err
 	}
+
+	if visited[absPath] {
+		return nil, fmt.Errorf("circular include detected: %s", path)
+	}
+	visited[absPath] = true
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, &ParseError{Path: path, Err: err}
 	}
 
-	return &config, nil
+	if len(config.IncludeConfig) == 0 {
+		return &config, nil
+	}
+
+	// Process include_config entries: accumulate included configs in order, then
+	// merge the current file's own fields on top so they take final precedence.
+	baseDir := filepath.Dir(absPath)
+	base := &Config{}
+
+	for _, includePath := range config.IncludeConfig {
+		paths, err := l.resolveIncludePaths(baseDir, includePath)
+		if err != nil {
+			return nil, fmt.Errorf("include_config %q: %w", includePath, err)
+		}
+
+		for _, resolvedPath := range paths {
+			included, err := l.loadFileWithIncludes(resolvedPath, visited)
+			if err != nil {
+				return nil, fmt.Errorf("include_config %q: %w", resolvedPath, err)
+			}
+			base = l.merge(base, included)
+		}
+	}
+
+	// Merge the current file's own values on top; clear IncludeConfig so it is
+	// not treated as a field to propagate into the merged result.
+	own := config
+	own.IncludeConfig = nil
+	return l.merge(base, &own), nil
+}
+
+// resolveIncludePaths resolves an include_config entry to one or more file paths.
+// If the resolved path is a directory, all .yaml/.yml files inside it are returned,
+// sorted by file name.
+func (l *Loader) resolveIncludePaths(baseDir, includePath string) ([]string, error) {
+	resolved := includePath
+	if !filepath.IsAbs(includePath) {
+		resolved = filepath.Join(baseDir, includePath)
+	}
+
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("cannot access %q: %w", includePath, err)
+	}
+
+	if !info.IsDir() {
+		return []string{resolved}, nil
+	}
+
+	// Directory: collect all .yaml/.yml files (os.ReadDir returns them sorted by name)
+	entries, err := os.ReadDir(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read directory %q: %w", includePath, err)
+	}
+
+	var paths []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext != ".yaml" && ext != ".yml" {
+			continue
+		}
+		paths = append(paths, filepath.Join(resolved, entry.Name()))
+	}
+
+	return paths, nil
 }
 
 // merge merges two configurations, with local taking precedence
@@ -100,15 +181,26 @@ func (l *Loader) merge(main, local *Config) *Config {
 	if local.Name != "" {
 		result.Name = local.Name
 	}
+	if local.Type != "" {
+		result.Type = local.Type
+	}
 	if local.PHP != "" {
 		result.PHP = local.PHP
 	}
 	if len(local.Domains) > 0 {
 		result.Domains = local.Domains
 	}
-
 	if local.ComposeFile != "" {
 		result.ComposeFile = local.ComposeFile
+	}
+	if local.Isolated {
+		result.Isolated = local.Isolated
+	}
+	if local.Testing != nil {
+		result.Testing = local.Testing
+	}
+	if local.Sandbox != nil {
+		result.Sandbox = local.Sandbox
 	}
 
 	// Merge services

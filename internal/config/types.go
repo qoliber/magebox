@@ -15,18 +15,19 @@ const (
 
 // Config represents the merged configuration from .magebox and .magebox.local
 type Config struct {
-	Name        string             `yaml:"name"`
-	Type        string             `yaml:"type,omitempty"` // Project type: "magento" (default) or "laravel"
-	Domains     []Domain           `yaml:"domains"`
-	PHP         string             `yaml:"php"`
-	PHPINI      map[string]string  `yaml:"php_ini,omitempty"`
-	Isolated    bool               `yaml:"isolated,omitempty"` // Use dedicated PHP-FPM master for this project
-	Services    Services           `yaml:"services"`
-	Env         map[string]string  `yaml:"env,omitempty"`
-	Commands    map[string]Command `yaml:"commands,omitempty"`
-	Testing     *TestingConfig     `yaml:"testing,omitempty"`
-	ComposeFile string             `yaml:"compose_file,omitempty"` // Path to project-specific docker-compose.yml
-	Sandbox     *SandboxConfig     `yaml:"sandbox,omitempty"`
+	Name          string             `yaml:"name"`
+	Type          string             `yaml:"type,omitempty"` // Project type: "magento" (default) or "laravel"
+	Domains       []Domain           `yaml:"domains"`
+	PHP           string             `yaml:"php"`
+	PHPINI        map[string]string  `yaml:"php_ini,omitempty"`
+	Isolated      bool               `yaml:"isolated,omitempty"` // Use dedicated PHP-FPM master for this project
+	Services      Services           `yaml:"services"`
+	Env           map[string]string  `yaml:"env,omitempty"`
+	Commands      map[string]Command `yaml:"commands,omitempty"`
+	Testing       *TestingConfig     `yaml:"testing,omitempty"`
+	ComposeFile   string             `yaml:"compose_file,omitempty"` // Path to project-specific docker-compose.yml
+	Sandbox       *SandboxConfig     `yaml:"sandbox,omitempty"`
+	IncludeConfig []string           `yaml:"include_config,omitempty"` // Paths to additional config files or directories to merge
 }
 
 // GetType returns the project type, defaulting to "magento"

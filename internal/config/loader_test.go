@@ -459,3 +459,293 @@ commands:
 		}
 	})
 }
+
+func TestLoader_IncludeConfig(t *testing.T) {
+	t.Run("include single file adds commands", func(t *testing.T) {
+		dir := t.TempDir()
+		includeDir := filepath.Join(dir, ".magebox")
+		if err := os.MkdirAll(includeDir, 0755); err != nil {
+			t.Fatalf("failed to create include dir: %v", err)
+		}
+
+		initYAML := `
+commands:
+  init: "php bin/magento setup:install"
+`
+		if err := os.WriteFile(filepath.Join(includeDir, "init.yaml"), []byte(initYAML), 0644); err != nil {
+			t.Fatalf("failed to write include file: %v", err)
+		}
+
+		mainConfig := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.3"
+include_config:
+  - ./.magebox/init.yaml
+commands:
+  deploy: "php bin/magento deploy:mode:set production"
+`
+		if err := os.WriteFile(filepath.Join(dir, ".magebox.yaml"), []byte(mainConfig), 0644); err != nil {
+			t.Fatalf("failed to write main config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if config.Name != "mystore" {
+			t.Errorf("Name = %v, want mystore", config.Name)
+		}
+		if config.PHP != "8.3" {
+			t.Errorf("PHP = %v, want 8.3", config.PHP)
+		}
+		// Command from included file
+		if _, ok := config.Commands["init"]; !ok {
+			t.Error("expected 'init' command from included file")
+		}
+		// Command from main file
+		if _, ok := config.Commands["deploy"]; !ok {
+			t.Error("expected 'deploy' command from main file")
+		}
+	})
+
+	t.Run("main file values override included file values", func(t *testing.T) {
+		dir := t.TempDir()
+		includeDir := filepath.Join(dir, ".magebox")
+		if err := os.MkdirAll(includeDir, 0755); err != nil {
+			t.Fatalf("failed to create include dir: %v", err)
+		}
+
+		baseYAML := `
+php: "8.2"
+services:
+  redis: true
+env:
+  APP_ENV: staging
+commands:
+  build: "composer install"
+`
+		if err := os.WriteFile(filepath.Join(includeDir, "base.yaml"), []byte(baseYAML), 0644); err != nil {
+			t.Fatalf("failed to write include file: %v", err)
+		}
+
+		mainConfig := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.3"
+include_config:
+  - ./.magebox/base.yaml
+env:
+  APP_ENV: production
+`
+		if err := os.WriteFile(filepath.Join(dir, ".magebox.yaml"), []byte(mainConfig), 0644); err != nil {
+			t.Fatalf("failed to write main config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Main file's PHP overrides included file's PHP
+		if config.PHP != "8.3" {
+			t.Errorf("PHP = %v, want 8.3 (main file should override included)", config.PHP)
+		}
+		// Env from main overrides included
+		if config.Env["APP_ENV"] != "production" {
+			t.Errorf("APP_ENV = %v, want production", config.Env["APP_ENV"])
+		}
+		// Service from included file is preserved
+		if !config.Services.HasRedis() {
+			t.Error("expected Redis from included file")
+		}
+		// Command from included file is preserved
+		if _, ok := config.Commands["build"]; !ok {
+			t.Error("expected 'build' command from included file")
+		}
+	})
+
+	t.Run("multiple includes merged in order", func(t *testing.T) {
+		dir := t.TempDir()
+		includeDir := filepath.Join(dir, ".magebox")
+		if err := os.MkdirAll(includeDir, 0755); err != nil {
+			t.Fatalf("failed to create include dir: %v", err)
+		}
+
+		initYAML := `
+commands:
+  init: "php bin/magento setup:install"
+env:
+  STEP: init
+`
+		deployYAML := `
+commands:
+  deploy: "php bin/magento deploy:mode:set production"
+env:
+  STEP: deploy
+`
+		reviewYAML := `
+commands:
+  review: "php bin/magento cache:flush"
+`
+		for name, content := range map[string]string{
+			"init.yaml":   initYAML,
+			"deploy.yaml": deployYAML,
+			"review.yaml": reviewYAML,
+		} {
+			if err := os.WriteFile(filepath.Join(includeDir, name), []byte(content), 0644); err != nil {
+				t.Fatalf("failed to write %s: %v", name, err)
+			}
+		}
+
+		mainConfig := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.3"
+include_config:
+  - ./.magebox/init.yaml
+  - ./.magebox/deploy.yaml
+  - ./.magebox/review.yaml
+`
+		if err := os.WriteFile(filepath.Join(dir, ".magebox.yaml"), []byte(mainConfig), 0644); err != nil {
+			t.Fatalf("failed to write main config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, cmd := range []string{"init", "deploy", "review"} {
+			if _, ok := config.Commands[cmd]; !ok {
+				t.Errorf("expected %q command from included files", cmd)
+			}
+		}
+		// Later include (deploy.yaml) overrides earlier include (init.yaml) for env
+		if config.Env["STEP"] != "deploy" {
+			t.Errorf("STEP = %v, want deploy (later include should win)", config.Env["STEP"])
+		}
+	})
+
+	t.Run("include directory loads all yaml files", func(t *testing.T) {
+		dir := t.TempDir()
+		includeDir := filepath.Join(dir, ".magebox")
+		if err := os.MkdirAll(includeDir, 0755); err != nil {
+			t.Fatalf("failed to create include dir: %v", err)
+		}
+
+		for name, content := range map[string]string{
+			"commands.yaml": `commands:
+  cache: "php bin/magento cache:flush"
+`,
+			"services.yml": `services:
+  redis: true
+  rabbitmq: true
+`,
+			"readme.txt": `This file should be ignored`,
+		} {
+			if err := os.WriteFile(filepath.Join(includeDir, name), []byte(content), 0644); err != nil {
+				t.Fatalf("failed to write %s: %v", name, err)
+			}
+		}
+
+		mainConfig := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.3"
+include_config:
+  - ./.magebox
+`
+		if err := os.WriteFile(filepath.Join(dir, ".magebox.yaml"), []byte(mainConfig), 0644); err != nil {
+			t.Fatalf("failed to write main config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		config, err := loader.Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if _, ok := config.Commands["cache"]; !ok {
+			t.Error("expected 'cache' command from directory include")
+		}
+		if !config.Services.HasRedis() {
+			t.Error("expected Redis from directory include")
+		}
+		if !config.Services.HasRabbitMQ() {
+			t.Error("expected RabbitMQ from directory include")
+		}
+	})
+
+	t.Run("circular include is rejected", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// a.yaml includes b.yaml, b.yaml includes a.yaml
+		aYAML := `
+include_config:
+  - ./b.yaml
+commands:
+  a: "echo a"
+`
+		bYAML := `
+include_config:
+  - ./a.yaml
+commands:
+  b: "echo b"
+`
+		if err := os.WriteFile(filepath.Join(dir, "a.yaml"), []byte(aYAML), 0644); err != nil {
+			t.Fatalf("failed to write a.yaml: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "b.yaml"), []byte(bYAML), 0644); err != nil {
+			t.Fatalf("failed to write b.yaml: %v", err)
+		}
+
+		mainConfig := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.3"
+include_config:
+  - ./a.yaml
+`
+		if err := os.WriteFile(filepath.Join(dir, ".magebox.yaml"), []byte(mainConfig), 0644); err != nil {
+			t.Fatalf("failed to write main config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		_, err := loader.Load()
+		if err == nil {
+			t.Error("expected error for circular include, got nil")
+		}
+	})
+
+	t.Run("missing include file returns error", func(t *testing.T) {
+		dir := t.TempDir()
+
+		mainConfig := `
+name: mystore
+domains:
+  - host: mystore.test
+php: "8.3"
+include_config:
+  - ./.magebox/nonexistent.yaml
+`
+		if err := os.WriteFile(filepath.Join(dir, ".magebox.yaml"), []byte(mainConfig), 0644); err != nil {
+			t.Fatalf("failed to write main config: %v", err)
+		}
+
+		loader := NewLoader(dir)
+		_, err := loader.Load()
+		if err == nil {
+			t.Error("expected error for missing include file, got nil")
+		}
+	})
+}
