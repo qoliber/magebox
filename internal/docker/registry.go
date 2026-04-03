@@ -49,7 +49,9 @@ func resolveDockerTagVersion(namespace, image, version string) string {
 
 	cacheKey := fmt.Sprintf("%s/%s:%s", namespace, image, version)
 	if cached, ok := resolvedTags.Load(cacheKey); ok {
-		return cached.(string)
+		if v, ok := cached.(string); ok {
+			return v
+		}
 	}
 
 	resolved := queryDockerHubLatestTag(namespace, image, version)
