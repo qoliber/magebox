@@ -1,6 +1,9 @@
 package docker
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +14,63 @@ import (
 
 	"gopkg.in/yaml.v3"
 )
+
+// setupMockDockerHub starts a lightweight httptest server that mimics the Docker Hub
+// tags API for the given namespace/image/version combinations. The provided tags map
+// is keyed by "namespace/image:major.minor" and the value is the slice of full tags
+// that the mock should return for that query. Returns a cleanup function that restores
+// the original values of dockerHubAPIBase and clears resolvedTags.
+func setupMockDockerHub(t *testing.T, tags map[string][]string) func() {
+	t.Helper()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// URL pattern: /v2/repositories/{namespace}/{image}/tags?name={prefix}.&...
+		const repoPrefix = "/v2/repositories/"
+		if !strings.HasPrefix(r.URL.Path, repoPrefix) {
+			http.NotFound(w, r)
+			return
+		}
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, repoPrefix), "/")
+		if len(parts) < 3 {
+			http.NotFound(w, r)
+			return
+		}
+		namespace := parts[0]
+		image := parts[1]
+		prefix := strings.TrimSuffix(r.URL.Query().Get("name"), ".")
+		key := namespace + "/" + image + ":" + prefix
+
+		tagNames, ok := tags[key]
+		if !ok {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"results": []interface{}{}})
+			return
+		}
+
+		type tagResult struct {
+			Name string `json:"name"`
+		}
+		results := make([]tagResult, len(tagNames))
+		for i, name := range tagNames {
+			results[i] = tagResult{Name: name}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"results": results})
+	}))
+
+	prevBase := dockerHubAPIBase
+	dockerHubAPIBase = ts.URL
+
+	return func() {
+		ts.Close()
+		dockerHubAPIBase = prevBase
+		// Clear in-memory cache so other tests are not affected.
+		resolvedTags.Range(func(k, _ interface{}) bool {
+			resolvedTags.Delete(k)
+			return true
+		})
+	}
+}
 
 func setupTestComposeGenerator(t *testing.T) (*ComposeGenerator, string) {
 	tmpDir := t.TempDir()
@@ -484,20 +544,27 @@ func TestGetElasticsearchPort(t *testing.T) {
 }
 
 func TestResolveElasticsearchVersion(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7.17": {"7.17.27", "7.17.28", "7.17.26"},
+		"library/elasticsearch:8.11": {"8.11.3", "8.11.4", "8.11.2"},
+		"library/elasticsearch:8.17": {"8.17.4", "8.17.3"},
+		"library/elasticsearch:7.6":  {"7.6.2", "7.6.1"},
+	})
+	defer cleanup()
+
 	tests := []struct {
 		version  string
 		expected string
 	}{
-		// major.minor inputs should resolve to latest full version
+		// major.minor inputs should resolve to highest patch version
 		{"7.17", "7.17.28"},
 		{"8.11", "8.11.4"},
 		{"8.17", "8.17.4"},
 		{"7.6", "7.6.2"},
-		{"8.0", "8.0.1"},
-		// already full versions pass through unchanged
+		// already full versions pass through unchanged (no Hub query)
 		{"7.17.28", "7.17.28"},
 		{"8.11.4", "8.11.4"},
-		// unknown major.minor passes through unchanged
+		// unknown major.minor (not in mock) passes through unchanged
 		{"9.0", "9.0"},
 		{"10.5", "10.5"},
 	}
@@ -512,20 +579,29 @@ func TestResolveElasticsearchVersion(t *testing.T) {
 }
 
 func TestResolveOpenSearchVersion(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:2.19": {"2.19.1", "2.19.2", "2.19.0"},
+		"opensearchproject/opensearch:1.3":  {"1.3.19", "1.3.20", "1.3.18"},
+		"opensearchproject/opensearch:2.5":  {"2.5.0"},
+		"opensearchproject/opensearch:3.0":  {"3.0.0"},
+		"opensearchproject/opensearch:3.3":  {"3.3.0"},
+	})
+	defer cleanup()
+
 	tests := []struct {
 		version  string
 		expected string
 	}{
-		// major.minor inputs should resolve to latest full version
+		// major.minor inputs should resolve to highest patch version
 		{"2.19", "2.19.2"},
 		{"1.3", "1.3.20"},
 		{"2.5", "2.5.0"},
 		{"3.0", "3.0.0"},
 		{"3.3", "3.3.0"},
-		// already full versions pass through unchanged
+		// already full versions pass through unchanged (no Hub query)
 		{"2.19.4", "2.19.4"},
 		{"1.3.20", "1.3.20"},
-		// unknown major.minor passes through unchanged
+		// unknown major.minor (not in mock) passes through unchanged
 		{"4.0", "4.0"},
 		{"5.1", "5.1"},
 	}
@@ -540,6 +616,11 @@ func TestResolveOpenSearchVersion(t *testing.T) {
 }
 
 func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7.17": {"7.17.26", "7.17.28", "7.17.27"},
+	})
+	defer cleanup()
+
 	g, _ := setupTestComposeGenerator(t)
 
 	// When user specifies major.minor only, image should use resolved full version
@@ -559,6 +640,11 @@ func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
 }
 
 func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:2.19": {"2.19.0", "2.19.2", "2.19.1"},
+	})
+	defer cleanup()
+
 	g, _ := setupTestComposeGenerator(t)
 
 	// When user specifies major.minor only, image should use resolved full version
@@ -574,6 +660,55 @@ func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
 	// Container name should still use the user-specified version
 	if svc.ContainerName != "magebox-opensearch-2.19" {
 		t.Errorf("ContainerName = %v, want magebox-opensearch-2.19", svc.ContainerName)
+	}
+}
+
+func TestResolveDockerTagVersion_FallbackOnHTTPError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	prevBase := dockerHubAPIBase
+	dockerHubAPIBase = ts.URL
+	defer func() {
+		dockerHubAPIBase = prevBase
+		resolvedTags.Range(func(k, _ interface{}) bool {
+			resolvedTags.Delete(k)
+			return true
+		})
+	}()
+
+	// Should fall back to the input version when the Hub returns an error
+	got := ResolveElasticsearchVersion("8.11")
+	if got != "8.11" {
+		t.Errorf("ResolveElasticsearchVersion on HTTP error = %v, want 8.11 (unchanged)", got)
+	}
+}
+
+func TestCompareVersionStrings(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want int // sign only: negative, zero, positive
+	}{
+		{"7.17.28", "7.17.27", 1},
+		{"7.17.27", "7.17.28", -1},
+		{"7.17.28", "7.17.28", 0},
+		{"8.0.0", "7.17.28", 1},
+		{"7.17.9", "7.17.28", -1}, // numeric vs string: 9 < 28
+	}
+	for _, tt := range tests {
+		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
+			got := compareVersionStrings(tt.a, tt.b)
+			switch {
+			case tt.want > 0 && got <= 0:
+				t.Errorf("compareVersionStrings(%q, %q) = %d, want > 0", tt.a, tt.b, got)
+			case tt.want < 0 && got >= 0:
+				t.Errorf("compareVersionStrings(%q, %q) = %d, want < 0", tt.a, tt.b, got)
+			case tt.want == 0 && got != 0:
+				t.Errorf("compareVersionStrings(%q, %q) = %d, want 0", tt.a, tt.b, got)
+			}
+		})
 	}
 }
 

@@ -826,65 +826,18 @@ func GetElasticsearchPort(version string) int {
 	return computeSearchPort(9500, normalized)
 }
 
-// elasticsearchVersions maps major.minor version strings to the latest known full (major.minor.patch)
-// version available on Docker Hub. Entries should be updated when new patch releases are published.
-// If a version is not in the map (e.g. a brand-new minor or an unknown major.minor), the input
-// is returned unchanged.
-var elasticsearchVersions = map[string]string{
-	"7.6":  "7.6.2",
-	"7.9":  "7.9.3",
-	"7.10": "7.10.2",
-	"7.16": "7.16.3",
-	"7.17": "7.17.28",
-	"8.0":  "8.0.1",
-	"8.4":  "8.4.3",
-	"8.7":  "8.7.1",
-	"8.11": "8.11.4",
-	"8.14": "8.14.3",
-	"8.15": "8.15.5",
-	"8.17": "8.17.4",
-}
-
-var openSearchVersions = map[string]string{
-	"1.3":  "1.3.20",
-	"2.5":  "2.5.0",
-	"2.10": "2.10.0",
-	"2.11": "2.11.1",
-	"2.12": "2.12.0",
-	"2.13": "2.13.0",
-	"2.15": "2.15.0",
-	"2.17": "2.17.0",
-	"2.19": "2.19.2",
-	"3.0":  "3.0.0",
-	"3.3":  "3.3.0",
-}
-
-// ResolveElasticsearchVersion resolves a major.minor version string to the latest known full
-// (major.minor.patch) version. If the input already contains a patch component, or if the
-// major.minor pair is not in the known-versions table, the input is returned unchanged so that
-// callers can still specify arbitrary full versions.
+// ResolveElasticsearchVersion resolves a major.minor version string to the latest available full
+// (major.minor.patch) version by querying Docker Hub. If the input already contains a patch
+// component it is returned unchanged. On any network or parse error the input is also returned
+// unchanged so that Docker can produce an actionable error message.
 func ResolveElasticsearchVersion(version string) string {
-	parts := strings.SplitN(version, ".", 3)
-	if len(parts) == 3 {
-		return version
-	}
-	if full, ok := elasticsearchVersions[normalizeSearchVersion(version)]; ok {
-		return full
-	}
-	return version
+	return resolveDockerTagVersion("library", "elasticsearch", version)
 }
 
-// ResolveOpenSearchVersion resolves a major.minor version string to the latest known full
-// (major.minor.patch) version. See ResolveElasticsearchVersion for resolution rules.
+// ResolveOpenSearchVersion resolves a major.minor version string to the latest available full
+// (major.minor.patch) version by querying Docker Hub. See ResolveElasticsearchVersion for rules.
 func ResolveOpenSearchVersion(version string) string {
-	parts := strings.SplitN(version, ".", 3)
-	if len(parts) == 3 {
-		return version
-	}
-	if full, ok := openSearchVersions[normalizeSearchVersion(version)]; ok {
-		return full
-	}
-	return version
+	return resolveDockerTagVersion("opensearchproject", "opensearch", version)
 }
 
 // ComposeDir returns the compose directory path
