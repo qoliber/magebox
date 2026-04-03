@@ -35,6 +35,10 @@ test/containers/test.blackfire.env
 *.tmp
 *.bak
 
+# Python
+__pycache__/
+*.pyc
+
 # Node.js / VitePress
 node_modules/
 .vitepress/cache/

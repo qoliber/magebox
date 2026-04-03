@@ -1,0 +1,233 @@
+name: Auto-Update Versions
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'  # Every Monday at 10:00 UTC (runs after version-check at 09:00)
+  workflow_dispatch:
+    inputs:
+      magento:
+        description: 'New Magento version to add (e.g. 2.4.8-p5). Leave empty to auto-detect.'
+        required: false
+        default: ''
+      mageos:
+        description: 'New MageOS version to add (e.g. 2.2.1). Leave empty to auto-detect.'
+        required: false
+        default: ''
+      base:
+        description: 'Base Magento version for the MageOS release (e.g. 2.4.8). Auto-inferred when empty.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-versions:
+    name: Detect and update Magento/MageOS versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: pip install ruamel.yaml
+
+      - name: Detect new upstream versions
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use manual inputs when provided, otherwise auto-detect
+          MAGENTO_INPUT="${{ inputs.magento }}"
+          MAGEOS_INPUT="${{ inputs.mageos }}"
+
+          NEW_MAGENTO=""
+          NEW_MAGEOS=""
+
+          # Returns 0 if $1 >= $2 (semver-aware)
+          version_gte() {
+            [ "$(printf '%s\n%s' "$1" "$2" | sort -V | head -n1)" = "$2" ]
+          }
+
+          # Regex to extract known versions from the YAML registry (handles both Magento and MageOS)
+          KNOWN_VER_REGEX='version: "\K[0-9]+\.[0-9]+\.[0-9]+(-p[0-9]+)?(?=")'
+
+          if [ -n "$MAGENTO_INPUT" ]; then
+            NEW_MAGENTO="$MAGENTO_INPUT"
+            echo "Using manually specified Magento version: $NEW_MAGENTO"
+          else
+            echo "Auto-detecting new Magento versions..."
+            MIN_MAGENTO="2.4.6-p7"
+            # Limit to the 20 most recent tags: new releases always appear near the top,
+            # and this avoids paginating through hundreds of historical tags unnecessarily.
+            MAGENTO_TAGS=$(gh api repos/magento/magento2/tags --paginate --jq '.[].name' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-p[0-9]+)?$' | sort -V | tail -20)
+            KNOWN_MAGENTO=$(sed -n '/^magento:/,/^[^ ]/p' lib/templates/config/versions.yaml \
+              | grep -oP "$KNOWN_VER_REGEX" | sort -V)
+            for tag in $MAGENTO_TAGS; do
+              if version_gte "$tag" "$MIN_MAGENTO" && ! echo "$KNOWN_MAGENTO" | grep -qx "$tag"; then
+                NEW_MAGENTO="$tag"  # keep last (highest) tag
+              fi
+            done
+            [ -n "$NEW_MAGENTO" ] && echo "Detected new Magento version: $NEW_MAGENTO" || echo "Magento: no new versions"
+          fi
+
+          if [ -n "$MAGEOS_INPUT" ]; then
+            NEW_MAGEOS="$MAGEOS_INPUT"
+            echo "Using manually specified MageOS version: $NEW_MAGEOS"
+          else
+            echo "Auto-detecting new MageOS versions..."
+            MIN_MAGEOS="1.0.5"
+            MAGEOS_TAGS=$(gh api repos/mage-os/mageos-magento2/tags --paginate --jq '.[].name' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+            KNOWN_MAGEOS=$(sed -n '/^mageos:/,/^[^ ]/p' lib/templates/config/versions.yaml \
+              | grep -oP "$KNOWN_VER_REGEX" | sort -V)
+            for tag in $MAGEOS_TAGS; do
+              if version_gte "$tag" "$MIN_MAGEOS" && ! echo "$KNOWN_MAGEOS" | grep -qx "$tag"; then
+                NEW_MAGEOS="$tag"
+              fi
+            done
+            [ -n "$NEW_MAGEOS" ] && echo "Detected new MageOS version: $NEW_MAGEOS" || echo "MageOS: no new versions"
+          fi
+
+          echo "new_magento=$NEW_MAGENTO" >> "$GITHUB_OUTPUT"
+          echo "new_mageos=$NEW_MAGEOS"   >> "$GITHUB_OUTPUT"
+
+      - name: Resolve MageOS base Magento version
+        id: resolve_base
+        if: steps.detect.outputs.new_mageos != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MAGEOS_VER="${{ steps.detect.outputs.new_mageos }}"
+          OVERRIDE_BASE="${{ inputs.base }}"
+
+          if [ -n "$OVERRIDE_BASE" ]; then
+            echo "Using manually specified base: $OVERRIDE_BASE"
+            echo "base=$OVERRIDE_BASE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Extract major.minor from the new MageOS version
+          MAGEOS_MINOR=$(echo "$MAGEOS_VER" | cut -d. -f1-2)
+
+          # Use Python to reliably extract the base version for the same major.minor series.
+          # This avoids fragile line-offset assumptions when parsing the YAML file.
+          EXISTING_BASE=$(python3 -c "
+import re, sys
+with open('lib/templates/config/versions.yaml') as f:
+    content = f.read()
+minor = sys.argv[1]
+pattern = r'version: \"' + re.escape(minor) + r'\.[^\"]*\".*?base: \"([^\"]+)\"'
+m = re.search(pattern, content, re.DOTALL)
+print(m.group(1) if m else '')
+" "$MAGEOS_MINOR")
+
+          if [ -n "$EXISTING_BASE" ]; then
+            echo "Inferred base from same major.minor series: $EXISTING_BASE"
+            echo "base=$EXISTING_BASE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Try GitHub release notes for the new version
+          RELEASE_BODY=$(gh api "repos/mage-os/mageos-magento2/releases/tags/${MAGEOS_VER}" \
+            --jq '.body' 2>/dev/null || echo "")
+          RELEASE_BASE=$(echo "$RELEASE_BODY" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-p[0-9]+)?' | head -1)
+
+          if [ -n "$RELEASE_BASE" ]; then
+            echo "Inferred base from release notes: $RELEASE_BASE"
+            echo "base=$RELEASE_BASE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Fall back to the latest known Magento version in the registry
+          FALLBACK=$(grep -oP 'version: "\K[0-9]+\.[0-9]+\.[0-9]+(-p[0-9]+)?(?=")' \
+            lib/templates/config/versions.yaml | head -1)
+          FALLBACK="${FALLBACK:-2.4.8}"
+          echo "Falling back to latest known Magento version: $FALLBACK"
+          echo "base=$FALLBACK" >> "$GITHUB_OUTPUT"
+
+      - name: Update version YAML files
+        id: update
+        if: steps.detect.outputs.new_magento != '' || steps.detect.outputs.new_mageos != ''
+        run: |
+          ARGS=""
+          [ -n "${{ steps.detect.outputs.new_magento }}" ] && ARGS="$ARGS --magento ${{ steps.detect.outputs.new_magento }}"
+          [ -n "${{ steps.detect.outputs.new_mageos }}"  ] && ARGS="$ARGS --mageos ${{ steps.detect.outputs.new_mageos }}"
+          [ -n "${{ steps.resolve_base.outputs.base }}"  ] && ARGS="$ARGS --base ${{ steps.resolve_base.outputs.base }}"
+
+          python3 scripts/update_versions.py $ARGS
+
+      - name: Build PR body
+        id: pr_body
+        if: steps.detect.outputs.new_magento != '' || steps.detect.outputs.new_mageos != ''
+        run: |
+          {
+            echo "## Automated version update"
+            echo ""
+            echo "This PR was created automatically by the **Auto-Update Versions** workflow."
+            echo ""
+            echo "### Changes"
+            if [ -n "${{ steps.detect.outputs.new_magento }}" ]; then
+              echo "- **Magento Open Source ${{ steps.detect.outputs.new_magento }}** added"
+            fi
+            if [ -n "${{ steps.detect.outputs.new_mageos }}" ]; then
+              BASE="${{ steps.resolve_base.outputs.base }}"
+              echo "- **MageOS ${{ steps.detect.outputs.new_mageos }}** added (base: ${BASE:-auto-detected})"
+            fi
+            echo ""
+            echo "### Files changed"
+            echo "- \`internal/lib/config/versions.yaml\`"
+            echo "- \`lib/templates/config/versions.yaml\`"
+            echo ""
+            echo "> Please review the PHP compatibility and base Magento version before merging."
+          } > pr_body.md
+          cat pr_body.md
+
+      - name: Create pull request
+        if: steps.detect.outputs.new_magento != '' || steps.detect.outputs.new_mageos != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Ensure the auto-update label exists
+          gh label create "auto-update" --color "0075ca" --description "Automated version update" 2>/dev/null || true
+
+          # Build a branch name from the detected versions
+          MAGENTO_VER="${{ steps.detect.outputs.new_magento }}"
+          MAGEOS_VER="${{ steps.detect.outputs.new_mageos }}"
+
+          PARTS=""
+          [ -n "$MAGENTO_VER" ] && PARTS="${PARTS:+$PARTS-}magento-${MAGENTO_VER}"
+          [ -n "$MAGEOS_VER"  ] && PARTS="${PARTS:+$PARTS-}mageos-${MAGEOS_VER}"
+          BRANCH="auto-update-versions/${PARTS}"
+
+          # Check if a PR for this exact combination already exists
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for branch $BRANCH – skipping."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add internal/lib/config/versions.yaml lib/templates/config/versions.yaml
+
+          TITLE_PARTS=""
+          [ -n "$MAGENTO_VER" ] && TITLE_PARTS="${TITLE_PARTS:+$TITLE_PARTS, }Magento ${MAGENTO_VER}"
+          [ -n "$MAGEOS_VER"  ] && TITLE_PARTS="${TITLE_PARTS:+$TITLE_PARTS, }MageOS ${MAGEOS_VER}"
+          git commit -m "chore: add ${TITLE_PARTS} to version registry"
+
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "chore: add ${TITLE_PARTS} to version registry" \
+            --body-file pr_body.md \
+            --label "auto-update"
