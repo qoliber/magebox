@@ -483,6 +483,100 @@ func TestGetElasticsearchPort(t *testing.T) {
 	}
 }
 
+func TestResolveElasticsearchVersion(t *testing.T) {
+	tests := []struct {
+		version  string
+		expected string
+	}{
+		// major.minor inputs should resolve to latest full version
+		{"7.17", "7.17.28"},
+		{"8.11", "8.11.4"},
+		{"8.17", "8.17.4"},
+		{"7.6", "7.6.2"},
+		{"8.0", "8.0.1"},
+		// already full versions pass through unchanged
+		{"7.17.28", "7.17.28"},
+		{"8.11.4", "8.11.4"},
+		// unknown major.minor passes through unchanged
+		{"9.0", "9.0"},
+		{"10.5", "10.5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			if got := ResolveElasticsearchVersion(tt.version); got != tt.expected {
+				t.Errorf("ResolveElasticsearchVersion(%v) = %v, want %v", tt.version, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestResolveOpenSearchVersion(t *testing.T) {
+	tests := []struct {
+		version  string
+		expected string
+	}{
+		// major.minor inputs should resolve to latest full version
+		{"2.19", "2.19.2"},
+		{"1.3", "1.3.20"},
+		{"2.5", "2.5.0"},
+		{"3.0", "3.0.0"},
+		{"3.3", "3.3.0"},
+		// already full versions pass through unchanged
+		{"2.19.4", "2.19.4"},
+		{"1.3.20", "1.3.20"},
+		// unknown major.minor passes through unchanged
+		{"4.0", "4.0"},
+		{"5.1", "5.1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			if got := ResolveOpenSearchVersion(tt.version); got != tt.expected {
+				t.Errorf("ResolveOpenSearchVersion(%v) = %v, want %v", tt.version, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	// When user specifies major.minor only, image should use resolved full version
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "7.17",
+	}
+	svc := g.getElasticsearchService(svcCfg, false)
+
+	if svc.Image != "elasticsearch:7.17.28" {
+		t.Errorf("Image = %v, want elasticsearch:7.17.28 (resolved full version)", svc.Image)
+	}
+	// Container name should still use the user-specified version
+	if svc.ContainerName != "magebox-elasticsearch-7.17" {
+		t.Errorf("ContainerName = %v, want magebox-elasticsearch-7.17", svc.ContainerName)
+	}
+}
+
+func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	// When user specifies major.minor only, image should use resolved full version
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "2.19",
+	}
+	svc := g.getOpenSearchService(svcCfg, false)
+
+	if svc.Image != "opensearchproject/opensearch:2.19.2" {
+		t.Errorf("Image = %v, want opensearchproject/opensearch:2.19.2 (resolved full version)", svc.Image)
+	}
+	// Container name should still use the user-specified version
+	if svc.ContainerName != "magebox-opensearch-2.19" {
+		t.Errorf("ContainerName = %v, want magebox-opensearch-2.19", svc.ContainerName)
+	}
+}
+
 func TestComposeService_Valkey(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
