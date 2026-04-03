@@ -281,6 +281,77 @@ MageBox always asks for confirmation before starting or stopping custom containe
 
 ---
 
+### include_config
+
+Split your `.magebox.yaml` across multiple files by listing them under `include_config`. Paths are relative to the file that declares them. This is useful for large projects where you want to organise configuration by concern (e.g. services, commands, testing).
+
+```yaml
+include_config:
+  - ./.magebox/services.yaml
+  - ./.magebox/commands.yaml
+  - ./.magebox/testing.yaml
+```
+
+You can also point to a **directory** — every `.yaml`/`.yml` file inside it is loaded automatically, sorted by filename:
+
+```yaml
+include_config:
+  - ./.magebox  # loads all .yaml/.yml files in this directory
+```
+
+#### How merging works
+
+Included files are merged in the order they are listed. Fields set in the *current file* always win over values from included files. Map fields (`env`, `commands`, `php_ini`) and services are deep-merged, so entries from multiple files accumulate; later entries override earlier ones for the same key.
+
+**Example: splitting a large config**
+
+```yaml
+# .magebox.yaml
+name: example-store
+domains:
+  - host: example-store.test
+php: "8.3"
+services:
+  mysql: "8.0"
+include_config:
+  - ./.magebox/init.yaml
+  - ./.magebox/deploy.yaml
+  - ./.magebox/review.yaml
+```
+
+```yaml
+# .magebox/init.yaml
+commands:
+  setup:
+    description: "Install Magento"
+    run: |
+      composer install
+      php bin/magento setup:install
+```
+
+```yaml
+# .magebox/deploy.yaml
+commands:
+  deploy:
+    description: "Deploy to production mode"
+    run: |
+      php bin/magento deploy:mode:set production
+      php bin/magento setup:di:compile
+      php bin/magento setup:static-content:deploy -f
+env:
+  DEPLOY_ENV: production
+```
+
+::: tip
+Included files follow the exact same format as `.magebox.yaml`. They can themselves contain `include_config` entries for deeper nesting.
+:::
+
+::: warning Circular includes
+MageBox detects circular includes and returns an error if a file is included more than once in the same load chain.
+:::
+
+---
+
 ### env
 
 Environment variables passed to PHP-FPM:
@@ -367,6 +438,8 @@ Error: MySQL version '5.6' is not supported. Use 5.7, 8.0, or 8.4
 4. **Define common commands** to standardize team workflows
 
 5. **Use descriptive project names** to easily identify projects in `magebox list`
+
+6. **Split large configs** with `include_config` — put commands, services, and testing config in separate files under a `.magebox/` directory for easier maintenance
 
 ## Database Credentials
 

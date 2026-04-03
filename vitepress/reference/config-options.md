@@ -114,6 +114,25 @@ The path is relative to the project root unless an absolute path is given.
 
 ---
 
+### include_config
+
+`array of strings`
+
+Split your configuration across multiple files. Each entry is a path (relative to the declaring file) to another YAML config file **or** a directory — when a directory is given, all `.yaml`/`.yml` files inside are loaded in alphabetical order.
+
+```yaml
+include_config:
+  - ./.magebox/services.yaml
+  - ./.magebox/commands.yaml
+  - ./.magebox           # auto-include all .yaml/.yml files in the directory
+```
+
+Included files are merged in declaration order. Fields set in the current file always take final precedence. Map fields (`env`, `commands`, `php_ini`) and services are deep-merged; for the same key, later entries override earlier ones.
+
+Included files can themselves contain `include_config` entries. Circular includes are detected and rejected with an error.
+
+---
+
 ### env
 
 `object`
