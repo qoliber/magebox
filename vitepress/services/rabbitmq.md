@@ -39,8 +39,8 @@ services:
 | Host | `127.0.0.1` |
 | AMQP Port | `5672` |
 | Management Port | `15672` |
-| Username | `magebox` |
-| Password | `magebox` |
+| Username | `guest` |
+| Password | `guest` |
 | Virtual Host | `/` |
 
 ## Magento Configuration
@@ -51,8 +51,8 @@ services:
 php bin/magento setup:install \
     --amqp-host=127.0.0.1 \
     --amqp-port=5672 \
-    --amqp-user=magebox \
-    --amqp-password=magebox \
+    --amqp-user=guest \
+    --amqp-password=guest \
     # ... other options
 ```
 
@@ -64,8 +64,8 @@ php bin/magento setup:install \
     'amqp' => [
         'host' => '127.0.0.1',
         'port' => '5672',
-        'user' => 'magebox',
-        'password' => 'magebox',
+        'user' => 'guest',
+        'password' => 'guest',
         'virtualhost' => '/'
     ]
 ],
@@ -81,8 +81,8 @@ To use RabbitMQ for specific operations, update `env.php`:
     'amqp' => [
         'host' => '127.0.0.1',
         'port' => '5672',
-        'user' => 'magebox',
-        'password' => 'magebox',
+        'user' => 'guest',
+        'password' => 'guest',
         'virtualhost' => '/'
     ]
 ],
@@ -99,8 +99,8 @@ http://localhost:15672
 ```
 
 **Credentials:**
-- Username: `magebox`
-- Password: `magebox`
+- Username: `guest`
+- Password: `guest`
 
 ### Features
 
@@ -118,21 +118,21 @@ The management UI allows you to:
 
 ```bash
 # Via management API
-curl -u magebox:magebox http://localhost:15672/api/queues | jq
+curl -u guest:guest http://localhost:15672/api/queues | jq
 ```
 
 ### Purge a Queue
 
 ```bash
 # Via management API
-curl -X DELETE -u magebox:magebox \
+curl -X DELETE -u guest:guest \
     http://localhost:15672/api/queues/%2F/queue_name/contents
 ```
 
 ### Check Connection
 
 ```bash
-curl -u magebox:magebox http://localhost:15672/api/overview | jq '.message_stats'
+curl -u guest:guest http://localhost:15672/api/overview | jq '.message_stats'
 ```
 
 ## Message Consumers
@@ -220,7 +220,7 @@ Failed to connect to RabbitMQ
 
 2. Verify port is accessible:
    ```bash
-   curl -u magebox:magebox http://localhost:15672/api/overview
+   curl -u guest:guest http://localhost:15672/api/overview
    ```
 
 3. Start services:
@@ -251,7 +251,7 @@ If messages are accumulating:
 
 ```bash
 # Check queue size
-curl -u magebox:magebox http://localhost:15672/api/queues | jq '.[].messages'
+curl -u guest:guest http://localhost:15672/api/queues | jq '.[].messages'
 
 # Run consumer with batch processing
 php bin/magento queue:consumers:start async.operations.all --max-messages=1000
@@ -273,8 +273,8 @@ Verify credentials in `env.php`:
 ```php
 'queue' => [
     'amqp' => [
-        'user' => 'magebox',
-        'password' => 'magebox',
+        'user' => 'guest',
+        'password' => 'guest',
     ]
 ],
 ```
@@ -331,7 +331,7 @@ If you don't need async operations:
 
 ```bash
 # Simple monitoring script
-watch -n 5 'curl -s -u magebox:magebox http://localhost:15672/api/queues | jq ".[].messages"'
+watch -n 5 'curl -s -u guest:guest http://localhost:15672/api/queues | jq ".[].messages"'
 ```
 
 ### Testing Async Operations

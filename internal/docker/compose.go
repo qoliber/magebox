@@ -110,8 +110,8 @@ const (
 
 // Default RabbitMQ credentials
 const (
-	DefaultRabbitMQUser = "magebox"
-	DefaultRabbitMQPass = "magebox"
+	DefaultRabbitMQUser = "guest"
+	DefaultRabbitMQPass = "guest"
 )
 
 // ComposeGenerator generates Docker Compose configurations for global services

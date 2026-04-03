@@ -18,8 +18,8 @@ services:
 | Host | 127.0.0.1 |
 | AMQP Port | 5672 |
 | Management UI Port | 15672 |
-| Username | magebox |
-| Password | magebox |
+| Username | guest |
+| Password | guest |
 | Virtual Host | / |
 
 ## Management UI
@@ -31,8 +31,8 @@ http://localhost:15672
 ```
 
 Login with:
-- Username: `magebox`
-- Password: `magebox`
+- Username: `guest`
+- Password: `guest`
 
 ## Magento Configuration
 
@@ -43,8 +43,8 @@ Configure Magento to use RabbitMQ (`app/etc/env.php`):
     'amqp' => [
         'host' => '127.0.0.1',
         'port' => '5672',
-        'user' => 'magebox',
-        'password' => 'magebox',
+        'user' => 'guest',
+        'password' => 'guest',
         'virtualhost' => '/'
     ]
 ]
@@ -56,8 +56,8 @@ Or via CLI:
 magebox cli setup:config:set \
     --amqp-host=127.0.0.1 \
     --amqp-port=5672 \
-    --amqp-user=magebox \
-    --amqp-password=magebox \
+    --amqp-user=guest \
+    --amqp-password=guest \
     --amqp-virtualhost=/
 ```
 
@@ -107,20 +107,20 @@ magebox cli queue:consumers:start async.operations.all --max-messages=100
 Via Management UI or CLI:
 
 ```bash
-curl -u magebox:magebox http://localhost:15672/api/queues
+curl -u guest:guest http://localhost:15672/api/queues
 ```
 
 ### Purge a Queue
 
 ```bash
-curl -u magebox:magebox -X DELETE \
+curl -u guest:guest -X DELETE \
     http://localhost:15672/api/queues/%2F/async.operations.all/contents
 ```
 
 ### Check Queue Depth
 
 ```bash
-curl -u magebox:magebox \
+curl -u guest:guest \
     http://localhost:15672/api/queues/%2F/async.operations.all | jq '.messages'
 ```
 
@@ -181,7 +181,7 @@ ps aux | grep queue:consumers
 2. Check queue has messages:
 
 ```bash
-curl -u magebox:magebox http://localhost:15672/api/queues/%2F/async.operations.all
+curl -u guest:guest http://localhost:15672/api/queues/%2F/async.operations.all
 ```
 
 3. Check for errors in Magento logs:
