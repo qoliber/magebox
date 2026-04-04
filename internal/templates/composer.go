@@ -78,6 +78,12 @@ type MageOSVersion struct {
 // GetMagentoVersions returns available Magento versions
 func GetMagentoVersions() map[string]MagentoVersion {
 	return map[string]MagentoVersion{
+		"2.4.8-p4": {
+			Version:            "2.4.8-p4",
+			ProductVersion:     "2.4.8-p4",
+			RootUpdatePlugin:   "^2.0.4",
+			VersionAuditPlugin: "~0.1",
+		},
 		"2.4.8-p3": {
 			Version:            "2.4.8-p3",
 			ProductVersion:     "2.4.8-p3",
@@ -99,6 +105,12 @@ func GetMagentoVersions() map[string]MagentoVersion {
 		"2.4.8": {
 			Version:            "2.4.8",
 			ProductVersion:     "2.4.8",
+			RootUpdatePlugin:   "^2.0.4",
+			VersionAuditPlugin: "~0.1",
+		},
+		"2.4.7-p9": {
+			Version:            "2.4.7-p9",
+			ProductVersion:     "2.4.7-p9",
 			RootUpdatePlugin:   "^2.0.4",
 			VersionAuditPlugin: "~0.1",
 		},
@@ -153,6 +165,12 @@ func GetMagentoVersions() map[string]MagentoVersion {
 		"2.4.7": {
 			Version:            "2.4.7",
 			ProductVersion:     "2.4.7",
+			RootUpdatePlugin:   "^2.0.4",
+			VersionAuditPlugin: "~0.1",
+		},
+		"2.4.6-p14": {
+			Version:            "2.4.6-p14",
+			ProductVersion:     "2.4.6-p14",
 			RootUpdatePlugin:   "^2.0.4",
 			VersionAuditPlugin: "~0.1",
 		},
@@ -269,7 +287,7 @@ func GetMageOSVersions() map[string]MageOSVersion {
 
 // GetLatestMagentoVersion returns the latest Magento version
 func GetLatestMagentoVersion() string {
-	return "2.4.8-p3"
+	return "2.4.8-p4"
 }
 
 // GetLatestMageOSVersion returns the latest MageOS version
@@ -416,10 +434,12 @@ func GenerateMageOSComposerJSON(projectName, version string) ([]byte, error) {
 // GetAvailableMagentoVersions returns a list of available Magento versions
 func GetAvailableMagentoVersions() []string {
 	return []string{
+		"2.4.8-p4",
 		"2.4.8-p3",
 		"2.4.8-p2",
 		"2.4.8-p1",
 		"2.4.8",
+		"2.4.7-p9",
 		"2.4.7-p8",
 		"2.4.7-p7",
 		"2.4.7-p6",
@@ -429,6 +449,7 @@ func GetAvailableMagentoVersions() []string {
 		"2.4.7-p2",
 		"2.4.7-p1",
 		"2.4.7",
+		"2.4.6-p14",
 		"2.4.6-p13",
 		"2.4.6-p12",
 		"2.4.6-p11",
