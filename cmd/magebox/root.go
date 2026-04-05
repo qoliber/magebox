@@ -30,6 +30,7 @@ func main() {
 			cmd, _, _ := rootCmd.Find(os.Args[1:])
 			if cmd == rootCmd {
 				// Not a known subcommand — check if it's a custom project command
+				delegated := false
 				if cwd, err := os.Getwd(); err == nil {
 					if cfg, err := config.LoadFromPath(cwd); err == nil {
 						if _, ok := cfg.Commands[firstArg]; ok {
@@ -38,6 +39,18 @@ func main() {
 							newArgs = append(newArgs, os.Args[0], "run")
 							newArgs = append(newArgs, os.Args[1:]...)
 							os.Args = newArgs
+							delegated = true
+						}
+					}
+				}
+
+				// Fall back to magerun2 if it's available in PATH and it
+				// actually knows about the requested command. Otherwise
+				// let Cobra show its normal "unknown command" error.
+				if !delegated {
+					if binary, ok := findMagerun(); ok {
+						if magerunHasCommand(binary, firstArg) {
+							os.Exit(runMagerun(binary, os.Args[1:]))
 						}
 					}
 				}
