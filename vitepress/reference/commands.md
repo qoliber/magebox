@@ -516,6 +516,20 @@ commands:
 **Options:**
 - `--list` - Show available commands
 
+---
+
+### Magerun2 Fallback
+
+Any command not recognized by MageBox is automatically forwarded to magerun2 (if installed).
+
+```bash
+magebox cache:flush          # → magerun2 cache:flush
+magebox setup:upgrade        # → magerun2 setup:upgrade
+magebox sys:info             # → magerun2 sys:info
+```
+
+MageBox verifies the command exists in magerun2 before forwarding. The project's configured PHP version is automatically used. Custom commands defined in `.magebox.yaml` take priority over magerun2 commands.
+
 ## Database Commands
 
 ### `magebox db shell`
@@ -729,6 +743,28 @@ Show Redis/Valkey statistics.
 ```bash
 magebox redis info
 ```
+
+## Watch Command
+
+### `magebox watch`
+
+Watch for file changes and selectively clear affected Magento cache types.
+
+```bash
+magebox watch
+```
+
+Runs [`mage-os/magento-cache-clean`](https://github.com/mage-os/magento-cache-clean) in the foreground, watching the project directory and clearing only the cache types affected by each file change.
+
+**Hyvä detection:** If a Hyvä Tailwind theme is found in `app/design/frontend/`, MageBox launches a split `tmux` session — left pane runs `npm run watch` for the Tailwind build, right pane runs the cache watcher.
+
+**Auto-install:** If `cache-clean.js` is not found, MageBox offers to install it via `composer global require mage-os/magento-cache-clean`.
+
+::: tip
+Requires `tmux` when a Hyvä theme is detected. Run `magebox bootstrap` to install it.
+:::
+
+---
 
 ## Log Commands
 

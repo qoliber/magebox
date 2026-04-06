@@ -5,6 +5,13 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-04-06
+
+### Added
+
+- **Watch Command** - New `magebox watch` command that runs `mage-os/magento-cache-clean` to watch for file changes and selectively clear affected cache types. Automatically detects Hyvä themes and launches a split tmux session with both the cache watcher and Tailwind CSS watcher. ([#66](https://github.com/qoliber/magebox/pull/66))
+- **Magerun2 Fallback** - Unknown commands are now automatically forwarded to magerun2 if available, so you can run commands like `magebox cache:flush` or `magebox setup:upgrade` directly without prefixing with `magerun2`. ([#67](https://github.com/qoliber/magebox/pull/67))
+
 ## [1.12.1] - 2026-04-04
 
 ### Fixed
