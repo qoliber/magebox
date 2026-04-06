@@ -21,6 +21,9 @@ var watchCmd = &cobra.Command{
 	Long: `Runs mage-os/magento-cache-clean in the foreground to watch the current
 project and clear only the affected Magento cache types on file changes.
 
+When a Hyvä theme with a Tailwind setup is detected, a second pane is opened
+running "npm run watch" for the theme's Tailwind build (requires multitail).
+
 Requires cache-clean.js to be installed globally via:
   composer global require mage-os/magento-cache-clean
 
@@ -38,7 +41,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if _, ok := loadProjectConfig(cwd); !ok {
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	cfg, ok := loadProjectConfig(cwd)
+	if !ok {
 		return nil
 	}
 
@@ -67,6 +76,23 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Generate cache-clean-config.json from current env.php
+	if err := generateCacheCleanConfig(bin, cwd, p.PHPBinary(cfg.PHP)); err != nil {
+		cli.PrintWarning("Could not generate cache-clean config: %v", err)
+	}
+
+	// Detect Hyvä Tailwind directory
+	hyvaTailwindDir := findHyvaTailwindDir(cwd)
+
+	if hyvaTailwindDir != "" {
+		return runWatchWithHyva(bin, cwd, hyvaTailwindDir)
+	}
+
+	return runWatchCacheCleanOnly(bin, cwd)
+}
+
+// runWatchCacheCleanOnly runs cache-clean.js directly in the foreground.
+func runWatchCacheCleanOnly(bin, cwd string) error {
 	cli.PrintInfo("Watching %s", cli.Path(cwd))
 	cli.PrintInfo("Using %s", cli.Path(bin))
 	fmt.Println()
@@ -76,16 +102,145 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	watcher.Stdout = os.Stdout
 	watcher.Stderr = os.Stderr
 
-	// Ctrl-C at the terminal is delivered to the whole foreground process
-	// group, so the child receives SIGINT directly and exits cleanly.
 	if err := watcher.Run(); err != nil {
-		// Suppress exit-status noise when the user interrupted.
-		if exitErr, ok := err.(*exec.ExitError); ok && !exitErr.Success() {
+		if _, ok := err.(*exec.ExitError); ok {
 			return nil
 		}
 		return err
 	}
 	return nil
+}
+
+// runWatchWithHyva runs cache-clean.js and npm run watch side by side in a tmux session.
+func runWatchWithHyva(bin, cwd, hyvaTailwindDir string) error {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		cli.PrintError("tmux is not installed")
+		cli.PrintInfo("tmux is required to run cache-clean and Hyvä Tailwind watcher side by side")
+		fmt.Println("  brew install tmux  # macOS")
+		fmt.Println("  sudo dnf install tmux  # Fedora")
+		fmt.Println("  sudo apt install tmux  # Ubuntu/Debian")
+		return nil
+	}
+
+	relDir, err := filepath.Rel(cwd, hyvaTailwindDir)
+	if err != nil {
+		relDir = hyvaTailwindDir
+	}
+
+	cli.PrintInfo("Watching %s", cli.Path(cwd))
+	cli.PrintInfo("Cache clean: %s", cli.Path(bin))
+	cli.PrintInfo("Hyvä Tailwind: %s", cli.Path(relDir))
+	fmt.Println()
+
+	sessionName := "magebox-watch"
+
+	// Kill any existing session with the same name
+	_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+
+	cacheCleanCmd := fmt.Sprintf("%s --watch --directory %s", bin, cwd)
+	npmWatchCmd := fmt.Sprintf("npm --prefix %s run watch", hyvaTailwindDir)
+
+	// Create a new detached tmux session with npm watch in the left pane
+	if err := exec.Command("tmux", "new-session", "-d", "-s", sessionName, npmWatchCmd).Run(); err != nil {
+		return fmt.Errorf("failed to create tmux session: %w", err)
+	}
+
+	// Split horizontally and run cache-clean in the right pane
+	if err := exec.Command("tmux", "split-window", "-h", "-t", sessionName, cacheCleanCmd).Run(); err != nil {
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+		return fmt.Errorf("failed to split tmux pane: %w", err)
+	}
+
+	// Attach to the session — this blocks until the user detaches or both panes exit
+	attach := exec.Command("tmux", "attach-session", "-t", sessionName)
+	attach.Stdin = os.Stdin
+	attach.Stdout = os.Stdout
+	attach.Stderr = os.Stderr
+
+	if err := attach.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// findHyvaTailwindDir looks for a Hyvä theme Tailwind directory under
+// app/design/frontend/*/*/web/tailwind/ that contains a package.json.
+func findHyvaTailwindDir(cwd string) string {
+	designDir := filepath.Join(cwd, "app", "design", "frontend")
+	if _, err := os.Stat(designDir); os.IsNotExist(err) {
+		return ""
+	}
+
+	// Walk: app/design/frontend/<Vendor>/<Theme>/web/tailwind/package.json
+	vendors, err := os.ReadDir(designDir)
+	if err != nil {
+		return ""
+	}
+	for _, vendor := range vendors {
+		if !vendor.IsDir() {
+			continue
+		}
+		themes, err := os.ReadDir(filepath.Join(designDir, vendor.Name()))
+		if err != nil {
+			continue
+		}
+		for _, theme := range themes {
+			if !theme.IsDir() {
+				continue
+			}
+			tailwindDir := filepath.Join(designDir, vendor.Name(), theme.Name(), "web", "tailwind")
+			packageJSON := filepath.Join(tailwindDir, "package.json")
+			if _, err := os.Stat(packageJSON); err == nil {
+				return tailwindDir
+			}
+		}
+	}
+	return ""
+}
+
+// generateCacheCleanConfig runs the generate-cache-clean-config.php script
+// that ships with mage-os/magento-cache-clean to produce var/cache-clean-config.json
+// from the current app/etc/env.php. This ensures the watcher uses up-to-date config.
+func generateCacheCleanConfig(cacheCleanBin, projectDir, phpBin string) error {
+	genScript := findGenerateConfigScript(cacheCleanBin)
+	if genScript == "" {
+		return fmt.Errorf("generate-cache-clean-config.php not found")
+	}
+
+	cli.PrintInfo("Generating cache-clean config...")
+	gen := exec.Command(phpBin, genScript, projectDir)
+	gen.Stdout = os.Stdout
+	gen.Stderr = os.Stderr
+	return gen.Run()
+}
+
+// findGenerateConfigScript locates generate-cache-clean-config.php relative to
+// the cache-clean.js binary. The Composer bin wrapper is a shell script that
+// delegates to ../mage-os/magento-cache-clean/bin/cache-clean.js, so we resolve
+// the real package bin directory by following that path.
+func findGenerateConfigScript(cacheCleanBin string) string {
+	binDir := filepath.Dir(cacheCleanBin)
+
+	// Direct: script next to the binary (real package bin dir)
+	candidate := filepath.Join(binDir, "generate-cache-clean-config.php")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+
+	// Composer proxy: vendor/bin/ → ../mage-os/magento-cache-clean/bin/
+	candidate = filepath.Join(binDir, "..", "mage-os", "magento-cache-clean", "bin", "generate-cache-clean-config.php")
+	resolved, err := filepath.Abs(candidate)
+	if err != nil {
+		return ""
+	}
+	if _, err := os.Stat(resolved); err == nil {
+		return resolved
+	}
+
+	return ""
 }
 
 // findCacheCleanBinary resolves the global cache-clean.js binary, preferring
@@ -97,7 +252,6 @@ func findCacheCleanBinary() (string, error) {
 
 	// Fallback: ask composer where its global bin dir is.
 	if _, err := exec.LookPath("composer"); err != nil {
-		// No composer available at all — treat as "not installed".
 		return "", nil
 	}
 
