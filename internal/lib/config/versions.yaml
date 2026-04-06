@@ -92,10 +92,14 @@ magento:
 mageos:
   package: "mage-os/project-community-edition"
   versions:
-    - version: "2.2.0"
-      name: "MageOS 2.2.0 (Latest)"
+    - version: "2.2.1"
+      name: "MageOS 2.2.1 (Latest)"
       php: ["8.4", "8.3", "8.2"]
       default: true
+      base: "2.4.8"
+    - version: "2.2.0"
+      name: "MageOS 2.2.0"
+      php: ["8.4", "8.3", "8.2"]
       base: "2.4.8"
     - version: "2.1.0"
       name: "MageOS 2.1.0"
