@@ -105,6 +105,11 @@ func (m *Manager) Enable(phpVersion string) error {
 		return fmt.Errorf("failed to enable xdebug: %w", err)
 	}
 
+	// Write Xdebug configuration settings
+	if err := m.writeConfig(phpVersion, DefaultXdebugConfig()); err != nil {
+		return fmt.Errorf("failed to write xdebug config: %w", err)
+	}
+
 	return nil
 }
 
@@ -126,6 +131,56 @@ func (m *Manager) Disable(phpVersion string) error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to disable xdebug: %w", err)
+	}
+
+	return nil
+}
+
+// writeConfig writes Xdebug configuration settings to the ini file, preserving the zend_extension line.
+func (m *Manager) writeConfig(phpVersion string, cfg XdebugConfig) error {
+	iniFile := m.getXdebugIniPath(phpVersion)
+	if iniFile == "" {
+		return fmt.Errorf("xdebug ini file not found for PHP %s", phpVersion)
+	}
+
+	// Read existing file to preserve the zend_extension line
+	content, err := os.ReadFile(iniFile)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", iniFile, err)
+	}
+
+	// Find the zend_extension line (commented or uncommented)
+	var zendExtLine string
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(strings.ToLower(line), "zend_extension") && strings.Contains(strings.ToLower(line), "xdebug") {
+			zendExtLine = line
+			break
+		}
+	}
+
+	if zendExtLine == "" {
+		zendExtLine = "zend_extension=xdebug.so"
+	}
+
+	// Generate config from template
+	configContent, err := GenerateXdebugConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Combine zend_extension line with config settings
+	newContent := zendExtLine + "\n" + configContent
+
+	// Write via sudo tee since ini files are root-owned
+	cmd := exec.Command("sudo", "tee", iniFile)
+	cmd.Stdin = strings.NewReader(newContent)
+	cmd.Stdout = nil // suppress tee stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write xdebug config: %w", err)
 	}
 
 	return nil
@@ -218,6 +273,20 @@ func (m *Manager) findXdebugSo(phpVersion string) string {
 		matches, err = filepath.Glob(libPath)
 		if err == nil && len(matches) > 0 {
 			return matches[0]
+		}
+
+	case platform.Linux:
+		// Use php-config to get the correct extension directory for this PHP version
+		phpConfigBin := fmt.Sprintf("php-config%s", phpVersion)
+		if m.platform.LinuxDistro == platform.DistroFedora {
+			phpConfigBin = fmt.Sprintf("php-config%s", strings.ReplaceAll(phpVersion, ".", ""))
+		}
+		if out, err := exec.Command(phpConfigBin, "--extension-dir").Output(); err == nil {
+			extDir := strings.TrimSpace(string(out))
+			soPath := filepath.Join(extDir, "xdebug.so")
+			if _, err := os.Stat(soPath); err == nil {
+				return soPath
+			}
 		}
 	}
 

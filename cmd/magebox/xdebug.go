@@ -79,7 +79,7 @@ func runXdebugOn(cmd *cobra.Command, args []string) error {
 	// Check if installed
 	if !mgr.IsInstalled(phpVersion) {
 		cli.PrintWarning("Xdebug is not installed for PHP %s", phpVersion)
-		cli.PrintInfo("Install with: pecl install xdebug")
+		cli.PrintInfo("Install with: magebox ext install xdebug")
 		return nil
 	}
 
@@ -205,7 +205,7 @@ func runXdebugStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	if !status.Installed {
-		cli.PrintInfo("Install Xdebug with: pecl install xdebug")
+		cli.PrintInfo("Install Xdebug with: magebox ext install xdebug")
 	} else if !status.Enabled {
 		cli.PrintInfo("Enable with: magebox xdebug on")
 	} else {
