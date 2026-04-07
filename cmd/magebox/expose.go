@@ -77,6 +77,7 @@ type savedConfigRow struct {
 	ScopeID string `json:"scope_id"`
 	Path    string `json:"path"`
 	Value   string `json:"value"`
+	IsNull  bool   `json:"is_null,omitempty"`
 }
 
 // savedExposeState holds all state needed to revert an expose session
@@ -403,8 +404,9 @@ func saveExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile, localDomain str
 				fields := strings.SplitN(line, "\t", 4)
 				if len(fields) == 4 {
 					value := fields[3]
+					isNull := value == "NULL"
 					// Fix stale tunnel URLs
-					if strings.Contains(value, ".trycloudflare.com") {
+					if !isNull && strings.Contains(value, ".trycloudflare.com") {
 						switch {
 						case strings.Contains(fields[2], "media"):
 							value = localBaseURL + "media/"
@@ -416,7 +418,7 @@ func saveExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile, localDomain str
 					}
 					state.DBRows = append(state.DBRows, savedConfigRow{
 						Scope: fields[0], ScopeID: fields[1],
-						Path: fields[2], Value: value,
+						Path: fields[2], Value: value, IsNull: isNull,
 					})
 				}
 			}
@@ -551,10 +553,15 @@ func revertExposeState(db *dbInfo, dbName, phpBin, cwd, stateFile string) {
 		fmt.Print("Reverting base URLs in database... ")
 		var statements []string
 		for _, row := range state.DBRows {
-			statements = append(statements,
-				fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
-					row.Value, row.Scope, row.ScopeID, row.Path),
-			)
+			var stmt string
+			if row.IsNull {
+				stmt = fmt.Sprintf("UPDATE core_config_data SET value=NULL WHERE scope='%s' AND scope_id=%s AND path='%s'",
+					row.Scope, row.ScopeID, row.Path)
+			} else {
+				stmt = fmt.Sprintf("UPDATE core_config_data SET value='%s' WHERE scope='%s' AND scope_id=%s AND path='%s'",
+					row.Value, row.Scope, row.ScopeID, row.Path)
+			}
+			statements = append(statements, stmt)
 		}
 		query := strings.Join(statements, "; ")
 		cmd := exec.Command("docker", "exec", db.ContainerName,
