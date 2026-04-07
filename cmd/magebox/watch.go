@@ -151,10 +151,11 @@ func runWatchWithTheme(bin, cwd, themeDir string) error {
 	_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 
 	cacheCleanCmd := fmt.Sprintf("%s --watch --directory %s", bin, cwd)
-	npmWatchCmd := fmt.Sprintf("npm --prefix %s run watch", themeDir)
+	// Wrap npm watch so errors pause with a visible message instead of closing the pane.
+	npmWatchCmd := fmt.Sprintf("npm --prefix %s run watch || { echo ''; echo 'npm run watch failed — press Enter to close'; read; }", themeDir)
 
 	// Create a new detached tmux session with npm watch in the left pane
-	if err := exec.Command("tmux", "new-session", "-d", "-s", sessionName, npmWatchCmd).Run(); err != nil {
+	if err := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "sh", "-c", npmWatchCmd).Run(); err != nil {
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
