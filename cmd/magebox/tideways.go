@@ -350,7 +350,8 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	} else {
 		// Interactive mode
 		cli.PrintTitle("Configure Tideways")
-		fmt.Println("Get your API key from: https://app.tideways.io/settings/api")
+		fmt.Println("Get your API key from your Tideways project settings.")
+		fmt.Println("See: https://support.tideways.com/documentation/setup/installation/api-key.html")
 		fmt.Println()
 
 		reader := bufio.NewReader(os.Stdin)

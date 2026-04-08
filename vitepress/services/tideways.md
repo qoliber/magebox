@@ -31,7 +31,7 @@ Configure your Tideways API key:
 magebox tideways config
 ```
 
-You'll be prompted for your API key from your Tideways account.
+You'll be prompted for your API key. The API key is found in the **Project Settings** page of each individual project in the Tideways dashboard. See [Where do I find the API Key?](https://support.tideways.com/documentation/setup/installation/api-key.html) for details.
 
 ### Credential Storage
 
