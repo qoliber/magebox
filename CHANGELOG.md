@@ -5,6 +5,16 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Tideways PHP Extension API Key** - `magebox tideways config` now writes the `tideways.api_key` directive into the PHP extension ini file for every installed PHP version, which the Tideways PHP extension requires to transmit traces. Previously MageBox only wrote a daemon config file, and traces never reached Tideways.
+
+### Added
+
+- **Tideways CLI Access Token** - `magebox tideways config` now also prompts for (and stores) a separate **Access Token** used by the `tideways` commandline tool (`tideways run`, `tideways event create`, `tideways tracepoint create`). When provided, MageBox runs `tideways import <token>` automatically. A new `--access-token` flag and `TIDEWAYS_CLI_TOKEN` environment variable were added. The API key and access token are two different credentials — both are now managed.
+
 ## [1.14.0] - 2026-04-08
 
 ### Fixed

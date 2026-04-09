@@ -25,30 +25,53 @@ This installs:
 
 ## Configuration
 
-Configure your Tideways API key:
+Configure your Tideways credentials:
 
 ```bash
 magebox tideways config
 ```
 
-You'll be prompted for your API key. The API key is found in the **Project Settings** page of each individual project in the Tideways dashboard. See [Where do I find the API Key?](https://support.tideways.com/documentation/setup/installation/api-key.html) for details.
+Tideways uses **two separate credentials**, and both are stored by `magebox tideways config`:
+
+- **API Key** — the per-project key the PHP extension embeds into every
+  transmitted trace. MageBox writes it to the extension ini file as
+  `tideways.api_key=...`, which is required for the extension to send data.
+  Found on the **Project Settings** page of each project in the Tideways
+  dashboard. See [Where do I find the API Key?](https://support.tideways.com/documentation/setup/installation/api-key.html).
+- **Access Token** — a personal token used by the `tideways` commandline
+  tool (`tideways run`, `tideways event create`, `tideways tracepoint create`).
+  MageBox imports it via `tideways import <token>`. Generated at
+  [app.tideways.io/user/cli-import-settings](https://app.tideways.io/user/cli-import-settings).
+  Optional — only needed if you use the `tideways` CLI.
+
+### Non-interactive configuration
+
+```bash
+magebox tideways config --api-key "your-project-key" --access-token "your-cli-token"
+```
 
 ### Credential Storage
 
-The API key is stored securely in `~/.magebox/config.yaml`:
+Both credentials are stored in `~/.magebox/config.yaml`:
 
 ```yaml
 profiling:
   tideways:
-    api_key: "your-api-key"
+    api_key: "your-project-key"
+    access_token: "your-cli-token"
 ```
+
+The API key is also written to the PHP extension ini file (e.g.
+`/etc/php/8.2/mods-available/tideways.ini` on Debian/Ubuntu) so the Tideways
+PHP extension picks it up on the next PHP-FPM reload.
 
 ### Environment Variables
 
-You can also use an environment variable (takes precedence):
+Both credentials can be overridden via environment variables:
 
 ```bash
-export TIDEWAYS_API_KEY="your-api-key"
+export TIDEWAYS_API_KEY="your-project-key"   # read by the PHP extension and MageBox
+export TIDEWAYS_CLI_TOKEN="your-cli-token"   # read by MageBox for the CLI import
 ```
 
 ## Usage

@@ -69,11 +69,15 @@ The API key is stored in ~/.magebox/config.yaml.`,
 }
 
 // Flags for tideways config
-var tidewaysAPIKey string
+var (
+	tidewaysAPIKey      string
+	tidewaysAccessToken string
+)
 
 func init() {
 	// Add flags for non-interactive config
-	tidewaysConfigCmd.Flags().StringVar(&tidewaysAPIKey, "api-key", "", "Tideways API Key")
+	tidewaysConfigCmd.Flags().StringVar(&tidewaysAPIKey, "api-key", "", "Tideways API Key (project key, for the PHP extension)")
+	tidewaysConfigCmd.Flags().StringVar(&tidewaysAccessToken, "access-token", "", "Tideways CLI access token (for the tideways commandline tool)")
 
 	tidewaysCmd.AddCommand(tidewaysOnCmd)
 	tidewaysCmd.AddCommand(tidewaysOffCmd)
@@ -252,7 +256,8 @@ func runTidewaysStatus(cmd *cobra.Command, args []string) error {
 
 	// Credentials status
 	fmt.Println("Credentials:")
-	fmt.Printf("  API Key configured: %s\n", formatBool(globalCfg.HasTidewaysCredentials()))
+	fmt.Printf("  API Key configured:       %s\n", formatBool(globalCfg.HasTidewaysCredentials()))
+	fmt.Printf("  CLI access token set:     %s\n", formatBool(globalCfg.HasTidewaysAccessToken()))
 	fmt.Println()
 
 	// Helpful tips
@@ -265,7 +270,7 @@ func runTidewaysStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if !globalCfg.HasTidewaysCredentials() {
-		cli.PrintWarning("Configure API key with: magebox tideways config")
+		cli.PrintWarning("Configure credentials with: magebox tideways config")
 	}
 
 	return nil
@@ -341,22 +346,34 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 
 	existingCreds := globalCfg.GetTidewaysCredentials()
 
-	// Check if we have the flag for non-interactive mode
-	var apiKey string
+	// Non-interactive mode is triggered by passing at least one flag.
+	nonInteractive := tidewaysAPIKey != "" || tidewaysAccessToken != ""
 
-	if tidewaysAPIKey != "" {
-		// Use flag value
+	var apiKey, accessToken string
+
+	if nonInteractive {
 		apiKey = tidewaysAPIKey
+		if apiKey == "" {
+			apiKey = existingCreds.APIKey
+		}
+		accessToken = tidewaysAccessToken
+		if accessToken == "" {
+			accessToken = existingCreds.AccessToken
+		}
 	} else {
-		// Interactive mode
 		cli.PrintTitle("Configure Tideways")
-		fmt.Println("Get your API key from your Tideways project settings.")
-		fmt.Println("See: https://support.tideways.com/documentation/setup/installation/api-key.html")
+		fmt.Println("Tideways uses two different credentials:")
+		fmt.Println("  • API Key — project key the PHP extension sends with traces")
+		fmt.Println("    (written to php.ini as tideways.api_key)")
+		fmt.Println("    Found on the Project Settings page in the Tideways dashboard.")
+		fmt.Println("    See: https://support.tideways.com/documentation/setup/installation/api-key.html")
+		fmt.Println("  • Access Token — personal token for the `tideways` CLI command")
+		fmt.Println("    Generated at https://app.tideways.io/user/cli-import-settings")
 		fmt.Println()
 
 		reader := bufio.NewReader(os.Stdin)
 
-		// Prompt for API key
+		// Prompt for API key (required)
 		fmt.Print("API Key")
 		if existingCreds.APIKey != "" {
 			fmt.Printf(" [%s]", maskCredential(existingCreds.APIKey))
@@ -367,6 +384,18 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		if apiKey == "" && existingCreds.APIKey != "" {
 			apiKey = existingCreds.APIKey
 		}
+
+		// Prompt for Access Token (optional — only needed to use the CLI tool)
+		fmt.Print("Access Token (for tideways CLI, optional)")
+		if existingCreds.AccessToken != "" {
+			fmt.Printf(" [%s]", maskCredential(existingCreds.AccessToken))
+		}
+		fmt.Print(": ")
+		accessToken, _ = reader.ReadString('\n')
+		accessToken = strings.TrimSpace(accessToken)
+		if accessToken == "" && existingCreds.AccessToken != "" {
+			accessToken = existingCreds.AccessToken
+		}
 	}
 
 	// Validate
@@ -376,7 +405,8 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 
 	// Save to global config
 	globalCfg.Profiling.Tideways = config.TidewaysCredentials{
-		APIKey: apiKey,
+		APIKey:      apiKey,
+		AccessToken: accessToken,
 	}
 
 	fmt.Println()
@@ -387,23 +417,54 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(cli.Success("done"))
 
-	// Configure daemon if installed
 	mgr := tideways.NewManager(p, &tideways.Credentials{
-		APIKey: apiKey,
+		APIKey:      apiKey,
+		AccessToken: accessToken,
 	})
 
-	if mgr.IsDaemonInstalled() {
-		fmt.Print("Configuring Tideways daemon... ")
-		if err := mgr.ConfigureDaemon(); err != nil {
-			fmt.Println(cli.Warning("failed (configure manually)"))
+	// Write tideways.api_key to every PHP version that has the Tideways
+	// extension installed. The extension refuses to transmit traces without
+	// this directive in php.ini.
+	writtenAny := false
+	for _, v := range p.GetInstalledPHPVersions() {
+		if !mgr.IsExtensionInstalled(v) {
+			continue
+		}
+		fmt.Printf("Writing tideways.api_key to PHP %s ini... ", v)
+		if err := mgr.WriteAPIKeyToExtension(v); err != nil {
+			fmt.Println(cli.Warning("failed"))
+			cli.PrintWarning("  %v", err)
 		} else {
 			fmt.Println(cli.Success("done"))
+			writtenAny = true
 		}
+	}
+	if !writtenAny {
+		cli.PrintWarning("Tideways extension not installed for any PHP version — run 'magebox tideways install' first")
+	} else {
+		// Reload PHP-FPM for the current project's PHP version if we can
+		// determine it, so the directive takes effect immediately.
+		if cwd, cwdErr := getCwd(); cwdErr == nil {
+			if phpVersion, phpErr := getProjectPHPVersion(cwd); phpErr == nil && mgr.IsExtensionInstalled(phpVersion) {
+				fmt.Printf("Reloading PHP-FPM %s... ", phpVersion)
+				fpmCtrl := php.NewFPMController(p, phpVersion)
+				if err := fpmCtrl.Reload(); err != nil {
+					fmt.Println(cli.Warning("failed (reload manually)"))
+				} else {
+					fmt.Println(cli.Success("done"))
+				}
+			}
+		}
+	}
 
-		// Restart daemon
-		fmt.Print("Restarting Tideways daemon... ")
-		if err := mgr.RestartDaemon(); err != nil {
-			fmt.Println(cli.Warning("failed (restart manually)"))
+	// Import the CLI access token if provided. The `tideways` CLI stores it
+	// locally after a successful import.
+	if accessToken != "" {
+		fmt.Print("Importing Tideways CLI access token... ")
+		if err := mgr.ImportCLIToken(); err != nil {
+			fmt.Println(cli.Warning("skipped"))
+			cli.PrintWarning("  %v", err)
+			cli.PrintInfo("  Run 'tideways import <token>' manually once the CLI is installed")
 		} else {
 			fmt.Println(cli.Success("done"))
 		}

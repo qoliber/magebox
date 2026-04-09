@@ -75,7 +75,7 @@ func (m *Manager) IsExtensionEnabled(phpVersion string) bool {
 	}
 
 	// Check if extension line is not commented out
-	lines := strings.Split(string(content), "\\n")
+	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "extension=tideways") {
@@ -190,29 +190,95 @@ func (m *Manager) RestartDaemon() error {
 	return fmt.Errorf("unsupported platform")
 }
 
-// ConfigureDaemon configures the Tideways daemon with API key
-func (m *Manager) ConfigureDaemon() error {
+// WriteAPIKeyToExtension writes the tideways.api_key directive to the PHP
+// extension ini file for the given PHP version. If a tideways.api_key line
+// already exists (commented or uncommented) it is replaced, otherwise the
+// directive is appended. The Tideways PHP extension requires tideways.api_key
+// to be set in php.ini in order to transmit traces.
+func (m *Manager) WriteAPIKeyToExtension(phpVersion string) error {
 	if m.credentials == nil || m.credentials.APIKey == "" {
-		return fmt.Errorf("tideways credentials not configured")
+		return fmt.Errorf("tideways API key not configured")
 	}
 
-	configPath := m.getDaemonConfigPath()
-	if configPath == "" {
+	iniPath := m.getExtensionIniPath(phpVersion)
+	if iniPath == "" {
 		return fmt.Errorf("unsupported platform")
 	}
 
-	// Create config directory if it doesn't exist
-	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	if _, err := os.Stat(iniPath); err != nil {
+		return fmt.Errorf("tideways extension ini not found at %s (install the extension first)", iniPath)
 	}
 
-	// Write daemon config
-	config := fmt.Sprintf("api_key=%s\\n", m.credentials.APIKey)
-	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
-		return fmt.Errorf("failed to write daemon config: %w", err)
+	existing, err := os.ReadFile(iniPath)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", iniPath, err)
 	}
 
+	newContent := rewriteAPIKeyIni(string(existing), m.credentials.APIKey)
+
+	// Write through sudo tee because mods-available files are root-owned.
+	cmd := exec.Command("sudo", "tee", iniPath)
+	cmd.Stdin = strings.NewReader(newContent)
+	cmd.Stdout = nil
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write tideways.api_key to %s: %w", iniPath, err)
+	}
+
+	return nil
+}
+
+// rewriteAPIKeyIni returns a copy of existing with the tideways.api_key
+// directive set to apiKey. An existing tideways.api_key line (commented or
+// uncommented) is replaced in place; otherwise the directive is appended.
+func rewriteAPIKeyIni(existing, apiKey string) string {
+	newLine := fmt.Sprintf("tideways.api_key=%s", apiKey)
+
+	lines := strings.Split(existing, "\n")
+	replaced := false
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t;")
+		if strings.HasPrefix(trimmed, "tideways.api_key") {
+			lines[i] = newLine
+			replaced = true
+		}
+	}
+	if !replaced {
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			// Reuse the trailing empty element so we end up with exactly one
+			// newline at the end of the file.
+			lines[len(lines)-1] = newLine
+		} else {
+			lines = append(lines, newLine)
+		}
+	}
+	out := strings.Join(lines, "\n")
+	if !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	return out
+}
+
+// ImportCLIToken imports the access token for the `tideways` CLI command by
+// running `tideways import <token>`. This is a separate credential from the
+// PHP extension API key — it is used by the commandline tool for operations
+// like `tideways run`, `tideways event create`, and `tideways tracepoint
+// create`. See https://app.tideways.io/user/cli-import-settings.
+func (m *Manager) ImportCLIToken() error {
+	if m.credentials == nil || m.credentials.AccessToken == "" {
+		return fmt.Errorf("tideways CLI access token not configured")
+	}
+
+	if !platform.CommandExists("tideways") {
+		return fmt.Errorf("tideways CLI not found in PATH")
+	}
+
+	cmd := exec.Command("tideways", "import", m.credentials.AccessToken)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to import tideways CLI token: %w", err)
+	}
 	return nil
 }
 
@@ -254,21 +320,6 @@ func (m *Manager) getExtensionIniPath(phpVersion string) string {
 		default:
 			return fmt.Sprintf("/etc/php/%s/mods-available/tideways.ini", phpVersion)
 		}
-	}
-	return ""
-}
-
-// getDaemonConfigPath returns the path to the Tideways daemon config
-func (m *Manager) getDaemonConfigPath() string {
-	switch m.platform.Type {
-	case platform.Darwin:
-		base := "/usr/local"
-		if m.platform.IsAppleSilicon {
-			base = "/opt/homebrew"
-		}
-		return filepath.Join(base, "etc", "tideways", "daemon.conf")
-	case platform.Linux:
-		return "/etc/tideways/daemon.conf"
 	}
 	return ""
 }

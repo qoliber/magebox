@@ -214,3 +214,74 @@ func TestGlobalConfig_applyDefaults(t *testing.T) {
 		t.Errorf("TLD = %v, want test", config.TLD)
 	}
 }
+
+func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
+	// Unset env vars so they don't leak into the test from the shell.
+	t.Setenv("TIDEWAYS_API_KEY", "")
+	t.Setenv("TIDEWAYS_CLI_TOKEN", "")
+
+	cfg := &GlobalConfig{
+		Profiling: ProfilingConfig{
+			Tideways: TidewaysCredentials{
+				APIKey:      "project-key",
+				AccessToken: "cli-token",
+			},
+		},
+	}
+
+	if !cfg.HasTidewaysCredentials() {
+		t.Error("HasTidewaysCredentials should return true when API key is set")
+	}
+	if !cfg.HasTidewaysAccessToken() {
+		t.Error("HasTidewaysAccessToken should return true when access token is set")
+	}
+
+	empty := &GlobalConfig{}
+	if empty.HasTidewaysCredentials() {
+		t.Error("HasTidewaysCredentials should return false for empty config")
+	}
+	if empty.HasTidewaysAccessToken() {
+		t.Error("HasTidewaysAccessToken should return false for empty config")
+	}
+
+	// Environment variables should take precedence.
+	t.Setenv("TIDEWAYS_API_KEY", "env-api-key")
+	t.Setenv("TIDEWAYS_CLI_TOKEN", "env-cli-token")
+
+	got := cfg.GetTidewaysCredentials()
+	if got.APIKey != "env-api-key" {
+		t.Errorf("APIKey = %q, want env-api-key", got.APIKey)
+	}
+	if got.AccessToken != "env-cli-token" {
+		t.Errorf("AccessToken = %q, want env-cli-token", got.AccessToken)
+	}
+}
+
+func TestGlobalConfig_TidewaysRoundTrip(t *testing.T) {
+	// Make sure the new access_token field survives a save/load cycle.
+	tmpDir := t.TempDir()
+
+	cfg := &GlobalConfig{
+		Profiling: ProfilingConfig{
+			Tideways: TidewaysCredentials{
+				APIKey:      "abc123",
+				AccessToken: "def456",
+			},
+		},
+	}
+	if err := SaveGlobalConfig(tmpDir, cfg); err != nil {
+		t.Fatalf("SaveGlobalConfig failed: %v", err)
+	}
+
+	loaded, err := LoadGlobalConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig failed: %v", err)
+	}
+
+	if loaded.Profiling.Tideways.APIKey != "abc123" {
+		t.Errorf("APIKey = %q, want abc123", loaded.Profiling.Tideways.APIKey)
+	}
+	if loaded.Profiling.Tideways.AccessToken != "def456" {
+		t.Errorf("AccessToken = %q, want def456", loaded.Profiling.Tideways.AccessToken)
+	}
+}
