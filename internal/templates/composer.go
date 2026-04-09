@@ -300,7 +300,13 @@ func GenerateMagentoComposerJSON(projectName, version string) ([]byte, error) {
 	versions := GetMagentoVersions()
 	v, ok := versions[version]
 	if !ok {
-		return nil, fmt.Errorf("unsupported Magento version: %s", version)
+		// Allow unknown versions — use sensible defaults for plugin constraints
+		v = MagentoVersion{
+			Version:            version,
+			ProductVersion:     version,
+			RootUpdatePlugin:   "^2.0.4",
+			VersionAuditPlugin: "~0.1",
+		}
 	}
 
 	composer := ComposerJSON{
@@ -367,7 +373,13 @@ func GenerateMageOSComposerJSON(projectName, version string) ([]byte, error) {
 	versions := GetMageOSVersions()
 	v, ok := versions[version]
 	if !ok {
-		return nil, fmt.Errorf("unsupported MageOS version: %s", version)
+		// Allow unknown versions — MageOS uses the version string for all fields
+		v = MageOSVersion{
+			Version:            version,
+			ProductVersion:     version,
+			RootUpdatePlugin:   version,
+			VersionAuditPlugin: version,
+		}
 	}
 
 	composer := ComposerJSON{

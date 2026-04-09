@@ -181,6 +181,8 @@ magebox self-update check
 magebox self-update
 ```
 
+The self-update command automatically syncs the updated binary to all known locations (`~/.magebox/bin/magebox`, `~/.magebox/bin/mbox`, `/usr/local/bin/magebox`, `/usr/local/bin/mbox`) to prevent version mismatches.
+
 ## Next Steps
 
 After installation, run the bootstrap command to set up your environment:

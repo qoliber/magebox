@@ -537,6 +537,50 @@ sudo setenforce 0
 
 ## Getting Help
 
+## Version Mismatch Between `mbox` and `magebox`
+
+If `mbox --version` and `magebox --version` show different versions, you have multiple binaries in your PATH:
+
+```bash
+# Check which binary is being used
+which mbox
+which magebox
+```
+
+**Common locations:**
+- `~/.magebox/bin/magebox` — installed by MageBox
+- `~/.magebox/bin/mbox` — alias copy
+- `~/.local/bin/mbox` — older install
+- `/usr/local/bin/magebox` — system install via `get.magebox.dev`
+
+**Solution:** Run `magebox self-update` — since v1.14.1, self-update syncs all known binary locations automatically. Or manually:
+
+```bash
+# Copy the latest binary to all locations
+cp $(which magebox) ~/.magebox/bin/mbox
+sudo cp $(which magebox) /usr/local/bin/magebox
+sudo ln -sf /usr/local/bin/magebox /usr/local/bin/mbox
+```
+
+After updating, clear zsh's command cache:
+```bash
+hash -r
+```
+
+## `unsupported MageOS/Magento version` During `magebox new`
+
+```
+Error: failed to generate composer.json: unsupported MageOS version: X.X.X
+```
+
+This happens when the daily-updated version registry adds a new version that isn't in the binary's hardcoded composer template map.
+
+**Solution:** Update to v1.14.1 or later — unknown versions now use sensible defaults for composer plugin constraints instead of erroring.
+
+```bash
+magebox self-update
+```
+
 If you're still stuck:
 
 1. Run with verbose mode:

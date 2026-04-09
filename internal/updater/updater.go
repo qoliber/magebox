@@ -148,6 +148,9 @@ func (u *Updater) Update(result *UpdateResult) error {
 	// Remove backup
 	_ = os.Remove(backupPath)
 
+	// Sync to all known binary locations
+	u.syncBinaryLocations(execPath)
+
 	return nil
 }
 
@@ -161,6 +164,52 @@ func isWritable(path string) bool {
 	f.Close()
 	os.Remove(testFile)
 	return true
+}
+
+// syncBinaryLocations copies the updated binary to other known locations
+func (u *Updater) syncBinaryLocations(sourcePath string) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	locations := []string{
+		filepath.Join(homeDir, ".magebox", "bin", "magebox"),
+		filepath.Join(homeDir, ".magebox", "bin", "mbox"),
+		"/usr/local/bin/magebox",
+		"/usr/local/bin/mbox",
+	}
+
+	for _, loc := range locations {
+		// Skip the source itself
+		resolved, _ := filepath.EvalSymlinks(loc)
+		if resolved == sourcePath || loc == sourcePath {
+			continue
+		}
+
+		// Skip symlinks — they'll resolve to the updated target
+		fi, err := os.Lstat(loc)
+		if err != nil {
+			continue
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+
+		// Copy binary to this location
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			continue
+		}
+
+		if err := os.WriteFile(loc, data, 0755); err != nil {
+			// Try with sudo for system paths
+			if strings.HasPrefix(loc, "/usr/") {
+				cmd := exec.Command("sudo", "cp", sourcePath, loc)
+				_ = cmd.Run()
+			}
+		}
+	}
 }
 
 // installWithSudo installs the binary using sudo
@@ -187,6 +236,9 @@ func (u *Updater) installWithSudo(tmpFile, execPath string) error {
 
 	// Remove backup with sudo
 	_ = exec.Command("sudo", "rm", "-f", backupPath).Run()
+
+	// Sync to all known binary locations
+	u.syncBinaryLocations(execPath)
 
 	return nil
 }

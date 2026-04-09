@@ -513,14 +513,15 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 	// Determine project name from directory
 	var projectDir string
-	if targetDir == "." {
+	cleanTarget := filepath.Clean(targetDir)
+	if cleanTarget == "." {
 		projectDir, _ = os.Getwd()
 	} else {
-		if filepath.IsAbs(targetDir) {
-			projectDir = targetDir
+		if filepath.IsAbs(cleanTarget) {
+			projectDir = cleanTarget
 		} else {
 			cwd, _ := os.Getwd()
-			projectDir = filepath.Join(cwd, targetDir)
+			projectDir = filepath.Join(cwd, cleanTarget)
 		}
 	}
 	projectName := filepath.Base(projectDir)
@@ -937,7 +938,9 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 	var projectName string
 	var projectDir string
 
-	if targetDir == "." {
+	// Normalize "./", ".", etc. to current directory
+	cleanTarget := filepath.Clean(targetDir)
+	if cleanTarget == "." {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("failed to get current directory: %w", err)
@@ -945,8 +948,8 @@ func runNewQuick(targetDir string, p *platform.Platform) error {
 		projectDir = cwd
 		projectName = filepath.Base(cwd)
 	} else {
-		projectDir, _ = filepath.Abs(targetDir)
-		projectName = filepath.Base(targetDir)
+		projectDir, _ = filepath.Abs(cleanTarget)
+		projectName = filepath.Base(cleanTarget)
 	}
 
 	// Domain from project name
