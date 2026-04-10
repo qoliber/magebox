@@ -31,48 +31,82 @@ Configure your Tideways credentials:
 magebox tideways config
 ```
 
-Tideways uses **two separate credentials**, and both are stored by `magebox tideways config`:
+Tideways uses **three separate credentials**. The API key is per-project;
+the access token and environment label are global:
 
 - **API Key** — the per-project key the PHP extension embeds into every
-  transmitted trace. MageBox writes it to the extension ini file as
-  `tideways.api_key=...`, which is required for the extension to send data.
-  Found on each project's **Installation** page in the Tideways dashboard:
+  transmitted trace. Found on each project's **Installation** page in the
+  Tideways dashboard:
   `https://app.tideways.io/o/<organization>/<project>/installation`.
+  Because each key is tied to a single Tideways project, it **must** be set
+  per Magento project, not globally. MageBox stores it in the project's
+  `.magebox.local.yaml` under `php_ini.tideways.api_key`, and the project's
+  PHP-FPM pool renders it as a `php_admin_value` so the extension picks it
+  up on the next reload.
 - **Access Token** — a personal token used by the `tideways` commandline
   tool (`tideways run`, `tideways event create`, `tideways tracepoint create`).
   MageBox imports it via `tideways import <token>`. Generated at
   [app.tideways.io/user/cli-import-settings](https://app.tideways.io/user/cli-import-settings).
-  Optional — only needed if you use the `tideways` CLI.
+  Stored globally in `~/.magebox/config.yaml`. Optional — only needed if
+  you use the `tideways` CLI.
+- **Environment Label** — the environment name your traces are tagged with
+  in Tideways (defaults to `local_<username>`). Stored globally and written
+  to a `tideways-daemon` systemd drop-in on Linux.
 
 ### Non-interactive configuration
 
 ```bash
-magebox tideways config --api-key "your-project-key" --access-token "your-cli-token"
+# Global (access token + environment label)
+magebox tideways config --access-token "your-cli-token" --environment "local_alice"
+
+# Per-project API key (run from inside the project)
+magebox tideways config --project-api-key "your-project-key"
 ```
+
+When run interactively from inside a project that does not yet have an API
+key set, `magebox tideways config` prompts for it after the environment
+prompt and writes it to `.magebox.local.yaml`.
 
 ### Credential Storage
 
-Both credentials are stored in `~/.magebox/config.yaml`:
+**Per-project API key** lives in `.magebox.local.yaml` at the project root:
+
+```yaml
+php_ini:
+  tideways:
+    api_key: "your-project-key"
+```
+
+`.magebox.local.yaml` is the personal override file and is typically
+gitignored, which keeps the secret out of the shared repo. To share a key
+with your team, move it to `.magebox.yaml` manually.
+
+After changing the API key, run `magebox restart` so the FPM pool picks up
+the new `php_admin_value`.
+
+**Global access token and environment** live in `~/.magebox/config.yaml`:
 
 ```yaml
 profiling:
   tideways:
-    api_key: "your-project-key"
     access_token: "your-cli-token"
+    environment: "local_alice"
 ```
-
-The API key is also written to the PHP extension ini file (e.g.
-`/etc/php/8.2/mods-available/tideways.ini` on Debian/Ubuntu) so the Tideways
-PHP extension picks it up on the next PHP-FPM reload.
 
 ### Environment Variables
 
-Both credentials can be overridden via environment variables:
+The global credentials can be overridden via environment variables:
 
 ```bash
-export TIDEWAYS_API_KEY="your-project-key"   # read by the PHP extension and MageBox
 export TIDEWAYS_CLI_TOKEN="your-cli-token"   # read by MageBox for the CLI import
+export TIDEWAYS_ENVIRONMENT="local_alice"    # environment label for the daemon
 ```
+
+::: warning Removed in 1.14.2
+The `TIDEWAYS_API_KEY` environment variable is no longer read. Because
+the API key is now per-project, set it via `--project-api-key` or in
+`.magebox.local.yaml` instead.
+:::
 
 ## Usage
 

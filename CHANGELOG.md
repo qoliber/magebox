@@ -5,6 +5,20 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.2] - 2026-04-10
+
+### Changed
+
+- **Tideways API Key Scope** - The Tideways API key is now configured per-project instead of globally. Because each Tideways API key is tied to a single Tideways project, storing it in `~/.magebox/config.yaml` either pinned every local Magento project to the same Tideways project or silently got shadowed when reconfigured. The key now lives in the project's `.magebox.local.yaml` under `php_ini.tideways.api_key` and is rendered into the FPM pool as `php_admin_value`, so multiple local projects can each report to their own Tideways project. `magebox tideways config` prompts for the key when run inside a project that doesn't have one set, and `magebox tideways status` reports whether the current project has a key configured. Legacy global `api_key` entries still unmarshal and are detected, surfaced as a migration warning, and removed on save. Access token and environment label remain global. ([#82](https://github.com/qoliber/magebox/pull/82))
+
+### Added
+
+- **`--project-api-key` Flag** - `magebox tideways config` accepts a new `--project-api-key` flag for non-interactive per-project API key configuration. Only applied when MageBox is run from inside a project. ([#82](https://github.com/qoliber/magebox/pull/82))
+
+### Removed
+
+- **`TIDEWAYS_API_KEY` Environment Variable** - The `TIDEWAYS_API_KEY` env var is no longer read by `magebox tideways config`, since the API key is no longer a global setting. Use `--project-api-key` or set `php_ini.tideways.api_key` in `.magebox.local.yaml` instead. ([#82](https://github.com/qoliber/magebox/pull/82))
+
 ## [1.14.1] - 2026-04-10
 
 ### Fixed

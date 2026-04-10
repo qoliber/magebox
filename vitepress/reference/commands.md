@@ -1629,20 +1629,31 @@ magebox tideways install
 
 ### `magebox tideways config`
 
-Configure Tideways API key.
+Configure Tideways credentials. The **API key** is per-project (stored in
+`.magebox.local.yaml`); the **access token** and **environment label** are
+global (stored in `~/.magebox/config.yaml`).
 
 ```bash
-# Interactive mode
+# Interactive mode — prompts for global settings, plus the project API key
+# when run from inside a project that doesn't have one set yet.
 magebox tideways config
 
-# Non-interactive with flag
-magebox tideways config --api-key=your-api-key
+# Non-interactive: global access token and environment label
+magebox tideways config --access-token=your-cli-token --environment=local_alice
+
+# Non-interactive: per-project API key (must be run from inside a project)
+magebox tideways config --project-api-key=your-project-key
 ```
 
 **Options:**
-- `--api-key` - Tideways API key
+- `--access-token` - Tideways CLI access token (global, `tideways` command)
+- `--environment` - Tideways environment label (global, defaults to `local_<username>`)
+- `--project-api-key` - Tideways API key for the current project (written to `.magebox.local.yaml`)
 
-Get your API key from your [Tideways account](https://tideways.com). When flag is omitted, prompts interactively.
+The per-project API key is found on each project's **Installation** page in
+the Tideways dashboard. The access token is generated at
+[app.tideways.io/user/cli-import-settings](https://app.tideways.io/user/cli-import-settings).
+See [Tideways](/services/tideways#credential-storage) for details.
 
 ## Team Commands
 
