@@ -1,4 +1,5 @@
 # Binaries (in root directory only)
+/build
 /magebox
 /magebox-*
 !/magebox-logo.svg
