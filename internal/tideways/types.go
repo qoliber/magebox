@@ -3,9 +3,21 @@
 
 package tideways
 
-// Credentials contains Tideways API credentials
+// Credentials contains Tideways credentials.
+//
+// APIKey is the project-level "API Key" used by the Tideways PHP extension
+// (written to php.ini as tideways.api_key).
+//
+// AccessToken is the personal CLI token used by the `tideways` commandline
+// tool (imported via `tideways import <token>`). It is a separate credential
+// from APIKey.
+//
+// Environment is the free-text label Tideways groups traces by, written to
+// php.ini as tideways.environment.
 type Credentials struct {
-	APIKey string `yaml:"api_key"`
+	APIKey      string `yaml:"api_key"`
+	AccessToken string `yaml:"access_token"`
+	Environment string `yaml:"environment"`
 }
 
 // Status represents the current Tideways status

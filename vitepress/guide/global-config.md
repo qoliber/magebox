@@ -123,7 +123,8 @@ profiling:
     client_id: "your-client-id"
     client_token: "your-client-token"
   tideways:
-    api_key: "your-api-key"
+    api_key: "your-project-key"       # for the PHP extension (tideways.api_key)
+    access_token: "your-cli-token"    # for the `tideways` CLI command
 ```
 
 Environment variables take precedence:
@@ -134,7 +135,8 @@ Environment variables take precedence:
 | `BLACKFIRE_SERVER_TOKEN` | Blackfire server token |
 | `BLACKFIRE_CLIENT_ID` | Blackfire client ID |
 | `BLACKFIRE_CLIENT_TOKEN` | Blackfire client token |
-| `TIDEWAYS_API_KEY` | Tideways API key |
+| `TIDEWAYS_API_KEY` | Tideways project API key (PHP extension) |
+| `TIDEWAYS_CLI_TOKEN` | Tideways CLI access token (`tideways` command) |
 
 See [Blackfire](/services/blackfire) and [Tideways](/services/tideways) for setup guides.
 

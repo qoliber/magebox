@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"qoliber/magebox/internal/remote"
@@ -69,9 +70,24 @@ type BlackfireCredentials struct {
 	ClientToken string `yaml:"client_token,omitempty"`
 }
 
-// TidewaysCredentials contains Tideways API credentials
+// TidewaysCredentials contains Tideways credentials.
+//
+// APIKey is the project-level "API Key" used by the Tideways PHP extension
+// (written to php.ini as tideways.api_key). Found on the Project Settings page
+// in the Tideways dashboard.
+//
+// AccessToken is the personal CLI token used by the `tideways` commandline
+// tool (imported via `tideways import <token>`). Generated at
+// https://app.tideways.io/user/cli-import-settings. This is a separate
+// credential from APIKey.
+//
+// Environment is the free-text label Tideways groups traces by (written to
+// php.ini as tideways.environment). Defaults to `local_<username>` so that
+// traces from a developer machine never land in the `production` bucket.
 type TidewaysCredentials struct {
-	APIKey string `yaml:"api_key,omitempty"`
+	APIKey      string `yaml:"api_key,omitempty"`
+	AccessToken string `yaml:"access_token,omitempty"`
+	Environment string `yaml:"environment,omitempty"`
 }
 
 // DefaultServices represents default service configurations
@@ -201,9 +217,16 @@ func (c *GlobalConfig) HasBlackfireClientCredentials() bool {
 	return c.Profiling.Blackfire.ClientID != "" && c.Profiling.Blackfire.ClientToken != ""
 }
 
-// HasTidewaysCredentials returns true if Tideways credentials are configured
+// HasTidewaysCredentials returns true if the Tideways PHP extension API key
+// is configured.
 func (c *GlobalConfig) HasTidewaysCredentials() bool {
 	return c.Profiling.Tideways.APIKey != ""
+}
+
+// HasTidewaysAccessToken returns true if the Tideways CLI access token is
+// configured.
+func (c *GlobalConfig) HasTidewaysAccessToken() bool {
+	return c.Profiling.Tideways.AccessToken != ""
 }
 
 // GetBlackfireCredentials returns Blackfire credentials, checking environment variables first
@@ -235,8 +258,34 @@ func (c *GlobalConfig) GetTidewaysCredentials() TidewaysCredentials {
 	if env := os.Getenv("TIDEWAYS_API_KEY"); env != "" {
 		creds.APIKey = env
 	}
+	if env := os.Getenv("TIDEWAYS_CLI_TOKEN"); env != "" {
+		creds.AccessToken = env
+	}
+	if env := os.Getenv("TIDEWAYS_ENVIRONMENT"); env != "" {
+		creds.Environment = env
+	}
+
+	// Fall back to a developer-safe default so local traces never land in
+	// the `production` bucket on app.tideways.io.
+	if creds.Environment == "" {
+		creds.Environment = DefaultTidewaysEnvironment()
+	}
 
 	return creds
+}
+
+// DefaultTidewaysEnvironment returns the default Tideways environment label
+// for this machine. The label is `local_<username>` (e.g. `local_peterjaap`)
+// which makes it trivial to filter a single developer's traces in the
+// Tideways dashboard without colliding with production or other developers.
+func DefaultTidewaysEnvironment() string {
+	name := "unknown"
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		name = u.Username
+	} else if env := os.Getenv("USER"); env != "" {
+		name = env
+	}
+	return "local_" + name
 }
 
 // InitGlobalConfig creates the initial global config file with defaults
