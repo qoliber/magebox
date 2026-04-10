@@ -53,6 +53,29 @@ type GlobalConfig struct {
 
 	// Sandbox configures the bubblewrap sandbox for AI coding agents
 	Sandbox *SandboxConfig `yaml:"sandbox,omitempty"`
+
+	// Telemetry controls the opt-in anonymous usage reporting. Nil or
+	// disabled means nothing is collected or sent. See internal/telemetry
+	// and docs/telemetry.md for the full schema.
+	Telemetry *TelemetryConfig `yaml:"telemetry,omitempty"`
+}
+
+// TelemetryConfig holds the opt-in usage reporting settings. See
+// internal/telemetry for the full behavior and payload schema.
+type TelemetryConfig struct {
+	// Enabled is the master switch. When false, no events are recorded or
+	// sent. Defaults to false — telemetry is opt-in.
+	Enabled bool `yaml:"enabled"`
+
+	// Endpoint is the ingestion URL events are POSTed to. Empty means use
+	// the default (telemetry.DefaultEndpoint). Exposed to make local
+	// testing and self-hosted ingestion servers possible.
+	Endpoint string `yaml:"endpoint,omitempty"`
+
+	// Prompted is set to true once the user has seen the first-run consent
+	// prompt at least once, regardless of their answer. Prevents us from
+	// re-asking on every invocation.
+	Prompted bool `yaml:"prompted,omitempty"`
 }
 
 // ProfilingConfig contains credentials for profiling tools
