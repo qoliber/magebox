@@ -62,22 +62,26 @@ var tidewaysInstallCmd = &cobra.Command{
 
 var tidewaysConfigCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configure Tideways API key",
-	Long: `Configures the Tideways API key for the daemon.
-The API key is stored in ~/.magebox/config.yaml.`,
+	Short: "Configure global Tideways settings",
+	Long: `Configures the globally-scoped Tideways settings: the CLI access token
+(for the 'tideways' commandline tool) and the daemon environment label
+(which stamps all traces from this machine).
+
+The Tideways API key is *per Tideways project*, not per user or machine,
+so it is not configured here. Set it per project in .magebox.yaml under
+php_ini.tideways.api_key — MageBox renders that into the project's FPM
+pool config as a php_admin_value, scoping the key to that one project.`,
 	RunE: runTidewaysConfig,
 }
 
 // Flags for tideways config
 var (
-	tidewaysAPIKey      string
 	tidewaysAccessToken string
 	tidewaysEnvironment string
 )
 
 func init() {
 	// Add flags for non-interactive config
-	tidewaysConfigCmd.Flags().StringVar(&tidewaysAPIKey, "api-key", "", "Tideways API Key (project key, for the PHP extension)")
 	tidewaysConfigCmd.Flags().StringVar(&tidewaysAccessToken, "access-token", "", "Tideways CLI access token (for the tideways commandline tool)")
 	tidewaysConfigCmd.Flags().StringVar(&tidewaysEnvironment, "environment", "", "Tideways environment label (default: local_$USER)")
 
@@ -237,6 +241,11 @@ func runTidewaysStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Load the project config so we can surface whether this project has
+	// tideways.api_key set in its php_ini. It is optional — if there is no
+	// project here we just skip the per-project line.
+	projectCfg, _ := config.LoadFromPath(cwd)
+
 	cli.PrintTitle("Tideways Status")
 	fmt.Printf("PHP version: %s\n", cli.Highlight(phpVersion))
 	fmt.Println()
@@ -256,12 +265,17 @@ func runTidewaysStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Enabled:   %s\n", formatBool(status.ExtensionEnabled[phpVersion]))
 	fmt.Println()
 
-	// Credentials status
+	// Credentials / labels
 	creds := globalCfg.GetTidewaysCredentials()
-	fmt.Println("Credentials:")
-	fmt.Printf("  API Key configured:       %s\n", formatBool(globalCfg.HasTidewaysCredentials()))
-	fmt.Printf("  CLI access token set:     %s\n", formatBool(globalCfg.HasTidewaysAccessToken()))
-	fmt.Printf("  Environment:              %s\n", cli.Highlight(creds.Environment))
+	fmt.Println("Configuration:")
+	if projectCfg != nil {
+		projectKey := projectCfg.PHPINI["tideways.api_key"]
+		fmt.Printf("  Project API key (php_ini): %s\n", formatBool(projectKey != ""))
+	} else {
+		fmt.Printf("  Project API key (php_ini): %s (no project config in cwd)\n", cli.Warning("?"))
+	}
+	fmt.Printf("  CLI access token:          %s\n", formatBool(globalCfg.HasTidewaysAccessToken()))
+	fmt.Printf("  Environment (daemon):      %s\n", cli.Highlight(creds.Environment))
 	fmt.Println()
 
 	// Helpful tips
@@ -273,8 +287,14 @@ func runTidewaysStatus(cmd *cobra.Command, args []string) error {
 		cli.PrintInfo("Disable with: magebox tideways off")
 	}
 
-	if !globalCfg.HasTidewaysCredentials() {
-		cli.PrintWarning("Configure credentials with: magebox tideways config")
+	if projectCfg != nil && projectCfg.PHPINI["tideways.api_key"] == "" {
+		cli.PrintWarning("This project has no Tideways API key set — add it to .magebox.yaml:")
+		cli.PrintWarning("  php_ini:")
+		cli.PrintWarning("    tideways.api_key: your-project-specific-key")
+	}
+	if globalCfg.HasLegacyTidewaysAPIKey() {
+		cli.PrintWarning("Legacy global api_key detected in ~/.magebox/config.yaml —")
+		cli.PrintWarning("  run 'magebox tideways config' to migrate it away.")
 	}
 
 	return nil
@@ -349,17 +369,14 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	existingCreds := globalCfg.GetTidewaysCredentials()
+	hadLegacyAPIKey := globalCfg.HasLegacyTidewaysAPIKey()
 
 	// Non-interactive mode is triggered by passing at least one flag.
-	nonInteractive := tidewaysAPIKey != "" || tidewaysAccessToken != "" || tidewaysEnvironment != ""
+	nonInteractive := tidewaysAccessToken != "" || tidewaysEnvironment != ""
 
-	var apiKey, accessToken, environment string
+	var accessToken, environment string
 
 	if nonInteractive {
-		apiKey = tidewaysAPIKey
-		if apiKey == "" {
-			apiKey = existingCreds.APIKey
-		}
 		accessToken = tidewaysAccessToken
 		if accessToken == "" {
 			accessToken = existingCreds.AccessToken
@@ -370,35 +387,30 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		cli.PrintTitle("Configure Tideways")
-		fmt.Println("Tideways uses two different credentials:")
-		fmt.Println("  • API Key — project key the PHP extension sends with traces")
-		fmt.Println("    (written to php.ini as tideways.api_key)")
-		fmt.Println("    Found on each project's Installation page in the Tideways dashboard:")
-		fmt.Println("      https://app.tideways.io/o/<organization>/<project>/installation")
-		fmt.Println("  • Access Token — personal token for the `tideways` CLI command")
-		fmt.Println("    Generated at https://app.tideways.io/user/cli-import-settings")
+		fmt.Println("This command configures the *global* Tideways settings for this")
+		fmt.Println("machine: the CLI access token and the daemon environment label.")
 		fmt.Println()
-		fmt.Println("Traces are labeled with an Environment by the local tideways-daemon")
-		fmt.Println("so they don't land in the `production` bucket on app.tideways.io —")
-		fmt.Println("the default is local_<username>. On Linux MageBox installs a systemd")
+		fmt.Println("The Tideways API key is per-project, not global — add it to each")
+		fmt.Println("project's .magebox.yaml (or .magebox.local.yaml):")
+		fmt.Println()
+		fmt.Println("    php_ini:")
+		fmt.Println("      tideways.api_key: your-project-specific-key")
+		fmt.Println()
+		fmt.Println("Find the key on the project's Installation page in the Tideways")
+		fmt.Println("dashboard: https://app.tideways.io/o/<organization>/<project>/installation")
+		fmt.Println()
+		fmt.Println("The Access Token is a personal token for the `tideways` CLI command,")
+		fmt.Println("generated at https://app.tideways.io/user/cli-import-settings.")
+		fmt.Println()
+		fmt.Println("The Environment labels traces from this machine on the Tideways")
+		fmt.Println("daemon side — default is local_<username> so local traces don't")
+		fmt.Println("land in the `production` bucket. On Linux MageBox installs a systemd")
 		fmt.Println("drop-in to pass TIDEWAYS_ENVIRONMENT to the daemon and restarts it.")
 		fmt.Println()
 
 		reader := bufio.NewReader(os.Stdin)
 
-		// Prompt for API key (required)
-		fmt.Print("API Key")
-		if existingCreds.APIKey != "" {
-			fmt.Printf(" [%s]", maskCredential(existingCreds.APIKey))
-		}
-		fmt.Print(": ")
-		apiKey, _ = reader.ReadString('\n')
-		apiKey = strings.TrimSpace(apiKey)
-		if apiKey == "" && existingCreds.APIKey != "" {
-			apiKey = existingCreds.APIKey
-		}
-
-		// Prompt for Access Token (optional — only needed to use the CLI tool)
+		// Prompt for Access Token (optional — only needed for the CLI tool)
 		fmt.Print("Access Token (for tideways CLI, optional)")
 		if existingCreds.AccessToken != "" {
 			fmt.Printf(" [%s]", maskCredential(existingCreds.AccessToken))
@@ -423,22 +435,23 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Validate
-	if apiKey == "" {
-		return fmt.Errorf("API key is required")
-	}
 	if environment == "" {
 		environment = config.DefaultTidewaysEnvironment()
 	}
 
-	// Save to global config
+	// Save to global config. Explicitly clear the deprecated api_key field so
+	// a stale value from an older MageBox version is removed from disk.
 	globalCfg.Profiling.Tideways = config.TidewaysCredentials{
-		APIKey:      apiKey,
 		AccessToken: accessToken,
 		Environment: environment,
 	}
 
 	fmt.Println()
+	if hadLegacyAPIKey {
+		cli.PrintWarning("A legacy 'profiling.tideways.api_key' was found in ~/.magebox/config.yaml.")
+		cli.PrintWarning("The API key is per project — move it to each project's .magebox.yaml")
+		cli.PrintWarning("under 'php_ini.tideways.api_key'. MageBox is removing it from the global config.")
+	}
 	fmt.Print("Saving credentials... ")
 	if err := config.SaveGlobalConfig(p.HomeDir, globalCfg); err != nil {
 		fmt.Println(cli.Error("failed"))
@@ -447,28 +460,27 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println(cli.Success("done"))
 
 	mgr := tideways.NewManager(p, &tideways.Credentials{
-		APIKey:      apiKey,
 		AccessToken: accessToken,
 		Environment: environment,
 	})
 
-	fmt.Printf("Tideways environment: %s\n", cli.Highlight(environment))
-
-	// Write tideways.api_key to every PHP version that has the Tideways
-	// extension installed. The extension refuses to transmit traces without
-	// this directive in php.ini.
-	writtenAny := false
+	// Migration: strip any tideways.api_key / tideways.environment lines that
+	// older MageBox versions wrote to the global PHP extension ini. These are
+	// harmless (the FPM pool's php_admin_value wins) but confusing. Reload
+	// PHP-FPM afterward if the file actually changed.
+	cleanedAny := false
 	for _, v := range p.GetInstalledPHPVersions() {
 		if !mgr.IsExtensionInstalled(v) {
 			continue
 		}
-		fmt.Printf("Writing tideways.api_key to PHP %s ini... ", v)
-		if err := mgr.WriteAPIKeyToExtension(v); err != nil {
-			fmt.Println(cli.Warning("failed"))
-			cli.PrintWarning("  %v", err)
-		} else {
-			fmt.Println(cli.Success("done"))
-			writtenAny = true
+		changed, cleanErr := mgr.CleanLegacyExtensionDirectives(v)
+		if cleanErr != nil {
+			cli.PrintWarning("  could not clean stale Tideways directives from PHP %s: %v", v, cleanErr)
+			continue
+		}
+		if changed {
+			fmt.Printf("Removed legacy Tideways directives from PHP %s ini %s\n", v, cli.Success("✓"))
+			cleanedAny = true
 		}
 	}
 
@@ -477,18 +489,17 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	// the daemon stamps them with whatever --env (or TIDEWAYS_ENVIRONMENT)
 	// it was started with. On Linux we install a systemd drop-in and
 	// restart the daemon. On macOS this is left manual.
-	fmt.Printf("Configuring Tideways daemon environment (%s)... ", environment)
+	fmt.Printf("Configuring Tideways daemon environment (%s)... ", cli.Highlight(environment))
 	if err := mgr.WriteDaemonEnvironment(environment); err != nil {
 		fmt.Println(cli.Warning("skipped"))
 		cli.PrintWarning("  %v", err)
 	} else {
 		fmt.Println(cli.Success("done"))
 	}
-	if !writtenAny {
-		cli.PrintWarning("Tideways extension not installed for any PHP version — run 'magebox tideways install' first")
-	} else {
-		// Reload PHP-FPM for the current project's PHP version if we can
-		// determine it, so the directive takes effect immediately.
+
+	// Reload PHP-FPM for the current project's PHP version if we cleaned
+	// anything, so the stale directives are dropped from the running workers.
+	if cleanedAny {
 		if cwd, cwdErr := getCwd(); cwdErr == nil {
 			if phpVersion, phpErr := getProjectPHPVersion(cwd); phpErr == nil && mgr.IsExtensionInstalled(phpVersion) {
 				fmt.Printf("Reloading PHP-FPM %s... ", phpVersion)
@@ -518,6 +529,7 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintSuccess("Tideways configured!")
 	fmt.Println()
+	cli.PrintInfo("Set the API key per project in .magebox.yaml under php_ini.tideways.api_key")
 	cli.PrintInfo("Enable profiling with: magebox tideways on")
 
 	return nil

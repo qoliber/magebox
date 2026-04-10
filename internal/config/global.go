@@ -70,21 +70,28 @@ type BlackfireCredentials struct {
 	ClientToken string `yaml:"client_token,omitempty"`
 }
 
-// TidewaysCredentials contains Tideways credentials.
-//
-// APIKey is the project-level "API Key" used by the Tideways PHP extension
-// (written to php.ini as tideways.api_key). Found on the Project Settings page
-// in the Tideways dashboard.
+// TidewaysCredentials contains the globally-scoped Tideways credentials.
 //
 // AccessToken is the personal CLI token used by the `tideways` commandline
-// tool (imported via `tideways import <token>`). Generated at
-// https://app.tideways.io/user/cli-import-settings. This is a separate
-// credential from APIKey.
+// tool (imported via `tideways import <token>`). It is scoped to the user's
+// Tideways account, not to a specific project, so it lives in the global
+// config.
 //
-// Environment is the free-text label Tideways groups traces by (written to
-// php.ini as tideways.environment). Defaults to `local_<username>` so that
-// traces from a developer machine never land in the `production` bucket.
+// Environment is the free-text label the local tideways-daemon stamps onto
+// every trace it forwards. It is a daemon-level setting applied via a
+// systemd drop-in on Linux, so it is machine-wide and also global. Defaults
+// to `local_<username>` so developer traces never land in the `production`
+// bucket on app.tideways.io.
+//
+// APIKey is intentionally *not* stored here anymore. The Tideways API key
+// is per Tideways-project, so it belongs in the project's `.magebox.yaml`
+// under `php_ini.tideways.api_key` (which MageBox renders into the FPM pool
+// as a `php_admin_value`, scoping it to that project only). The field is
+// kept with a Deprecated tag so we can detect stale installations on load
+// and migrate them away.
 type TidewaysCredentials struct {
+	// Deprecated: moved to project config at php_ini.tideways.api_key. Kept
+	// only to detect and migrate legacy global configs. Never written.
 	APIKey      string `yaml:"api_key,omitempty"`
 	AccessToken string `yaml:"access_token,omitempty"`
 	Environment string `yaml:"environment,omitempty"`
@@ -217,9 +224,12 @@ func (c *GlobalConfig) HasBlackfireClientCredentials() bool {
 	return c.Profiling.Blackfire.ClientID != "" && c.Profiling.Blackfire.ClientToken != ""
 }
 
-// HasTidewaysCredentials returns true if the Tideways PHP extension API key
-// is configured.
-func (c *GlobalConfig) HasTidewaysCredentials() bool {
+// HasLegacyTidewaysAPIKey returns true if a stale api_key field is present
+// in the loaded global config. The Tideways API key has been moved to
+// project config (php_ini.tideways.api_key) because it is per Tideways
+// project, not per user/machine. Callers should use this to surface a
+// migration warning.
+func (c *GlobalConfig) HasLegacyTidewaysAPIKey() bool {
 	return c.Profiling.Tideways.APIKey != ""
 }
 
@@ -250,14 +260,15 @@ func (c *GlobalConfig) GetBlackfireCredentials() BlackfireCredentials {
 	return creds
 }
 
-// GetTidewaysCredentials returns Tideways credentials, checking environment variables first
+// GetTidewaysCredentials returns the globally-scoped Tideways credentials
+// (CLI access token + daemon environment label), with environment variables
+// taking precedence over the stored config. APIKey is not returned — it
+// lives per-project in php_ini.tideways.api_key.
 func (c *GlobalConfig) GetTidewaysCredentials() TidewaysCredentials {
 	creds := c.Profiling.Tideways
+	creds.APIKey = "" // never surface the deprecated field
 
 	// Environment variables take precedence
-	if env := os.Getenv("TIDEWAYS_API_KEY"); env != "" {
-		creds.APIKey = env
-	}
 	if env := os.Getenv("TIDEWAYS_CLI_TOKEN"); env != "" {
 		creds.AccessToken = env
 	}

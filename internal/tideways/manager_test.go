@@ -7,71 +7,10 @@ import (
 	"testing"
 )
 
-func TestRewriteIniDirective(t *testing.T) {
-	tests := []struct {
-		name      string
-		existing  string
-		directive string
-		value     string
-		want      string
-	}{
-		{
-			name:      "appends api_key to file without directive",
-			existing:  "; Tideways PHP extension\nextension=tideways.so\n",
-			directive: "tideways.api_key",
-			value:     "abc123",
-			want:      "; Tideways PHP extension\nextension=tideways.so\ntideways.api_key=abc123\n",
-		},
-		{
-			name:      "replaces existing uncommented api_key directive",
-			existing:  "extension=tideways.so\ntideways.api_key=old\n",
-			directive: "tideways.api_key",
-			value:     "new",
-			want:      "extension=tideways.so\ntideways.api_key=new\n",
-		},
-		{
-			name:      "replaces existing commented api_key directive",
-			existing:  "extension=tideways.so\n;tideways.api_key=old\n",
-			directive: "tideways.api_key",
-			value:     "new",
-			want:      "extension=tideways.so\ntideways.api_key=new\n",
-		},
-		{
-			name:      "replaces api_key directive with whitespace and comment marker",
-			existing:  "extension=tideways.so\n  ; tideways.api_key=old\n",
-			directive: "tideways.api_key",
-			value:     "new",
-			want:      "extension=tideways.so\ntideways.api_key=new\n",
-		},
-		{
-			name:      "ensures trailing newline when input has none",
-			existing:  "extension=tideways.so",
-			directive: "tideways.api_key",
-			value:     "k",
-			want:      "extension=tideways.so\ntideways.api_key=k\n",
-		},
-		{
-			name:      "handles empty file",
-			existing:  "",
-			directive: "tideways.api_key",
-			value:     "k",
-			want:      "tideways.api_key=k\n",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := rewriteIniDirective(tt.existing, tt.directive, tt.value)
-			if got != tt.want {
-				t.Errorf("rewriteIniDirective(%q, %q, %q)\n got: %q\nwant: %q", tt.existing, tt.directive, tt.value, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestStripIniDirective verifies we can evict a stale directive left behind
-// by an earlier MageBox version. Specifically, v1.14.x briefly wrote
-// `tideways.environment` to the PHP extension ini before we learned that is
-// a daemon-level setting, not an extension-level one.
+// TestStripIniDirective covers the migration path used by
+// CleanLegacyExtensionDirectives. Older MageBox versions briefly wrote
+// tideways.api_key and tideways.environment to the PHP extension ini; we now
+// evict both on every `magebox tideways config` run.
 func TestStripIniDirective(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -80,22 +19,40 @@ func TestStripIniDirective(t *testing.T) {
 		want      string
 	}{
 		{
-			name:      "strips uncommented stale environment line",
-			existing:  "extension=tideways.so\ntideways.api_key=abc\ntideways.environment=local_x\n",
-			directive: "tideways.environment",
-			want:      "extension=tideways.so\ntideways.api_key=abc\n",
+			name:      "strips uncommented stale api_key line",
+			existing:  "extension=tideways.so\ntideways.api_key=legacy\n",
+			directive: "tideways.api_key",
+			want:      "extension=tideways.so\n",
 		},
 		{
 			name:      "strips commented stale environment line",
-			existing:  "extension=tideways.so\n;tideways.environment=local_x\ntideways.api_key=abc\n",
+			existing:  "extension=tideways.so\n;tideways.environment=local_x\n",
 			directive: "tideways.environment",
-			want:      "extension=tideways.so\ntideways.api_key=abc\n",
+			want:      "extension=tideways.so\n",
+		},
+		{
+			name:      "strips directive with leading whitespace and comment marker",
+			existing:  "extension=tideways.so\n  ; tideways.api_key=legacy\n",
+			directive: "tideways.api_key",
+			want:      "extension=tideways.so\n",
 		},
 		{
 			name:      "no-op when directive absent",
-			existing:  "extension=tideways.so\ntideways.api_key=abc\n",
+			existing:  "extension=tideways.so\n",
 			directive: "tideways.environment",
-			want:      "extension=tideways.so\ntideways.api_key=abc\n",
+			want:      "extension=tideways.so\n",
+		},
+		{
+			name:      "handles empty file",
+			existing:  "",
+			directive: "tideways.api_key",
+			want:      "",
+		},
+		{
+			name:      "strips multiple occurrences",
+			existing:  "tideways.api_key=a\nextension=tideways.so\ntideways.api_key=b\n",
+			directive: "tideways.api_key",
+			want:      "extension=tideways.so\n",
 		},
 	}
 	for _, tt := range tests {
@@ -105,6 +62,20 @@ func TestStripIniDirective(t *testing.T) {
 				t.Errorf("stripIniDirective(%q, %q)\n got: %q\nwant: %q", tt.existing, tt.directive, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestStripIniDirective_ComposedCleanup exercises the realistic case where
+// both stale Tideways directives are present and CleanLegacyExtensionDirectives
+// runs stripIniDirective twice in sequence.
+func TestStripIniDirective_ComposedCleanup(t *testing.T) {
+	existing := "; Tideways PHP extension\nextension=tideways.so\ntideways.api_key=legacy\ntideways.environment=local_old\n"
+	got := stripIniDirective(existing, "tideways.api_key")
+	got = stripIniDirective(got, "tideways.environment")
+
+	want := "; Tideways PHP extension\nextension=tideways.so\n"
+	if got != want {
+		t.Errorf("composed cleanup:\n got: %q\nwant: %q", got, want)
 	}
 }
 
