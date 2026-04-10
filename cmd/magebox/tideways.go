@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -62,28 +63,36 @@ var tidewaysInstallCmd = &cobra.Command{
 
 var tidewaysConfigCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configure global Tideways settings",
-	Long: `Configures the globally-scoped Tideways settings: the CLI access token
-(for the 'tideways' commandline tool) and the daemon environment label
-(which stamps all traces from this machine).
+	Short: "Configure Tideways settings",
+	Long: `Configures Tideways settings at two scopes:
 
-The Tideways API key is *per Tideways project*, not per user or machine,
-so it is not configured here. Set it per project in .magebox.yaml under
-php_ini.tideways.api_key — MageBox renders that into the project's FPM
-pool config as a php_admin_value, scoping the key to that one project.`,
+Global (stored in ~/.magebox/config.yaml and a systemd drop-in):
+  - CLI access token for the 'tideways' commandline tool
+  - Daemon environment label applied to every trace on this machine
+
+Project (stored in the current project's .magebox.local.yaml):
+  - Tideways API key, written to php_ini.tideways.api_key
+
+The project API key is prompted for whenever you run this command from
+inside a project that does not yet have one. MageBox writes it to
+.magebox.local.yaml so it stays out of the shared repo, and the value
+is rendered into that project's FPM pool config as a php_admin_value
+— scoping the key to just that one project.`,
 	RunE: runTidewaysConfig,
 }
 
 // Flags for tideways config
 var (
-	tidewaysAccessToken string
-	tidewaysEnvironment string
+	tidewaysAccessToken   string
+	tidewaysEnvironment   string
+	tidewaysProjectAPIKey string
 )
 
 func init() {
 	// Add flags for non-interactive config
 	tidewaysConfigCmd.Flags().StringVar(&tidewaysAccessToken, "access-token", "", "Tideways CLI access token (for the tideways commandline tool)")
 	tidewaysConfigCmd.Flags().StringVar(&tidewaysEnvironment, "environment", "", "Tideways environment label (default: local_$USER)")
+	tidewaysConfigCmd.Flags().StringVar(&tidewaysProjectAPIKey, "project-api-key", "", "Tideways API key for the current project (written to .magebox.local.yaml)")
 
 	tidewaysCmd.AddCommand(tidewaysOnCmd)
 	tidewaysCmd.AddCommand(tidewaysOffCmd)
@@ -371,10 +380,26 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	existingCreds := globalCfg.GetTidewaysCredentials()
 	hadLegacyAPIKey := globalCfg.HasLegacyTidewaysAPIKey()
 
-	// Non-interactive mode is triggered by passing at least one flag.
-	nonInteractive := tidewaysAccessToken != "" || tidewaysEnvironment != ""
+	// Detect whether we're inside a project so we can also prompt for /
+	// write the project-scoped api_key. Missing project is non-fatal —
+	// the global settings still work.
+	var (
+		projectPath   string
+		projectName   string
+		projectHasKey bool
+	)
+	if cwd, cwdErr := getCwd(); cwdErr == nil {
+		if pc, loadErr := config.LoadFromPath(cwd); loadErr == nil && pc != nil {
+			projectPath = cwd
+			projectName = pc.Name
+			projectHasKey = pc.PHPINI["tideways.api_key"] != ""
+		}
+	}
 
-	var accessToken, environment string
+	// Non-interactive mode is triggered by passing at least one flag.
+	nonInteractive := tidewaysAccessToken != "" || tidewaysEnvironment != "" || tidewaysProjectAPIKey != ""
+
+	var accessToken, environment, projectAPIKey string
 
 	if nonInteractive {
 		accessToken = tidewaysAccessToken
@@ -384,6 +409,10 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		environment = tidewaysEnvironment
 		if environment == "" {
 			environment = existingCreds.Environment
+		}
+		// Only adopt --project-api-key if we're actually in a project.
+		if tidewaysProjectAPIKey != "" && projectPath != "" {
+			projectAPIKey = tidewaysProjectAPIKey
 		}
 	} else {
 		cli.PrintTitle("Configure Tideways")
@@ -432,6 +461,25 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		environment = strings.TrimSpace(environment)
 		if environment == "" {
 			environment = envDefault
+		}
+
+		// Prompt for the per-project API key, but only if we're inside a
+		// project and that project doesn't already have tideways.api_key
+		// set in its merged php_ini map. If the user leaves it blank we
+		// skip — the key is optional at config time (they can always add
+		// it manually later).
+		if projectPath != "" && !projectHasKey {
+			fmt.Println()
+			label := projectName
+			if label == "" {
+				label = filepath.Base(projectPath)
+			}
+			fmt.Printf("Project %q has no Tideways API key in its php_ini.\n", label)
+			fmt.Println("Enter it now to have MageBox write it to .magebox.local.yaml,")
+			fmt.Println("or leave blank to skip.")
+			fmt.Print("Project API Key: ")
+			projectAPIKey, _ = reader.ReadString('\n')
+			projectAPIKey = strings.TrimSpace(projectAPIKey)
 		}
 	}
 
@@ -513,6 +561,26 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Write the per-project API key to .magebox.local.yaml. We use the
+	// local override file by default because the api_key is a secret and
+	// .magebox.local.yaml is typically gitignored — keeping it out of the
+	// shared repo. Users who want to share the key with their team can
+	// move it to .magebox.yaml manually afterward.
+	if projectAPIKey != "" {
+		fmt.Printf("Writing Tideways API key to %s/%s... ", projectPath, config.LocalConfigFileName)
+		if err := writeProjectTidewaysAPIKey(projectPath, projectAPIKey); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("  %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+			cli.PrintInfo("Run 'magebox restart' so the FPM pool picks up the new php_admin_value")
+		}
+	} else if projectPath != "" && !projectHasKey {
+		cli.PrintInfo("No project API key provided — add it later to .magebox.local.yaml:")
+		cli.PrintInfo("  php_ini:")
+		cli.PrintInfo("    tideways.api_key: your-project-specific-key")
+	}
+
 	// Import the CLI access token if provided. The `tideways` CLI stores it
 	// locally after a successful import.
 	if accessToken != "" {
@@ -529,8 +597,28 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	cli.PrintSuccess("Tideways configured!")
 	fmt.Println()
-	cli.PrintInfo("Set the API key per project in .magebox.yaml under php_ini.tideways.api_key")
+	if projectPath == "" {
+		cli.PrintInfo("Set the API key per project in .magebox.yaml under php_ini.tideways.api_key")
+	}
 	cli.PrintInfo("Enable profiling with: magebox tideways on")
 
+	return nil
+}
+
+// writeProjectTidewaysAPIKey merges tideways.api_key into the project's
+// .magebox.local.yaml php_ini map, preserving any other local overrides.
+// Creates the file if it doesn't exist.
+func writeProjectTidewaysAPIKey(projectPath, apiKey string) error {
+	local, err := config.LoadLocalConfig(projectPath)
+	if err != nil {
+		return fmt.Errorf("failed to load %s: %w", config.LocalConfigFileName, err)
+	}
+	if local.PHPINI == nil {
+		local.PHPINI = make(map[string]string)
+	}
+	local.PHPINI["tideways.api_key"] = apiKey
+	if err := config.SaveLocalConfig(projectPath, local); err != nil {
+		return fmt.Errorf("failed to save %s: %w", config.LocalConfigFileName, err)
+	}
 	return nil
 }
