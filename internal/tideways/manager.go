@@ -190,15 +190,16 @@ func (m *Manager) RestartDaemon() error {
 	return fmt.Errorf("unsupported platform")
 }
 
-// WriteExtensionConfig writes the tideways.api_key and tideways.environment
-// directives to the PHP extension ini file for the given PHP version. Existing
-// lines for these directives (commented or uncommented) are replaced in place;
-// otherwise they are appended. The Tideways PHP extension requires
-// tideways.api_key to be set in php.ini in order to transmit traces, and
-// tideways.environment controls which Tideways environment bucket the traces
-// land in — on a developer machine we don't want that to default to the
-// server-side `production` bucket.
-func (m *Manager) WriteExtensionConfig(phpVersion string) error {
+// WriteAPIKeyToExtension writes the tideways.api_key directive to the PHP
+// extension ini file for the given PHP version. If a tideways.api_key line
+// already exists (commented or uncommented) it is replaced, otherwise the
+// directive is appended. The Tideways PHP extension requires tideways.api_key
+// to be set in php.ini in order to transmit traces.
+//
+// Note: the environment label (production/staging/local) is NOT a PHP
+// extension setting — it lives on the Tideways daemon. See
+// WriteDaemonEnvironment.
+func (m *Manager) WriteAPIKeyToExtension(phpVersion string) error {
 	if m.credentials == nil || m.credentials.APIKey == "" {
 		return fmt.Errorf("tideways API key not configured")
 	}
@@ -217,10 +218,11 @@ func (m *Manager) WriteExtensionConfig(phpVersion string) error {
 		return fmt.Errorf("failed to read %s: %w", iniPath, err)
 	}
 
-	newContent := rewriteIniDirective(string(existing), "tideways.api_key", m.credentials.APIKey)
-	if m.credentials.Environment != "" {
-		newContent = rewriteIniDirective(newContent, "tideways.environment", m.credentials.Environment)
-	}
+	// If a stale tideways.environment line is present from a previous
+	// MageBox version, strip it — the PHP extension silently ignores it
+	// anyway, but leaving it in place is confusing.
+	cleaned := stripIniDirective(string(existing), "tideways.environment")
+	newContent := rewriteIniDirective(cleaned, "tideways.api_key", m.credentials.APIKey)
 
 	// Write through sudo tee because mods-available files are root-owned.
 	cmd := exec.Command("sudo", "tee", iniPath)
@@ -228,10 +230,109 @@ func (m *Manager) WriteExtensionConfig(phpVersion string) error {
 	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to write tideways config to %s: %w", iniPath, err)
+		return fmt.Errorf("failed to write tideways.api_key to %s: %w", iniPath, err)
 	}
 
 	return nil
+}
+
+// stripIniDirective removes every line (commented or uncommented) that sets
+// the given directive. Used to evict the stale tideways.environment line left
+// behind by an earlier MageBox version that mistakenly wrote it as a PHP
+// extension directive.
+func stripIniDirective(existing, directive string) string {
+	lines := strings.Split(existing, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t;")
+		if strings.HasPrefix(trimmed, directive) {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// daemonEnvironmentDropInDir is the systemd drop-in directory used to inject
+// TIDEWAYS_ENVIRONMENT into the tideways-daemon process environment. Exposed
+// as a package variable so tests can point it at a temp dir.
+const daemonEnvironmentDropInDir = "/etc/systemd/system/tideways-daemon.service.d"
+const daemonEnvironmentDropInFile = "magebox-environment.conf"
+
+// WriteDaemonEnvironment configures the Tideways daemon to label traces with
+// the given environment name. The environment is a daemon-level setting, not
+// a PHP extension setting — the extension transmits traces to the local
+// daemon, and the daemon stamps them with whatever --env it was started with
+// (default "production"). We install a systemd drop-in that sets
+// TIDEWAYS_ENVIRONMENT in the daemon process environment, which the daemon
+// reads at startup, and then restart the daemon. On macOS daemon env
+// configuration is left manual — there is no clean, non-destructive way to
+// inject env vars into a brew-services plist.
+//
+// See https://support.tideways.com/documentation/setup/configuration/environments.html
+func (m *Manager) WriteDaemonEnvironment(environment string) error {
+	if environment == "" {
+		return fmt.Errorf("environment is empty")
+	}
+
+	switch m.platform.Type {
+	case platform.Linux:
+		content := renderDaemonEnvironmentDropIn(environment)
+		dropInPath := filepath.Join(daemonEnvironmentDropInDir, daemonEnvironmentDropInFile)
+
+		// Create drop-in directory and write the file via sudo.
+		mkdir := exec.Command("sudo", "mkdir", "-p", daemonEnvironmentDropInDir)
+		mkdir.Stdin = os.Stdin
+		mkdir.Stdout = os.Stdout
+		mkdir.Stderr = os.Stderr
+		if err := mkdir.Run(); err != nil {
+			return fmt.Errorf("failed to create %s: %w", daemonEnvironmentDropInDir, err)
+		}
+
+		tee := exec.Command("sudo", "tee", dropInPath)
+		tee.Stdin = strings.NewReader(content)
+		tee.Stdout = nil
+		tee.Stderr = os.Stderr
+		if err := tee.Run(); err != nil {
+			return fmt.Errorf("failed to write %s: %w", dropInPath, err)
+		}
+
+		reload := exec.Command("sudo", "systemctl", "daemon-reload")
+		reload.Stdin = os.Stdin
+		reload.Stdout = os.Stdout
+		reload.Stderr = os.Stderr
+		if err := reload.Run(); err != nil {
+			return fmt.Errorf("systemctl daemon-reload failed: %w", err)
+		}
+
+		restart := exec.Command("sudo", "systemctl", "restart", "tideways-daemon")
+		restart.Stdin = os.Stdin
+		restart.Stdout = os.Stdout
+		restart.Stderr = os.Stderr
+		if err := restart.Run(); err != nil {
+			return fmt.Errorf("systemctl restart tideways-daemon failed: %w", err)
+		}
+
+		return nil
+
+	case platform.Darwin:
+		return fmt.Errorf("automatic daemon environment configuration is not supported on macOS yet — " +
+			"set TIDEWAYS_ENVIRONMENT in the brew services plist manually")
+	}
+	return fmt.Errorf("unsupported platform")
+}
+
+// renderDaemonEnvironmentDropIn returns the systemd drop-in file contents
+// that inject TIDEWAYS_ENVIRONMENT into the tideways-daemon process
+// environment. Pure so it can be tested without sudo.
+func renderDaemonEnvironmentDropIn(environment string) string {
+	return fmt.Sprintf(`# Managed by MageBox — see 'magebox tideways config'.
+# This drop-in labels all traces collected by the local tideways-daemon
+# with the given environment name so local development traces don't land
+# in the 'production' bucket on app.tideways.io.
+[Service]
+Environment="TIDEWAYS_ENVIRONMENT=%s"
+`, environment)
 }
 
 // rewriteIniDirective returns a copy of existing with the given ini directive

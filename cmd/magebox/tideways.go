@@ -378,8 +378,10 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		fmt.Println("  • Access Token — personal token for the `tideways` CLI command")
 		fmt.Println("    Generated at https://app.tideways.io/user/cli-import-settings")
 		fmt.Println()
-		fmt.Println("Traces are labeled with an Environment so they don't land in the")
-		fmt.Println("`production` bucket on app.tideways.io — the default is local_<username>.")
+		fmt.Println("Traces are labeled with an Environment by the local tideways-daemon")
+		fmt.Println("so they don't land in the `production` bucket on app.tideways.io —")
+		fmt.Println("the default is local_<username>. On Linux MageBox installs a systemd")
+		fmt.Println("drop-in to pass TIDEWAYS_ENVIRONMENT to the daemon and restarts it.")
 		fmt.Println()
 
 		reader := bufio.NewReader(os.Stdin)
@@ -452,24 +454,35 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Tideways environment: %s\n", cli.Highlight(environment))
 
-	// Write tideways.api_key and tideways.environment to every PHP version
-	// that has the Tideways extension installed. The extension refuses to
-	// transmit traces without tideways.api_key, and without
-	// tideways.environment traces would land in the server-side `production`
-	// bucket, which is almost never what you want on a developer machine.
+	// Write tideways.api_key to every PHP version that has the Tideways
+	// extension installed. The extension refuses to transmit traces without
+	// this directive in php.ini.
 	writtenAny := false
 	for _, v := range p.GetInstalledPHPVersions() {
 		if !mgr.IsExtensionInstalled(v) {
 			continue
 		}
-		fmt.Printf("Writing Tideways config to PHP %s ini... ", v)
-		if err := mgr.WriteExtensionConfig(v); err != nil {
+		fmt.Printf("Writing tideways.api_key to PHP %s ini... ", v)
+		if err := mgr.WriteAPIKeyToExtension(v); err != nil {
 			fmt.Println(cli.Warning("failed"))
 			cli.PrintWarning("  %v", err)
 		} else {
 			fmt.Println(cli.Success("done"))
 			writtenAny = true
 		}
+	}
+
+	// Configure the daemon environment label. This is a *daemon-level*
+	// setting — the PHP extension transmits traces to the local daemon, and
+	// the daemon stamps them with whatever --env (or TIDEWAYS_ENVIRONMENT)
+	// it was started with. On Linux we install a systemd drop-in and
+	// restart the daemon. On macOS this is left manual.
+	fmt.Printf("Configuring Tideways daemon environment (%s)... ", environment)
+	if err := mgr.WriteDaemonEnvironment(environment); err != nil {
+		fmt.Println(cli.Warning("skipped"))
+		cli.PrintWarning("  %v", err)
+	} else {
+		fmt.Println(cli.Success("done"))
 	}
 	if !writtenAny {
 		cli.PrintWarning("Tideways extension not installed for any PHP version — run 'magebox tideways install' first")

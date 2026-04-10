@@ -2,7 +2,10 @@
 
 package tideways
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRewriteIniDirective(t *testing.T) {
 	tests := []struct {
@@ -54,27 +57,6 @@ func TestRewriteIniDirective(t *testing.T) {
 			value:     "k",
 			want:      "tideways.api_key=k\n",
 		},
-		{
-			name:      "appends environment to file without directive",
-			existing:  "extension=tideways.so\ntideways.api_key=abc\n",
-			directive: "tideways.environment",
-			value:     "local_peterjaap",
-			want:      "extension=tideways.so\ntideways.api_key=abc\ntideways.environment=local_peterjaap\n",
-		},
-		{
-			name:      "replaces existing environment directive",
-			existing:  "extension=tideways.so\ntideways.environment=production\n",
-			directive: "tideways.environment",
-			value:     "local_peterjaap",
-			want:      "extension=tideways.so\ntideways.environment=local_peterjaap\n",
-		},
-		{
-			name:      "replaces commented environment directive",
-			existing:  "extension=tideways.so\n; tideways.environment=staging\n",
-			directive: "tideways.environment",
-			value:     "local_peterjaap",
-			want:      "extension=tideways.so\ntideways.environment=local_peterjaap\n",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -86,26 +68,63 @@ func TestRewriteIniDirective(t *testing.T) {
 	}
 }
 
-// TestRewriteIniDirective_Composition exercises the realistic case of
-// applying both tideways.api_key and tideways.environment in sequence, which
-// is what WriteExtensionConfig does.
-func TestRewriteIniDirective_Composition(t *testing.T) {
-	existing := "; Tideways PHP extension\nextension=tideways.so\n"
-
-	withKey := rewriteIniDirective(existing, "tideways.api_key", "abc123")
-	withBoth := rewriteIniDirective(withKey, "tideways.environment", "local_peterjaap")
-
-	want := "; Tideways PHP extension\nextension=tideways.so\ntideways.api_key=abc123\ntideways.environment=local_peterjaap\n"
-	if withBoth != want {
-		t.Errorf("composition result:\n got: %q\nwant: %q", withBoth, want)
+// TestStripIniDirective verifies we can evict a stale directive left behind
+// by an earlier MageBox version. Specifically, v1.14.x briefly wrote
+// `tideways.environment` to the PHP extension ini before we learned that is
+// a daemon-level setting, not an extension-level one.
+func TestStripIniDirective(t *testing.T) {
+	tests := []struct {
+		name      string
+		existing  string
+		directive string
+		want      string
+	}{
+		{
+			name:      "strips uncommented stale environment line",
+			existing:  "extension=tideways.so\ntideways.api_key=abc\ntideways.environment=local_x\n",
+			directive: "tideways.environment",
+			want:      "extension=tideways.so\ntideways.api_key=abc\n",
+		},
+		{
+			name:      "strips commented stale environment line",
+			existing:  "extension=tideways.so\n;tideways.environment=local_x\ntideways.api_key=abc\n",
+			directive: "tideways.environment",
+			want:      "extension=tideways.so\ntideways.api_key=abc\n",
+		},
+		{
+			name:      "no-op when directive absent",
+			existing:  "extension=tideways.so\ntideways.api_key=abc\n",
+			directive: "tideways.environment",
+			want:      "extension=tideways.so\ntideways.api_key=abc\n",
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripIniDirective(tt.existing, tt.directive)
+			if got != tt.want {
+				t.Errorf("stripIniDirective(%q, %q)\n got: %q\nwant: %q", tt.existing, tt.directive, got, tt.want)
+			}
+		})
+	}
+}
 
-	// Re-applying with new values should replace both in place, not append.
-	replaced := rewriteIniDirective(withBoth, "tideways.api_key", "xyz789")
-	replaced = rewriteIniDirective(replaced, "tideways.environment", "local_other")
+// TestRenderDaemonEnvironmentDropIn verifies the systemd drop-in body shape.
+// This is the file contents that get written to
+// /etc/systemd/system/tideways-daemon.service.d/magebox-environment.conf
+// on Linux so the daemon inherits TIDEWAYS_ENVIRONMENT.
+func TestRenderDaemonEnvironmentDropIn(t *testing.T) {
+	got := renderDaemonEnvironmentDropIn("local_peterjaap")
 
-	want2 := "; Tideways PHP extension\nextension=tideways.so\ntideways.api_key=xyz789\ntideways.environment=local_other\n"
-	if replaced != want2 {
-		t.Errorf("replace-in-place result:\n got: %q\nwant: %q", replaced, want2)
+	// The [Service] section and the exact Environment= line are load-bearing
+	// — systemd parses them literally.
+	if !strings.Contains(got, "[Service]") {
+		t.Errorf("drop-in missing [Service] section:\n%s", got)
+	}
+	if !strings.Contains(got, `Environment="TIDEWAYS_ENVIRONMENT=local_peterjaap"`) {
+		t.Errorf("drop-in missing expected Environment= line:\n%s", got)
+	}
+	// Managed-by header so it's obvious who owns this file.
+	if !strings.Contains(got, "Managed by MageBox") {
+		t.Errorf("drop-in missing managed-by marker:\n%s", got)
 	}
 }
