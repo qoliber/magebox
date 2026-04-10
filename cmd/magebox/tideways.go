@@ -72,12 +72,14 @@ The API key is stored in ~/.magebox/config.yaml.`,
 var (
 	tidewaysAPIKey      string
 	tidewaysAccessToken string
+	tidewaysEnvironment string
 )
 
 func init() {
 	// Add flags for non-interactive config
 	tidewaysConfigCmd.Flags().StringVar(&tidewaysAPIKey, "api-key", "", "Tideways API Key (project key, for the PHP extension)")
 	tidewaysConfigCmd.Flags().StringVar(&tidewaysAccessToken, "access-token", "", "Tideways CLI access token (for the tideways commandline tool)")
+	tidewaysConfigCmd.Flags().StringVar(&tidewaysEnvironment, "environment", "", "Tideways environment label (default: local_$USER)")
 
 	tidewaysCmd.AddCommand(tidewaysOnCmd)
 	tidewaysCmd.AddCommand(tidewaysOffCmd)
@@ -255,9 +257,11 @@ func runTidewaysStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Credentials status
+	creds := globalCfg.GetTidewaysCredentials()
 	fmt.Println("Credentials:")
 	fmt.Printf("  API Key configured:       %s\n", formatBool(globalCfg.HasTidewaysCredentials()))
 	fmt.Printf("  CLI access token set:     %s\n", formatBool(globalCfg.HasTidewaysAccessToken()))
+	fmt.Printf("  Environment:              %s\n", cli.Highlight(creds.Environment))
 	fmt.Println()
 
 	// Helpful tips
@@ -347,9 +351,9 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	existingCreds := globalCfg.GetTidewaysCredentials()
 
 	// Non-interactive mode is triggered by passing at least one flag.
-	nonInteractive := tidewaysAPIKey != "" || tidewaysAccessToken != ""
+	nonInteractive := tidewaysAPIKey != "" || tidewaysAccessToken != "" || tidewaysEnvironment != ""
 
-	var apiKey, accessToken string
+	var apiKey, accessToken, environment string
 
 	if nonInteractive {
 		apiKey = tidewaysAPIKey
@@ -360,6 +364,10 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		if accessToken == "" {
 			accessToken = existingCreds.AccessToken
 		}
+		environment = tidewaysEnvironment
+		if environment == "" {
+			environment = existingCreds.Environment
+		}
 	} else {
 		cli.PrintTitle("Configure Tideways")
 		fmt.Println("Tideways uses two different credentials:")
@@ -369,6 +377,9 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		fmt.Println("      https://app.tideways.io/o/<organization>/<project>/installation")
 		fmt.Println("  • Access Token — personal token for the `tideways` CLI command")
 		fmt.Println("    Generated at https://app.tideways.io/user/cli-import-settings")
+		fmt.Println()
+		fmt.Println("Traces are labeled with an Environment so they don't land in the")
+		fmt.Println("`production` bucket on app.tideways.io — the default is local_<username>.")
 		fmt.Println()
 
 		reader := bufio.NewReader(os.Stdin)
@@ -396,17 +407,33 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 		if accessToken == "" && existingCreds.AccessToken != "" {
 			accessToken = existingCreds.AccessToken
 		}
+
+		// Prompt for Environment (defaults to local_$USER)
+		envDefault := existingCreds.Environment
+		if envDefault == "" {
+			envDefault = config.DefaultTidewaysEnvironment()
+		}
+		fmt.Printf("Environment [%s]: ", envDefault)
+		environment, _ = reader.ReadString('\n')
+		environment = strings.TrimSpace(environment)
+		if environment == "" {
+			environment = envDefault
+		}
 	}
 
 	// Validate
 	if apiKey == "" {
 		return fmt.Errorf("API key is required")
 	}
+	if environment == "" {
+		environment = config.DefaultTidewaysEnvironment()
+	}
 
 	// Save to global config
 	globalCfg.Profiling.Tideways = config.TidewaysCredentials{
 		APIKey:      apiKey,
 		AccessToken: accessToken,
+		Environment: environment,
 	}
 
 	fmt.Println()
@@ -420,18 +447,23 @@ func runTidewaysConfig(cmd *cobra.Command, args []string) error {
 	mgr := tideways.NewManager(p, &tideways.Credentials{
 		APIKey:      apiKey,
 		AccessToken: accessToken,
+		Environment: environment,
 	})
 
-	// Write tideways.api_key to every PHP version that has the Tideways
-	// extension installed. The extension refuses to transmit traces without
-	// this directive in php.ini.
+	fmt.Printf("Tideways environment: %s\n", cli.Highlight(environment))
+
+	// Write tideways.api_key and tideways.environment to every PHP version
+	// that has the Tideways extension installed. The extension refuses to
+	// transmit traces without tideways.api_key, and without
+	// tideways.environment traces would land in the server-side `production`
+	// bucket, which is almost never what you want on a developer machine.
 	writtenAny := false
 	for _, v := range p.GetInstalledPHPVersions() {
 		if !mgr.IsExtensionInstalled(v) {
 			continue
 		}
-		fmt.Printf("Writing tideways.api_key to PHP %s ini... ", v)
-		if err := mgr.WriteAPIKeyToExtension(v); err != nil {
+		fmt.Printf("Writing Tideways config to PHP %s ini... ", v)
+		if err := mgr.WriteExtensionConfig(v); err != nil {
 			fmt.Println(cli.Warning("failed"))
 			cli.PrintWarning("  %v", err)
 		} else {

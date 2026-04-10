@@ -11,9 +11,13 @@ package tideways
 // AccessToken is the personal CLI token used by the `tideways` commandline
 // tool (imported via `tideways import <token>`). It is a separate credential
 // from APIKey.
+//
+// Environment is the free-text label Tideways groups traces by, written to
+// php.ini as tideways.environment.
 type Credentials struct {
 	APIKey      string `yaml:"api_key"`
 	AccessToken string `yaml:"access_token"`
+	Environment string `yaml:"environment"`
 }
 
 // Status represents the current Tideways status

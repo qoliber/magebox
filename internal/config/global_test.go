@@ -219,12 +219,14 @@ func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
 	// Unset env vars so they don't leak into the test from the shell.
 	t.Setenv("TIDEWAYS_API_KEY", "")
 	t.Setenv("TIDEWAYS_CLI_TOKEN", "")
+	t.Setenv("TIDEWAYS_ENVIRONMENT", "")
 
 	cfg := &GlobalConfig{
 		Profiling: ProfilingConfig{
 			Tideways: TidewaysCredentials{
 				APIKey:      "project-key",
 				AccessToken: "cli-token",
+				Environment: "local_fromfile",
 			},
 		},
 	}
@@ -236,6 +238,12 @@ func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
 		t.Error("HasTidewaysAccessToken should return true when access token is set")
 	}
 
+	// Without env var overrides, stored Environment should pass through.
+	got := cfg.GetTidewaysCredentials()
+	if got.Environment != "local_fromfile" {
+		t.Errorf("Environment = %q, want local_fromfile", got.Environment)
+	}
+
 	empty := &GlobalConfig{}
 	if empty.HasTidewaysCredentials() {
 		t.Error("HasTidewaysCredentials should return false for empty config")
@@ -244,21 +252,45 @@ func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
 		t.Error("HasTidewaysAccessToken should return false for empty config")
 	}
 
+	// When no Environment is stored and no env var is set, we fall back to
+	// the local_<username> default — never to an empty string.
+	emptyGot := empty.GetTidewaysCredentials()
+	if emptyGot.Environment == "" {
+		t.Error("GetTidewaysCredentials should fall back to DefaultTidewaysEnvironment, got empty")
+	}
+	if emptyGot.Environment != DefaultTidewaysEnvironment() {
+		t.Errorf("Environment = %q, want %q", emptyGot.Environment, DefaultTidewaysEnvironment())
+	}
+
 	// Environment variables should take precedence.
 	t.Setenv("TIDEWAYS_API_KEY", "env-api-key")
 	t.Setenv("TIDEWAYS_CLI_TOKEN", "env-cli-token")
+	t.Setenv("TIDEWAYS_ENVIRONMENT", "env-environment")
 
-	got := cfg.GetTidewaysCredentials()
+	got = cfg.GetTidewaysCredentials()
 	if got.APIKey != "env-api-key" {
 		t.Errorf("APIKey = %q, want env-api-key", got.APIKey)
 	}
 	if got.AccessToken != "env-cli-token" {
 		t.Errorf("AccessToken = %q, want env-cli-token", got.AccessToken)
 	}
+	if got.Environment != "env-environment" {
+		t.Errorf("Environment = %q, want env-environment", got.Environment)
+	}
+}
+
+func TestDefaultTidewaysEnvironment(t *testing.T) {
+	got := DefaultTidewaysEnvironment()
+	if got == "" {
+		t.Fatal("DefaultTidewaysEnvironment returned empty string")
+	}
+	if len(got) <= len("local_") || got[:len("local_")] != "local_" {
+		t.Errorf("DefaultTidewaysEnvironment() = %q, want local_<username>", got)
+	}
 }
 
 func TestGlobalConfig_TidewaysRoundTrip(t *testing.T) {
-	// Make sure the new access_token field survives a save/load cycle.
+	// Make sure access_token and environment survive a save/load cycle.
 	tmpDir := t.TempDir()
 
 	cfg := &GlobalConfig{
@@ -266,6 +298,7 @@ func TestGlobalConfig_TidewaysRoundTrip(t *testing.T) {
 			Tideways: TidewaysCredentials{
 				APIKey:      "abc123",
 				AccessToken: "def456",
+				Environment: "local_tester",
 			},
 		},
 	}
@@ -283,5 +316,8 @@ func TestGlobalConfig_TidewaysRoundTrip(t *testing.T) {
 	}
 	if loaded.Profiling.Tideways.AccessToken != "def456" {
 		t.Errorf("AccessToken = %q, want def456", loaded.Profiling.Tideways.AccessToken)
+	}
+	if loaded.Profiling.Tideways.Environment != "local_tester" {
+		t.Errorf("Environment = %q, want local_tester", loaded.Profiling.Tideways.Environment)
 	}
 }

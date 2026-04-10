@@ -190,12 +190,15 @@ func (m *Manager) RestartDaemon() error {
 	return fmt.Errorf("unsupported platform")
 }
 
-// WriteAPIKeyToExtension writes the tideways.api_key directive to the PHP
-// extension ini file for the given PHP version. If a tideways.api_key line
-// already exists (commented or uncommented) it is replaced, otherwise the
-// directive is appended. The Tideways PHP extension requires tideways.api_key
-// to be set in php.ini in order to transmit traces.
-func (m *Manager) WriteAPIKeyToExtension(phpVersion string) error {
+// WriteExtensionConfig writes the tideways.api_key and tideways.environment
+// directives to the PHP extension ini file for the given PHP version. Existing
+// lines for these directives (commented or uncommented) are replaced in place;
+// otherwise they are appended. The Tideways PHP extension requires
+// tideways.api_key to be set in php.ini in order to transmit traces, and
+// tideways.environment controls which Tideways environment bucket the traces
+// land in — on a developer machine we don't want that to default to the
+// server-side `production` bucket.
+func (m *Manager) WriteExtensionConfig(phpVersion string) error {
 	if m.credentials == nil || m.credentials.APIKey == "" {
 		return fmt.Errorf("tideways API key not configured")
 	}
@@ -214,7 +217,10 @@ func (m *Manager) WriteAPIKeyToExtension(phpVersion string) error {
 		return fmt.Errorf("failed to read %s: %w", iniPath, err)
 	}
 
-	newContent := rewriteAPIKeyIni(string(existing), m.credentials.APIKey)
+	newContent := rewriteIniDirective(string(existing), "tideways.api_key", m.credentials.APIKey)
+	if m.credentials.Environment != "" {
+		newContent = rewriteIniDirective(newContent, "tideways.environment", m.credentials.Environment)
+	}
 
 	// Write through sudo tee because mods-available files are root-owned.
 	cmd := exec.Command("sudo", "tee", iniPath)
@@ -222,23 +228,24 @@ func (m *Manager) WriteAPIKeyToExtension(phpVersion string) error {
 	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to write tideways.api_key to %s: %w", iniPath, err)
+		return fmt.Errorf("failed to write tideways config to %s: %w", iniPath, err)
 	}
 
 	return nil
 }
 
-// rewriteAPIKeyIni returns a copy of existing with the tideways.api_key
-// directive set to apiKey. An existing tideways.api_key line (commented or
-// uncommented) is replaced in place; otherwise the directive is appended.
-func rewriteAPIKeyIni(existing, apiKey string) string {
-	newLine := fmt.Sprintf("tideways.api_key=%s", apiKey)
+// rewriteIniDirective returns a copy of existing with the given ini directive
+// set to value. An existing line for the directive (commented or uncommented)
+// is replaced in place; otherwise the directive is appended. The result is
+// guaranteed to end with exactly one trailing newline.
+func rewriteIniDirective(existing, directive, value string) string {
+	newLine := fmt.Sprintf("%s=%s", directive, value)
 
 	lines := strings.Split(existing, "\n")
 	replaced := false
 	for i, line := range lines {
 		trimmed := strings.TrimLeft(line, " \t;")
-		if strings.HasPrefix(trimmed, "tideways.api_key") {
+		if strings.HasPrefix(trimmed, directive) {
 			lines[i] = newLine
 			replaced = true
 		}

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"qoliber/magebox/internal/remote"
@@ -79,9 +80,14 @@ type BlackfireCredentials struct {
 // tool (imported via `tideways import <token>`). Generated at
 // https://app.tideways.io/user/cli-import-settings. This is a separate
 // credential from APIKey.
+//
+// Environment is the free-text label Tideways groups traces by (written to
+// php.ini as tideways.environment). Defaults to `local_<username>` so that
+// traces from a developer machine never land in the `production` bucket.
 type TidewaysCredentials struct {
 	APIKey      string `yaml:"api_key,omitempty"`
 	AccessToken string `yaml:"access_token,omitempty"`
+	Environment string `yaml:"environment,omitempty"`
 }
 
 // DefaultServices represents default service configurations
@@ -255,8 +261,31 @@ func (c *GlobalConfig) GetTidewaysCredentials() TidewaysCredentials {
 	if env := os.Getenv("TIDEWAYS_CLI_TOKEN"); env != "" {
 		creds.AccessToken = env
 	}
+	if env := os.Getenv("TIDEWAYS_ENVIRONMENT"); env != "" {
+		creds.Environment = env
+	}
+
+	// Fall back to a developer-safe default so local traces never land in
+	// the `production` bucket on app.tideways.io.
+	if creds.Environment == "" {
+		creds.Environment = DefaultTidewaysEnvironment()
+	}
 
 	return creds
+}
+
+// DefaultTidewaysEnvironment returns the default Tideways environment label
+// for this machine. The label is `local_<username>` (e.g. `local_peterjaap`)
+// which makes it trivial to filter a single developer's traces in the
+// Tideways dashboard without colliding with production or other developers.
+func DefaultTidewaysEnvironment() string {
+	name := "unknown"
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		name = u.Username
+	} else if env := os.Getenv("USER"); env != "" {
+		name = env
+	}
+	return "local_" + name
 }
 
 // InitGlobalConfig creates the initial global config file with defaults
