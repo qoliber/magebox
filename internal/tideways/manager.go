@@ -92,7 +92,6 @@ func (m *Manager) GetStatus(phpVersions []string) *Status {
 		DaemonRunning:      m.IsDaemonRunning(),
 		ExtensionInstalled: make(map[string]bool),
 		ExtensionEnabled:   make(map[string]bool),
-		Configured:         m.credentials != nil && m.credentials.APIKey != "",
 	}
 
 	for _, v := range phpVersions {
@@ -190,56 +189,65 @@ func (m *Manager) RestartDaemon() error {
 	return fmt.Errorf("unsupported platform")
 }
 
-// WriteAPIKeyToExtension writes the tideways.api_key directive to the PHP
-// extension ini file for the given PHP version. If a tideways.api_key line
-// already exists (commented or uncommented) it is replaced, otherwise the
-// directive is appended. The Tideways PHP extension requires tideways.api_key
-// to be set in php.ini in order to transmit traces.
+// CleanLegacyExtensionDirectives strips any stale `tideways.api_key` and
+// `tideways.environment` lines from the PHP extension ini file for the
+// given PHP version. These were written by earlier MageBox versions:
 //
-// Note: the environment label (production/staging/local) is NOT a PHP
-// extension setting — it lives on the Tideways daemon. See
-// WriteDaemonEnvironment.
-func (m *Manager) WriteAPIKeyToExtension(phpVersion string) error {
-	if m.credentials == nil || m.credentials.APIKey == "" {
-		return fmt.Errorf("tideways API key not configured")
-	}
-
+//   - tideways.api_key: was written globally, but the Tideways API key is
+//     per Tideways project, so it now lives in each project's .magebox.yaml
+//     under php_ini.tideways.api_key (rendered into the FPM pool config).
+//   - tideways.environment: is not a real PHP extension directive at all —
+//     environment is a daemon-level setting applied via systemd drop-in.
+//
+// Both stale lines are harmless (the extension ignores the unknown
+// directive, and the FPM pool's php_admin_value wins over the mods-available
+// api_key) but they are confusing when debugging, so we evict them on every
+// `magebox tideways config` run.
+//
+// Returns (cleaned, wasModified, err). wasModified is true if the file
+// actually changed, so the caller can decide whether to reload PHP-FPM.
+// Does nothing if the ini file does not exist.
+func (m *Manager) CleanLegacyExtensionDirectives(phpVersion string) (bool, error) {
 	iniPath := m.getExtensionIniPath(phpVersion)
 	if iniPath == "" {
-		return fmt.Errorf("unsupported platform")
+		return false, fmt.Errorf("unsupported platform")
 	}
 
 	if _, err := os.Stat(iniPath); err != nil {
-		return fmt.Errorf("tideways extension ini not found at %s (install the extension first)", iniPath)
+		// Not installed for this PHP version — nothing to clean.
+		return false, nil
 	}
 
 	existing, err := os.ReadFile(iniPath)
 	if err != nil {
-		return fmt.Errorf("failed to read %s: %w", iniPath, err)
+		return false, fmt.Errorf("failed to read %s: %w", iniPath, err)
 	}
 
-	// If a stale tideways.environment line is present from a previous
-	// MageBox version, strip it — the PHP extension silently ignores it
-	// anyway, but leaving it in place is confusing.
-	cleaned := stripIniDirective(string(existing), "tideways.environment")
-	newContent := rewriteIniDirective(cleaned, "tideways.api_key", m.credentials.APIKey)
+	cleaned := stripIniDirective(string(existing), "tideways.api_key")
+	cleaned = stripIniDirective(cleaned, "tideways.environment")
+	if cleaned == string(existing) {
+		return false, nil
+	}
+	// Preserve exactly one trailing newline.
+	if !strings.HasSuffix(cleaned, "\n") {
+		cleaned += "\n"
+	}
 
 	// Write through sudo tee because mods-available files are root-owned.
 	cmd := exec.Command("sudo", "tee", iniPath)
-	cmd.Stdin = strings.NewReader(newContent)
+	cmd.Stdin = strings.NewReader(cleaned)
 	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to write tideways.api_key to %s: %w", iniPath, err)
+		return false, fmt.Errorf("failed to clean %s: %w", iniPath, err)
 	}
 
-	return nil
+	return true, nil
 }
 
 // stripIniDirective removes every line (commented or uncommented) that sets
-// the given directive. Used to evict the stale tideways.environment line left
-// behind by an earlier MageBox version that mistakenly wrote it as a PHP
-// extension directive.
+// the given directive. Used to evict stale directives from earlier MageBox
+// versions. See CleanLegacyExtensionDirectives.
 func stripIniDirective(existing, directive string) string {
 	lines := strings.Split(existing, "\n")
 	out := make([]string, 0, len(lines))
@@ -333,38 +341,6 @@ func renderDaemonEnvironmentDropIn(environment string) string {
 [Service]
 Environment="TIDEWAYS_ENVIRONMENT=%s"
 `, environment)
-}
-
-// rewriteIniDirective returns a copy of existing with the given ini directive
-// set to value. An existing line for the directive (commented or uncommented)
-// is replaced in place; otherwise the directive is appended. The result is
-// guaranteed to end with exactly one trailing newline.
-func rewriteIniDirective(existing, directive, value string) string {
-	newLine := fmt.Sprintf("%s=%s", directive, value)
-
-	lines := strings.Split(existing, "\n")
-	replaced := false
-	for i, line := range lines {
-		trimmed := strings.TrimLeft(line, " \t;")
-		if strings.HasPrefix(trimmed, directive) {
-			lines[i] = newLine
-			replaced = true
-		}
-	}
-	if !replaced {
-		if len(lines) > 0 && lines[len(lines)-1] == "" {
-			// Reuse the trailing empty element so we end up with exactly one
-			// newline at the end of the file.
-			lines[len(lines)-1] = newLine
-		} else {
-			lines = append(lines, newLine)
-		}
-	}
-	out := strings.Join(lines, "\n")
-	if !strings.HasSuffix(out, "\n") {
-		out += "\n"
-	}
-	return out
 }
 
 // ImportCLIToken imports the access token for the `tideways` CLI command by

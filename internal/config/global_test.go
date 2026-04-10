@@ -217,23 +217,18 @@ func TestGlobalConfig_applyDefaults(t *testing.T) {
 
 func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
 	// Unset env vars so they don't leak into the test from the shell.
-	t.Setenv("TIDEWAYS_API_KEY", "")
 	t.Setenv("TIDEWAYS_CLI_TOKEN", "")
 	t.Setenv("TIDEWAYS_ENVIRONMENT", "")
 
 	cfg := &GlobalConfig{
 		Profiling: ProfilingConfig{
 			Tideways: TidewaysCredentials{
-				APIKey:      "project-key",
 				AccessToken: "cli-token",
 				Environment: "local_fromfile",
 			},
 		},
 	}
 
-	if !cfg.HasTidewaysCredentials() {
-		t.Error("HasTidewaysCredentials should return true when API key is set")
-	}
 	if !cfg.HasTidewaysAccessToken() {
 		t.Error("HasTidewaysAccessToken should return true when access token is set")
 	}
@@ -243,11 +238,12 @@ func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
 	if got.Environment != "local_fromfile" {
 		t.Errorf("Environment = %q, want local_fromfile", got.Environment)
 	}
+	// APIKey is never surfaced — it lives per project.
+	if got.APIKey != "" {
+		t.Errorf("APIKey leaked from GetTidewaysCredentials: %q", got.APIKey)
+	}
 
 	empty := &GlobalConfig{}
-	if empty.HasTidewaysCredentials() {
-		t.Error("HasTidewaysCredentials should return false for empty config")
-	}
 	if empty.HasTidewaysAccessToken() {
 		t.Error("HasTidewaysAccessToken should return false for empty config")
 	}
@@ -263,19 +259,38 @@ func TestGlobalConfig_TidewaysCredentials(t *testing.T) {
 	}
 
 	// Environment variables should take precedence.
-	t.Setenv("TIDEWAYS_API_KEY", "env-api-key")
 	t.Setenv("TIDEWAYS_CLI_TOKEN", "env-cli-token")
 	t.Setenv("TIDEWAYS_ENVIRONMENT", "env-environment")
 
 	got = cfg.GetTidewaysCredentials()
-	if got.APIKey != "env-api-key" {
-		t.Errorf("APIKey = %q, want env-api-key", got.APIKey)
-	}
 	if got.AccessToken != "env-cli-token" {
 		t.Errorf("AccessToken = %q, want env-cli-token", got.AccessToken)
 	}
 	if got.Environment != "env-environment" {
 		t.Errorf("Environment = %q, want env-environment", got.Environment)
+	}
+}
+
+// TestGlobalConfig_HasLegacyTidewaysAPIKey verifies we can detect stale
+// api_key entries from older MageBox versions so the config command can
+// migrate them away.
+func TestGlobalConfig_HasLegacyTidewaysAPIKey(t *testing.T) {
+	withLegacy := &GlobalConfig{
+		Profiling: ProfilingConfig{
+			Tideways: TidewaysCredentials{APIKey: "stale"},
+		},
+	}
+	if !withLegacy.HasLegacyTidewaysAPIKey() {
+		t.Error("HasLegacyTidewaysAPIKey should return true when stale api_key is present")
+	}
+
+	clean := &GlobalConfig{
+		Profiling: ProfilingConfig{
+			Tideways: TidewaysCredentials{AccessToken: "t", Environment: "local_x"},
+		},
+	}
+	if clean.HasLegacyTidewaysAPIKey() {
+		t.Error("HasLegacyTidewaysAPIKey should return false for clean config")
 	}
 }
 
@@ -291,12 +306,12 @@ func TestDefaultTidewaysEnvironment(t *testing.T) {
 
 func TestGlobalConfig_TidewaysRoundTrip(t *testing.T) {
 	// Make sure access_token and environment survive a save/load cycle.
+	// api_key is intentionally not part of the persisted schema anymore.
 	tmpDir := t.TempDir()
 
 	cfg := &GlobalConfig{
 		Profiling: ProfilingConfig{
 			Tideways: TidewaysCredentials{
-				APIKey:      "abc123",
 				AccessToken: "def456",
 				Environment: "local_tester",
 			},
@@ -311,13 +326,42 @@ func TestGlobalConfig_TidewaysRoundTrip(t *testing.T) {
 		t.Fatalf("LoadGlobalConfig failed: %v", err)
 	}
 
-	if loaded.Profiling.Tideways.APIKey != "abc123" {
-		t.Errorf("APIKey = %q, want abc123", loaded.Profiling.Tideways.APIKey)
-	}
 	if loaded.Profiling.Tideways.AccessToken != "def456" {
 		t.Errorf("AccessToken = %q, want def456", loaded.Profiling.Tideways.AccessToken)
 	}
 	if loaded.Profiling.Tideways.Environment != "local_tester" {
 		t.Errorf("Environment = %q, want local_tester", loaded.Profiling.Tideways.Environment)
+	}
+}
+
+// TestGlobalConfig_TidewaysLegacyAPIKeyStillUnmarshals verifies that a
+// config.yaml written by an older MageBox version (which stored an api_key)
+// still loads cleanly — the field is kept on the struct (marked deprecated)
+// purely so we can detect and migrate it via HasLegacyTidewaysAPIKey.
+func TestGlobalConfig_TidewaysLegacyAPIKeyStillUnmarshals(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := tmpDir + "/.magebox"
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	yaml := `profiling:
+  tideways:
+    api_key: legacy-project-key
+    access_token: good-cli-token
+    environment: local_tester
+`
+	if err := os.WriteFile(configDir+"/config.yaml", []byte(yaml), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	loaded, err := LoadGlobalConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig failed: %v", err)
+	}
+	if !loaded.HasLegacyTidewaysAPIKey() {
+		t.Error("HasLegacyTidewaysAPIKey should return true after loading a legacy config")
+	}
+	if loaded.Profiling.Tideways.AccessToken != "good-cli-token" {
+		t.Errorf("AccessToken not loaded: %q", loaded.Profiling.Tideways.AccessToken)
 	}
 }
