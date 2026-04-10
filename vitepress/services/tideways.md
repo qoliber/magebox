@@ -36,8 +36,8 @@ Tideways uses **two separate credentials**, and both are stored by `magebox tide
 - **API Key** — the per-project key the PHP extension embeds into every
   transmitted trace. MageBox writes it to the extension ini file as
   `tideways.api_key=...`, which is required for the extension to send data.
-  Found on the **Project Settings** page of each project in the Tideways
-  dashboard. See [Where do I find the API Key?](https://support.tideways.com/documentation/setup/installation/api-key.html).
+  Found on each project's **Installation** page in the Tideways dashboard:
+  `https://app.tideways.io/o/<organization>/<project>/installation`.
 - **Access Token** — a personal token used by the `tideways` commandline
   tool (`tideways run`, `tideways event create`, `tideways tracepoint create`).
   MageBox imports it via `tideways import <token>`. Generated at
