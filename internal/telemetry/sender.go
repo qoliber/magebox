@@ -24,7 +24,8 @@ type batchPayload struct {
 
 // flushSpool reads the spool, attempts to POST it to endpoint within
 // flushBudget, and clears the spool on success. On failure it leaves the
-// spool intact for the next invocation.
+// spool intact for the next invocation. It is used by the detached flush
+// child (via FlushFromEnv in detach.go) and swapped in directly by tests.
 func flushSpool(homeDir, endpoint string) {
 	events, err := readSpool(homeDir)
 	if err != nil || len(events) == 0 {
@@ -63,7 +64,7 @@ func send(ctx context.Context, endpoint string, events []Event) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
