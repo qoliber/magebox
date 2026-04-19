@@ -48,7 +48,10 @@ func NewReader(r io.Reader, total int64, onProgress func(Progress)) *Reader {
 // Read implements io.Reader
 func (r *Reader) Read(p []byte) (n int, err error) {
 	n, err = r.reader.Read(p)
-	if n > 0 {
+	// Fire on EOF even when n == 0 so the final 100% update is not skipped
+	// when the underlying reader reports EOF in a separate zero-byte read
+	// (typical for os.File, unlike bytes.Reader which bundles n, io.EOF).
+	if n > 0 || err == io.EOF {
 		r.mu.Lock()
 		r.read += int64(n)
 		now := time.Now()
