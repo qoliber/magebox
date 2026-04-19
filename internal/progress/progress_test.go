@@ -291,6 +291,51 @@ func TestReader_ConcurrentAccess(t *testing.T) {
 	// If we get here without deadlock/panic, test passes
 }
 
+// splitEOFReader delivers data without EOF, then returns 0, io.EOF on a
+// separate final read — mirroring os.File behavior (unlike bytes.Reader,
+// which bundles n, io.EOF in a single read).
+type splitEOFReader struct {
+	data []byte
+	pos  int
+}
+
+func (r *splitEOFReader) Read(p []byte) (int, error) {
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[r.pos:])
+	r.pos += n
+	return n, nil
+}
+
+func TestReader_FinalUpdateOnSeparateEOF(t *testing.T) {
+	data := make([]byte, 1000)
+	reader := &splitEOFReader{data: data}
+
+	var updates []Progress
+	pr := NewReader(reader, int64(len(data)), func(p Progress) {
+		updates = append(updates, p)
+	})
+	// Long throttle so only the forced EOF update fires — this is what
+	// regresses the 98.9%-stuck-at-end bug in the db import progress bar.
+	pr.updateEvery = time.Hour
+
+	if _, err := io.ReadAll(pr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(updates) == 0 {
+		t.Fatal("expected a final progress update on EOF")
+	}
+	last := updates[len(updates)-1]
+	if last.Read != int64(len(data)) {
+		t.Errorf("last.Read = %d, want %d", last.Read, len(data))
+	}
+	if last.Percentage < 99.9 {
+		t.Errorf("last.Percentage = %f, want ~100", last.Percentage)
+	}
+}
+
 func TestReader_EmptyReader(t *testing.T) {
 	reader := strings.NewReader("")
 
