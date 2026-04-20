@@ -5,6 +5,18 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-04-20
+
+### Added
+
+- **Auto-Start on `magebox open`** - `magebox open` now starts the project automatically when it is not running. It checks each required service (skipping optional Xdebug and Blackfire) and brings up anything that is down before opening the browser. If everything is already up, the browser opens immediately without extra output. ([#86](https://github.com/qoliber/magebox/pull/86))
+- **MageOS 2.2.2 in Version Registry** - `magebox new` can now scaffold MageOS 2.2.2 projects (base: Magento 2.4.8). ([#89](https://github.com/qoliber/magebox/pull/89))
+
+### Fixed
+
+- **`magebox run` PHP Version Shadowing on Linux** - `magebox run` previously prepended `/usr/bin` (the directory of the versioned PHP binary on Linux) to `PATH`, which silently shadowed the `~/.magebox/bin/php` wrapper and made `php` in custom commands resolve to the system default (e.g. `/usr/bin/php` → PHP 8.4). With Magento 2.4.8-p3 and a mismatched system PHP, `bin/magento` degraded to minimal bootstrap mode and commands like `deploy:mode:set` were silently absent. `magebox run` now prepends `~/.magebox/bin` instead, so `php`, `composer`, and `blackfire` in custom commands consistently resolve to the project-aware wrappers and pick the PHP version from `.magebox.yaml`. ([#91](https://github.com/qoliber/magebox/pull/91))
+- **Database Import Progress Bar Reaching 100%** - The database import progress bar now reaches 100% instead of stopping at the last tick before EOF (e.g. 98.9%). ([#87](https://github.com/qoliber/magebox/pull/87))
+
 ## [1.14.2] - 2026-04-10
 
 ### Changed

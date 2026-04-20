@@ -142,6 +142,18 @@ Interactive wizard that guides through:
 Combine `--quick --hyva` for the fastest way to get a Hyvä-powered store running.
 :::
 
+### `magebox open`
+
+Open the project in the default browser.
+
+```bash
+magebox open
+```
+
+Opens the first domain from `.magebox.yaml` using `https://` when SSL is enabled, otherwise `http://`. If the project is not fully running, `magebox open` starts it first (skipping optional Xdebug and Blackfire). If everything is already up, the browser opens immediately.
+
+---
+
 ## PHP Commands
 
 ### `magebox php [version]`
