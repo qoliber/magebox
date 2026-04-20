@@ -5,12 +5,6 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Fixed
-
-- **`magebox run` PHP Version Shadowing on Linux** - `magebox run` no longer prepends `/usr/bin` (the directory of the versioned PHP binary on Linux) to `PATH`, which silently shadowed the `~/.magebox/bin/php` wrapper and made `php` in custom commands resolve to the system default (e.g. `/usr/bin/php` → PHP 8.4). `magebox run` now prepends `~/.magebox/bin` instead, so `php`, `composer`, and `blackfire` in custom commands consistently resolve to the project-aware wrappers and pick the PHP version from `.magebox.yaml`.
-
 ## [1.14.2] - 2026-04-10
 
 ### Changed
