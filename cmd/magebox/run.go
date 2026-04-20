@@ -169,10 +169,18 @@ func runCustomCommand(cmd *cobra.Command, args []string) error {
 		cmdToRun = cmdToRun + " " + strings.Join(args[1:], " ")
 	}
 
-	// Set up environment with correct PHP in PATH
-	phpDir := filepath.Dir(version.PHPBinary)
+	// Set up environment with correct PHP in PATH.
+	// Prepend ~/.magebox/bin (where the php/composer/blackfire wrappers live)
+	// so `php` resolves to the project-aware wrapper instead of a system PHP.
+	// On Linux, filepath.Dir(PHPBinary) is /usr/bin, which would shadow the
+	// wrapper and silently run the wrong PHP version.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to determine home directory: %w", err)
+	}
+	wrapperDir := filepath.Join(homeDir, ".magebox", "bin")
 	currentPath := os.Getenv("PATH")
-	newPath := phpDir + string(os.PathListSeparator) + currentPath
+	newPath := wrapperDir + string(os.PathListSeparator) + currentPath
 
 	fmt.Printf("Running: %s\n\n", cmdToRun)
 
