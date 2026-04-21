@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -373,32 +374,45 @@ func (g *PoolGenerator) renderPool(cfg PoolConfig) (string, error) {
 
 // getCurrentUser returns the current user
 func getCurrentUser() string {
-	user := os.Getenv("USER")
-	if user == "" {
-		user = os.Getenv("LOGNAME")
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
 	}
-	if user == "" {
-		user = "www-data"
+	name := os.Getenv("USER")
+	if name == "" {
+		name = os.Getenv("LOGNAME")
 	}
-	return user
+	if name == "" {
+		name = "www-data"
+	}
+	return name
 }
 
-// getCurrentGroup returns the current user's primary group
+// getCurrentGroup returns the current user's primary group name.
+//
+// It resolves the group by GID via os/user rather than assuming the group
+// name matches the username. On many Linux distributions those are identical
+// (the USERGROUPS_ENAB / "user private group" convention), but this is not
+// guaranteed — administrators commonly rename the primary group or assign a
+// shared primary group. When that happens, assuming group == username
+// produces a php-fpm pool config that fails to start with
+// "cannot get gid for group 'username'".
 func getCurrentGroup() string {
-	// On macOS, the group is typically "staff"
-	// On Linux, it's usually the username or www-data
-	user := getCurrentUser()
-	if user == "www-data" {
-		return "www-data"
+	u, err := user.Current()
+	if err == nil && u.Gid != "" {
+		if g, gerr := user.LookupGroupId(u.Gid); gerr == nil && g.Name != "" {
+			return g.Name
+		}
 	}
 
-	// Check platform - on macOS use "staff"
+	// Fallbacks if os/user lookup fails (e.g. no nsswitch resolution).
+	name := getCurrentUser()
+	if name == "www-data" {
+		return "www-data"
+	}
 	if runtime.GOOS == "darwin" {
 		return "staff"
 	}
-
-	// On Linux, use the username as the group
-	return user
+	return name
 }
 
 // FPMConfig contains data for generating the master php-fpm.conf
