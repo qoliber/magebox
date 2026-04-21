@@ -38,6 +38,8 @@ php:
       - "php${phpVersion}-cli"
       - "php${phpVersion}-common"
     extensions:
+      # opcache: separate package on 8.1–8.4; built into php8.5-cli
+      # (filtered at install time if missing from the apt cache)
       - "php${phpVersion}-opcache"
       - "php${phpVersion}-zip"
       - "php${phpVersion}-curl"

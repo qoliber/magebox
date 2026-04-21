@@ -19,6 +19,18 @@ type UbuntuInstaller struct {
 	BaseInstaller
 }
 
+// isAptPackageAvailable reports whether an apt package exists in the local
+// apt cache. Used to filter out packages that have been merged into core
+// (e.g. php8.5-opcache is built into php8.5-cli) or otherwise aren't yet
+// published for a given PHP version.
+func isAptPackageAvailable(pkg string) bool {
+	out, err := exec.Command("apt-cache", "show", pkg).Output()
+	if err != nil {
+		return false
+	}
+	return len(strings.TrimSpace(string(out))) > 0
+}
+
 // NewUbuntuInstaller creates a new Ubuntu/Debian installer
 func NewUbuntuInstaller(p *platform.Platform) *UbuntuInstaller {
 	return &UbuntuInstaller{
@@ -113,8 +125,10 @@ func (u *UbuntuInstaller) InstallPHP(version string) error {
 	// www.conf was already disabled by a previous bootstrap run.
 	u.ensurePlaceholderPool(version)
 
-	// Install PHP with all required extensions
-	// Note: sodium is included in php-common on Ubuntu/Debian
+	// Install PHP with all required extensions.
+	// Note: sodium is included in php-common on Ubuntu/Debian. OPcache is a
+	// separate package on 8.1–8.4 but built into php8.5-cli, so we filter
+	// unavailable extension packages out before calling apt.
 	packages := []string{
 		fmt.Sprintf("php%s-fpm", version),
 		fmt.Sprintf("php%s-cli", version),
@@ -130,6 +144,11 @@ func (u *UbuntuInstaller) InstallPHP(version string) error {
 		fmt.Sprintf("php%s-mysql", version),
 		fmt.Sprintf("php%s-soap", version),
 		fmt.Sprintf("php%s-imagick", version),
+	}
+
+	packages, dropped := filterPackages(packages, isAptPackageAvailable)
+	if len(dropped) > 0 {
+		fmt.Printf("  Note: skipping packages not in apt cache (built-in or not packaged for this version): %s\n", strings.Join(dropped, ", "))
 	}
 
 	args := append([]string{"apt", "install", "-y"}, packages...)
