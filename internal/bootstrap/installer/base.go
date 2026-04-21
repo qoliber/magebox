@@ -79,6 +79,19 @@ func (b *BaseInstaller) CommandExists(name string) bool {
 	return platform.CommandExists(name)
 }
 
+// filterPackages partitions pkgs into those the availability predicate
+// accepts (kept) and those it rejects (dropped), preserving input order.
+func filterPackages(pkgs []string, available func(string) bool) (kept, dropped []string) {
+	for _, p := range pkgs {
+		if available(p) {
+			kept = append(kept, p)
+		} else {
+			dropped = append(dropped, p)
+		}
+	}
+	return
+}
+
 // IsRealComposerInstalled checks if the real Composer binary (not our wrapper) is installed
 func (b *BaseInstaller) IsRealComposerInstalled() bool {
 	wrapperDir := filepath.Join(b.Platform.MageBoxDir(), "bin")
