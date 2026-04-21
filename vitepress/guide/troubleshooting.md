@@ -422,6 +422,66 @@ curl -sSL https://github.com/qoliber/magebox/releases/latest/download/magebox-li
 chmod +x ~/.magebox/bin/magebox
 ```
 
+## macOS-Specific Issues
+
+### Port Forwarding Not Active After Reboot (pf rules missing)
+
+**Symptom:** After a macOS reboot or update, `https://myproject.test` fails to load (connection refused, or browser falls back to another service).
+
+On macOS, nginx runs as your user on ports 8080/8443 — the kernel packet filter (`pf`) redirects traffic from 80→8080 and 443→8443. These `pf` rules live in kernel memory and are cleared on every reboot. A LaunchDaemon is supposed to re-apply them on boot, but several things can break this:
+
+- macOS point updates (e.g. 15.1 → 15.2) can reset `/etc/pf.conf`
+- "Cleaner" apps (CleanMyMac, OnyX) sometimes remove LaunchDaemons
+- The `pf` rules file gets deleted or corrupted
+- The LaunchDaemon plist is unloaded or blocked
+
+**Quick diagnosis:**
+
+```bash
+magebox doctor
+```
+
+You'll see checks for each required component:
+- PF rules file exists
+- PF rules file is valid
+- LaunchDaemon plist exists
+- LaunchDaemon is loaded
+- pf is enabled
+- MageBox pf rules are active
+
+**Auto-repair:**
+
+```bash
+magebox doctor --heal
+```
+
+This will:
+- Recreate the pf rules file if missing
+- Reinstall the LaunchDaemon
+- Load the daemon
+- Activate rules immediately (no reboot needed)
+
+**Manual verification:**
+
+```bash
+# Should show redirect rules for ports 80 and 443
+sudo pfctl -a com.magebox -sn
+
+# Should show the daemon as loaded
+sudo launchctl list | grep magebox
+```
+
+Since v1.16.0, MageBox:
+- Uses a **standalone pf anchor** (no dependency on `/etc/pf.conf`), immune to macOS update resets
+- **Self-heals on every `magebox start`** — if rules aren't active, they get re-applied automatically
+- The LaunchDaemon script now runs idempotently on boot, wake, and every 30 seconds
+
+If `magebox doctor --heal` doesn't fix it, check the daemon log:
+```bash
+tail -f /var/log/magebox-portforward.log
+tail -f /var/log/magebox-portforward-error.log
+```
+
 ## Linux-Specific Issues
 
 ### HTTPS Not Working (Port 443 Not Listening)

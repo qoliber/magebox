@@ -2062,6 +2062,34 @@ Verifies:
 
 ---
 
+### `magebox doctor`
+
+Diagnose and repair MageBox environment issues. Currently focused on macOS port forwarding (`pf` rules and LaunchDaemon).
+
+```bash
+# Diagnose only
+magebox doctor
+
+# Diagnose and auto-repair
+magebox doctor --heal
+```
+
+**Checks on macOS:**
+- `/etc/pf.anchors/com.magebox` exists and is valid
+- `/Library/LaunchDaemons/com.magebox.portforward.plist` is installed
+- LaunchDaemon is loaded
+- `pf` is enabled
+- MageBox port forwarding rules are active (80→8080, 443→8443)
+
+**With `--heal`:** recreates missing files, reloads the daemon, and activates rules — no reboot needed.
+
+Especially useful after:
+- A macOS reboot (pf rules are cleared on every boot)
+- A macOS point update (which can reset `/etc/pf.conf`)
+- Cleaning up with tools like CleanMyMac
+
+---
+
 ### `magebox install`
 
 Check and install dependencies.

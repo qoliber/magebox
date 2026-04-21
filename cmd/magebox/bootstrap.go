@@ -567,7 +567,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		if err := pfMgr.Setup(); err != nil {
 			fmt.Println(cli.Error("failed"))
 			cli.PrintWarning("Port forwarding setup failed: %v", err)
-			cli.PrintWarning("You may need to manually run: sudo pfctl -ef /etc/pf.conf")
+			cli.PrintWarning("Run 'magebox doctor --heal' to diagnose and repair")
 			errors = append(errors, "Port forwarding setup failed")
 		} else {
 			fmt.Println(cli.Success("done"))

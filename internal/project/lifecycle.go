@@ -13,6 +13,7 @@ import (
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/portforward"
 	"qoliber/magebox/internal/ssl"
 	"qoliber/magebox/internal/testmode"
 	"qoliber/magebox/internal/xdebug"
@@ -165,6 +166,15 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 	nginxController := nginx.NewController(m.platform)
 	if err := nginxController.Reload(); err != nil {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("Nginx reload: %v", err))
+	}
+
+	// On macOS, verify port forwarding is active (pf rules can be cleared
+	// by reboots or macOS updates). Self-heals if broken.
+	if m.platform.Type == platform.Darwin {
+		pfMgr := portforward.NewManager()
+		if err := pfMgr.EnsureActive(); err != nil {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("Port forwarding: %v", err))
+		}
 	}
 
 	// Add domains to /etc/hosts only if using hosts mode (not dnsmasq)
