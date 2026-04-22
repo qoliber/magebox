@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.16.0] - 2026-04-22
 
-### Fixed
+### Changed
 
-- **macOS Port Forwarding Persistence** - PF port forwarding rules (80→8080, 443→8443) were lost after reboot or sleep/wake, breaking all `.test` domains until the user manually ran `sudo pfctl -ef /etc/pf.conf` or `magebox bootstrap`. The LaunchDaemon has been rewritten to use a dedicated helper script (`/usr/local/bin/magebox-pf-restore`) with proper logging to `/var/log/magebox-portforward.log`, making failures diagnosable. `launchctl bootstrap` is now used (with legacy `load` fallback) for modern macOS compatibility. The daemon restores rules on boot, sleep/wake (via NetworkState), and checks every 30 seconds as a fallback. ([#95](https://github.com/qoliber/magebox/issues/95))
+- **macOS Port Forwarding: pf replaced with TCP proxy daemon** - The previous approach used macOS `pf` (packet filter) kernel rules to redirect ports 80→8080 and 443→8443. These rules were unreliable — Apple's own pf management would override custom anchors after reboot and sleep/wake, silently breaking all `.test` domains. MageBox now uses a persistent TCP proxy daemon (`magebox _portforward`) managed by launchd with `KeepAlive: true`. The daemon listens on ports 80/443 and forwards connections to nginx on 8080/8443. This eliminates all interaction with the macOS pf subsystem. Legacy pf anchor files (`/etc/pf.anchors/com.magebox`), helper scripts, and `/etc/pf.conf` modifications are automatically cleaned up on upgrade. ([#95](https://github.com/qoliber/magebox/issues/95))
 
 ### Added
 
-- **Auto-Restore PF Rules on `magebox start`** - `magebox start` now verifies that macOS PF port forwarding rules are active and restores them automatically if they were lost (reboot, sleep/wake). This is a lightweight check that runs before project startup, so domains work immediately without needing to run `magebox bootstrap` again.
-- **Port Forwarding Health Check** - `magebox check` now includes a Port Forwarding section on macOS that reports whether the LaunchDaemon is installed and PF rules are active, making it easy to diagnose forwarding issues.
+- **Port forwarding self-healing on `magebox start`/`magebox restart`** - On macOS, `magebox start` and `magebox restart` verify that the port forwarding daemon is running and restart it if needed. Domains work immediately without needing `magebox bootstrap` again.
+- **Port Forwarding Health Check** - `magebox check` now includes a Port Forwarding section on macOS that reports whether the LaunchDaemon is installed and port forwarding is active.
 
 ### Fixed
 
