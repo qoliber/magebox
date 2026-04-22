@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/portforward"
 	"qoliber/magebox/internal/project"
 )
 
@@ -49,10 +51,31 @@ func runStart(cmd *cobra.Command, args []string) error {
 	return startProject(mgr, cwd, true)
 }
 
+func ensurePortForwarding() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+
+	pfMgr := portforward.NewManager()
+	if !pfMgr.IsInstalled() {
+		return // Not set up yet, bootstrap needed
+	}
+
+	wasActive, err := pfMgr.EnsureRulesActive()
+	if err != nil {
+		cli.PrintWarning("Port forwarding: %v", err)
+	} else if !wasActive {
+		cli.PrintInfo("Port forwarding rules restored (80→8080, 443→8443)")
+	}
+}
+
 func startProject(mgr *project.Manager, projectPath string, verbose bool) error {
 	if verbose {
 		cli.PrintTitle("Starting MageBox Services")
 		fmt.Println()
+
+		// On macOS, verify pf port forwarding is active (survives reboot/sleep)
+		ensurePortForwarding()
 	}
 
 	// Validate first

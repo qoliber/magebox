@@ -17,6 +17,7 @@ import (
 const (
 	pfRulesFile       = "/etc/pf.anchors/com.magebox"
 	pfConfFile        = "/etc/pf.conf"
+	pfHelperScript    = "/usr/local/bin/magebox-pf-restore"
 	launchDaemonPlist = "/Library/LaunchDaemons/com.magebox.portforward.plist"
 	launchDaemonLabel = "com.magebox.portforward"
 )
@@ -35,7 +36,52 @@ func NewManager() *Manager {
 
 // launchDaemonVersion is incremented when the plist content changes
 // This ensures existing users get updates when they run bootstrap
-const launchDaemonVersion = "4"
+const launchDaemonVersion = "5"
+
+// EnsureRulesActive checks if pf port forwarding rules are active and restores
+// them if needed. This is a lightweight operation safe to call on every
+// "magebox start" so that reboots and sleep/wake cycles are self-healing.
+// Returns true if rules were already active, false if they had to be restored.
+func (m *Manager) EnsureRulesActive() (bool, error) {
+	if m.platform != "darwin" {
+		return true, nil // Not applicable on Linux
+	}
+
+	if !m.IsInstalled() {
+		return false, fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
+	}
+
+	if m.areRulesActive() {
+		return true, nil
+	}
+
+	verbose.Debug("PF rules not active, restoring...")
+
+	// Ensure the anchor file exists and is up to date
+	if _, err := os.Stat(pfRulesFile); os.IsNotExist(err) {
+		if err := m.createPfRules(); err != nil {
+			return false, fmt.Errorf("failed to recreate pf rules: %w", err)
+		}
+	}
+
+	// Ensure the anchor is referenced in pf.conf
+	if err := m.addAnchorToPfConf(); err != nil {
+		return false, fmt.Errorf("failed to add anchor to pf.conf: %w", err)
+	}
+
+	// Reload pf (enables it if disabled, or just reloads rules)
+	if err := m.reloadPfRules(); err != nil {
+		return false, fmt.Errorf("failed to reload pf rules: %w", err)
+	}
+
+	// Verify rules are now active
+	if !m.areRulesActive() {
+		return false, fmt.Errorf("pf rules still not active after reload — try: sudo pfctl -ef /etc/pf.conf")
+	}
+
+	verbose.Debug("PF rules restored successfully")
+	return false, nil
+}
 
 // Setup installs the port forwarding rules and LaunchDaemon
 func (m *Manager) Setup() error {
@@ -61,6 +107,9 @@ func (m *Manager) Setup() error {
 		if m.needsUpgrade() {
 			verbose.Debug("LaunchDaemon needs upgrade, reinstalling...")
 			_ = m.unloadLaunchDaemon()
+			if err := m.createHelperScript(); err != nil {
+				return fmt.Errorf("failed to create helper script: %w", err)
+			}
 			if err := m.createLaunchDaemon(); err != nil {
 				return fmt.Errorf("failed to upgrade launch daemon: %w", err)
 			}
@@ -84,6 +133,11 @@ func (m *Manager) Setup() error {
 	// Add anchor to /etc/pf.conf if not present
 	if err := m.addAnchorToPfConf(); err != nil {
 		return fmt.Errorf("failed to add anchor to pf.conf: %w", err)
+	}
+
+	// Create helper script
+	if err := m.createHelperScript(); err != nil {
+		return fmt.Errorf("failed to create helper script: %w", err)
 	}
 
 	// Create LaunchDaemon plist
@@ -125,9 +179,9 @@ func (m *Manager) needsUpgrade() bool {
 		return true
 	}
 
-	// Also check for key features that should be present
-	if !strings.Contains(string(content), "NetworkState") {
-		verbose.Debug("LaunchDaemon missing NetworkState (sleep/wake support)")
+	// Verify helper script exists
+	if _, err := os.Stat(pfHelperScript); os.IsNotExist(err) {
+		verbose.Debug("Helper script missing at %s", pfHelperScript)
 		return true
 	}
 
@@ -151,6 +205,7 @@ func (m *Manager) Remove() error {
 	files := []string{
 		launchDaemonPlist,
 		pfRulesFile,
+		pfHelperScript,
 	}
 
 	for _, file := range files {
@@ -201,17 +256,98 @@ rdr pass on lo0 inet6 proto tcp from any to ::1 port 443 -> ::1 port 8443
 	return nil
 }
 
+// createHelperScript creates the pf restore helper script that the LaunchDaemon calls.
+// Using a script file instead of an inline plist command allows proper logging,
+// error handling, and easier debugging when things go wrong.
+func (m *Manager) createHelperScript() error {
+	script := `#!/bin/sh
+# MageBox PF Port Forwarding Restore Script
+# Called by com.magebox.portforward LaunchDaemon on boot, sleep/wake, and periodically.
+# Logs to /var/log/magebox-portforward.log
+
+LOG="/var/log/magebox-portforward.log"
+ANCHOR="com.magebox"
+ANCHOR_FILE="/etc/pf.anchors/com.magebox"
+PF_CONF="/etc/pf.conf"
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [magebox-pf] $1" >> "$LOG"
+}
+
+# Wait briefly for system to settle (boot / wake)
+sleep 2
+
+# Check if our anchor file exists
+if [ ! -f "$ANCHOR_FILE" ]; then
+    log "ERROR: anchor file missing: $ANCHOR_FILE"
+    exit 1
+fi
+
+# Check if our rules are already active
+if /sbin/pfctl -a "$ANCHOR" -sn 2>/dev/null | grep -q "port = 80"; then
+    exit 0
+fi
+
+log "PF rules not active, restoring..."
+
+# Check if pf is enabled
+if /sbin/pfctl -s info 2>/dev/null | grep -q "Status: Enabled"; then
+    # pf is enabled but our anchor rules are missing — reload just our anchor
+    log "pf enabled, loading anchor rules..."
+    if /sbin/pfctl -a "$ANCHOR" -f "$ANCHOR_FILE" 2>>"$LOG"; then
+        log "Anchor rules loaded successfully"
+    else
+        # Anchor-only load failed, try full reload
+        log "Anchor load failed, trying full pf.conf reload..."
+        /sbin/pfctl -f "$PF_CONF" 2>>"$LOG"
+    fi
+else
+    # pf is not enabled (typical after reboot) — enable it with full config
+    log "pf disabled, enabling with full config..."
+    /sbin/pfctl -ef "$PF_CONF" 2>>"$LOG"
+fi
+
+# Verify
+if /sbin/pfctl -a "$ANCHOR" -sn 2>/dev/null | grep -q "port = 80"; then
+    log "PF rules restored successfully"
+else
+    log "WARNING: PF rules still not active after restore attempt"
+    exit 1
+fi
+`
+
+	tmpFile := "/tmp/magebox-pf-restore.sh"
+	if err := os.WriteFile(tmpFile, []byte(script), 0755); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("sudo", "mv", tmpFile, pfHelperScript)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install helper script: %w", err)
+	}
+
+	cmd = exec.Command("sudo", "chmod", "755", pfHelperScript)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set script permissions: %w", err)
+	}
+
+	return nil
+}
+
 // createLaunchDaemon creates the LaunchDaemon plist
 func (m *Manager) createLaunchDaemon() error {
-	// Uses multiple triggers to ensure rules stay active across sleep/restart:
-	// - RunAtLoad: load on boot
-	// - KeepAlive with NetworkState: re-trigger when network comes up (after sleep)
-	// - WatchPaths: reload when pf.conf or network config changes
-	// - StartInterval: check every 30 seconds as a fallback
-	//
-	// The script checks if our port 80 redirect is active, and if not:
-	// 1. Checks if pf is enabled and reloads config
-	// 2. Or enables pf with our config
+	// The LaunchDaemon calls the helper script which handles all the logic.
+	// Triggers to keep rules active:
+	// - RunAtLoad: runs on boot
+	// - KeepAlive with NetworkState: re-triggers on network state change (sleep/wake)
+	// - WatchPaths: re-triggers when pf config or network preferences change
+	// - StartInterval: periodic fallback check every 30 seconds
 	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- MageBox-Version-%s -->
@@ -222,9 +358,7 @@ func (m *Manager) createLaunchDaemon() error {
 
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/sh</string>
-        <string>-c</string>
-        <string>sleep 2; pfctl -a com.magebox -sn 2>/dev/null | grep -q "port = 80" || (pfctl -s info 2>/dev/null | grep -q "Status: Enabled" &amp;&amp; pfctl -a com.magebox -f /etc/pf.anchors/com.magebox 2>/dev/null || pfctl -ef /etc/pf.conf 2>/dev/null); exit 0</string>
+        <string>/usr/local/bin/magebox-pf-restore</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -253,7 +387,7 @@ func (m *Manager) createLaunchDaemon() error {
     <string>/var/log/magebox-portforward.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/magebox-portforward-error.log</string>
+    <string>/var/log/magebox-portforward.log</string>
 </dict>
 </plist>
 `, launchDaemonVersion)
@@ -291,18 +425,32 @@ func (m *Manager) createLaunchDaemon() error {
 	return nil
 }
 
-// loadLaunchDaemon loads the LaunchDaemon
+// loadLaunchDaemon loads the LaunchDaemon using both modern and legacy APIs
 func (m *Manager) loadLaunchDaemon() error {
-	cmd := exec.Command("sudo", "launchctl", "load", "-w", launchDaemonPlist)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	// Try modern API first (macOS 10.10+)
+	cmd := exec.Command("sudo", "launchctl", "bootstrap", "system", launchDaemonPlist)
+	if err := cmd.Run(); err != nil {
+		verbose.Debug("launchctl bootstrap failed (trying legacy load): %v", err)
+		// Fall back to legacy API
+		cmd = exec.Command("sudo", "launchctl", "load", "-w", launchDaemonPlist)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	return nil
 }
 
-// unloadLaunchDaemon unloads the LaunchDaemon
+// unloadLaunchDaemon unloads the LaunchDaemon using both modern and legacy APIs
 func (m *Manager) unloadLaunchDaemon() error {
-	cmd := exec.Command("sudo", "launchctl", "unload", launchDaemonPlist)
-	return cmd.Run()
+	// Try modern API first
+	cmd := exec.Command("sudo", "launchctl", "bootout", "system/"+launchDaemonLabel)
+	if err := cmd.Run(); err != nil {
+		verbose.Debug("launchctl bootout failed (trying legacy unload): %v", err)
+		// Fall back to legacy API
+		cmd = exec.Command("sudo", "launchctl", "unload", launchDaemonPlist)
+		return cmd.Run()
+	}
+	return nil
 }
 
 // Status checks if port forwarding is active
@@ -335,6 +483,14 @@ func (m *Manager) Status() error {
 	}
 
 	return nil
+}
+
+// AreRulesActive returns whether the pf redirect rules are currently loaded (exported)
+func (m *Manager) AreRulesActive() bool {
+	if m.platform != "darwin" {
+		return true // Not applicable
+	}
+	return m.areRulesActive()
 }
 
 // areRulesActive checks if the MageBox pf rules are currently loaded

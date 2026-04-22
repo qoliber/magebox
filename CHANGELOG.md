@@ -5,6 +5,17 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-04-22
+
+### Fixed
+
+- **macOS Port Forwarding Persistence** - PF port forwarding rules (80→8080, 443→8443) were lost after reboot or sleep/wake, breaking all `.test` domains until the user manually ran `sudo pfctl -ef /etc/pf.conf` or `magebox bootstrap`. The LaunchDaemon has been rewritten to use a dedicated helper script (`/usr/local/bin/magebox-pf-restore`) with proper logging to `/var/log/magebox-portforward.log`, making failures diagnosable. `launchctl bootstrap` is now used (with legacy `load` fallback) for modern macOS compatibility. The daemon restores rules on boot, sleep/wake (via NetworkState), and checks every 30 seconds as a fallback. ([#95](https://github.com/qoliber/magebox/issues/95))
+
+### Added
+
+- **Auto-Restore PF Rules on `magebox start`** - `magebox start` now verifies that macOS PF port forwarding rules are active and restores them automatically if they were lost (reboot, sleep/wake). This is a lightweight check that runs before project startup, so domains work immediately without needing to run `magebox bootstrap` again.
+- **Port Forwarding Health Check** - `magebox check` now includes a Port Forwarding section on macOS that reports whether the LaunchDaemon is installed and PF rules are active, making it easy to diagnose forwarding issues.
+
 ## [1.15.1] - 2026-04-21
 
 ### Fixed
