@@ -5,20 +5,23 @@ package portforward
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"qoliber/magebox/internal/verbose"
 )
 
 const (
-	pfRulesFile       = "/etc/pf.anchors/com.magebox"
-	pfConfFile        = "/etc/pf.conf"
 	launchDaemonPlist = "/Library/LaunchDaemons/com.magebox.portforward.plist"
 	launchDaemonLabel = "com.magebox.portforward"
+
+	// Legacy pf files — cleaned up during upgrade
+	legacyPfRulesFile    = "/etc/pf.anchors/com.magebox"
+	legacyPfHelperScript = "/usr/local/bin/magebox-pf-restore"
 )
 
 // Manager handles port forwarding setup
@@ -35,9 +38,66 @@ func NewManager() *Manager {
 
 // launchDaemonVersion is incremented when the plist content changes
 // This ensures existing users get updates when they run bootstrap
-const launchDaemonVersion = "4"
+const launchDaemonVersion = "7"
 
-// Setup installs the port forwarding rules and LaunchDaemon
+// findMageboxBinary returns the path to the magebox binary for use in the LaunchDaemon
+func findMageboxBinary() string {
+	// Check common installation paths
+	candidates := []string{
+		"/usr/local/bin/magebox",
+		"/opt/homebrew/bin/magebox",
+	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	// Try to find via current executable
+	if exe, err := os.Executable(); err == nil {
+		return exe
+	}
+
+	return "/usr/local/bin/magebox"
+}
+
+// EnsureRulesActive checks if port forwarding is active and starts the daemon
+// if needed. This is a lightweight operation safe to call on every
+// "magebox start" so that reboots and sleep/wake cycles are self-healing.
+// Returns true if forwarding was already active, false if it had to be restored.
+func (m *Manager) EnsureRulesActive() (bool, error) {
+	if m.platform != "darwin" {
+		return true, nil // Not applicable on Linux
+	}
+
+	if !m.IsInstalled() {
+		return false, fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
+	}
+
+	if m.AreRulesActive() {
+		return true, nil
+	}
+
+	verbose.Debug("Port forwarding daemon not active, restarting...")
+
+	// Try to kickstart the daemon
+	if err := m.kickstartDaemon(); err != nil {
+		return false, fmt.Errorf("failed to restart port forwarding daemon: %w", err)
+	}
+
+	// Wait briefly for the daemon to start listening
+	for i := 0; i < 10; i++ {
+		time.Sleep(200 * time.Millisecond)
+		if m.AreRulesActive() {
+			verbose.Debug("Port forwarding daemon started successfully")
+			return false, nil
+		}
+	}
+
+	return false, fmt.Errorf("port forwarding daemon not responding — check: sudo launchctl list %s", launchDaemonLabel)
+}
+
+// Setup installs the port forwarding LaunchDaemon
 func (m *Manager) Setup() error {
 	if m.platform != "darwin" {
 		return fmt.Errorf("port forwarding is only supported on macOS")
@@ -45,46 +105,25 @@ func (m *Manager) Setup() error {
 
 	verbose.Debug("Setting up macOS port forwarding...")
 
-	// Check if already installed
-	if m.IsInstalled() {
-		verbose.Debug("Port forwarding plist exists, checking version...")
+	// Clean up legacy pf-based approach
+	m.cleanupLegacyPf()
 
-		// Always ensure pf rules and config are up to date
-		if err := m.createPfRules(); err != nil {
-			return fmt.Errorf("failed to update pf rules: %w", err)
+	if m.IsInstalled() && !m.needsUpgrade() {
+		verbose.Debug("Port forwarding daemon already installed and up to date")
+		// Make sure it's running
+		if !m.AreRulesActive() {
+			_ = m.kickstartDaemon()
 		}
-		if err := m.reloadPfRules(); err != nil {
-			return fmt.Errorf("failed to reload pf rules: %w", err)
-		}
-
-		// Check if we need to upgrade the LaunchDaemon
-		if m.needsUpgrade() {
-			verbose.Debug("LaunchDaemon needs upgrade, reinstalling...")
-			_ = m.unloadLaunchDaemon()
-			if err := m.createLaunchDaemon(); err != nil {
-				return fmt.Errorf("failed to upgrade launch daemon: %w", err)
-			}
-			if err := m.loadLaunchDaemon(); err != nil {
-				return fmt.Errorf("failed to load upgraded launch daemon: %w", err)
-			}
-			verbose.Debug("LaunchDaemon upgraded to version %s", launchDaemonVersion)
-		}
-
-		verbose.Debug("Port forwarding configured and active")
 		return nil
 	}
 
-	verbose.Debug("Installing port forwarding (requires sudo)...")
-
-	// Create pf rules file (anchor)
-	if err := m.createPfRules(); err != nil {
-		return fmt.Errorf("failed to create pf rules: %w", err)
+	// Unload existing daemon if upgrading
+	if m.IsInstalled() {
+		verbose.Debug("Upgrading port forwarding daemon...")
+		_ = m.unloadLaunchDaemon()
 	}
 
-	// Add anchor to /etc/pf.conf if not present
-	if err := m.addAnchorToPfConf(); err != nil {
-		return fmt.Errorf("failed to add anchor to pf.conf: %w", err)
-	}
+	verbose.Debug("Installing port forwarding daemon (requires sudo)...")
 
 	// Create LaunchDaemon plist
 	if err := m.createLaunchDaemon(); err != nil {
@@ -94,11 +133,6 @@ func (m *Manager) Setup() error {
 	// Load the LaunchDaemon
 	if err := m.loadLaunchDaemon(); err != nil {
 		return fmt.Errorf("failed to load launch daemon: %w", err)
-	}
-
-	// Reload pf rules immediately
-	if err := m.reloadPfRules(); err != nil {
-		return fmt.Errorf("failed to reload pf rules: %w", err)
 	}
 
 	verbose.Debug("Port forwarding configured: 80 → 8080, 443 → 8443 (IPv4 + IPv6)")
@@ -115,26 +149,19 @@ func (m *Manager) IsInstalled() bool {
 func (m *Manager) needsUpgrade() bool {
 	content, err := os.ReadFile(launchDaemonPlist)
 	if err != nil {
-		return true // Can't read, needs reinstall
+		return true
 	}
 
-	// Check for version marker in plist
 	versionMarker := fmt.Sprintf("MageBox-Version-%s", launchDaemonVersion)
 	if !strings.Contains(string(content), versionMarker) {
 		verbose.Debug("LaunchDaemon missing version %s marker", launchDaemonVersion)
 		return true
 	}
 
-	// Also check for key features that should be present
-	if !strings.Contains(string(content), "NetworkState") {
-		verbose.Debug("LaunchDaemon missing NetworkState (sleep/wake support)")
-		return true
-	}
-
 	return false
 }
 
-// Remove uninstalls port forwarding rules
+// Remove uninstalls port forwarding
 func (m *Manager) Remove() error {
 	if m.platform != "darwin" {
 		return nil
@@ -142,76 +169,66 @@ func (m *Manager) Remove() error {
 
 	fmt.Println("[INFO] Removing port forwarding configuration...")
 
-	// Unload LaunchDaemon
+	// Unload daemon
 	if err := m.unloadLaunchDaemon(); err != nil {
 		fmt.Printf("[WARN] Failed to unload launch daemon: %v\n", err)
 	}
 
-	// Remove files
-	files := []string{
-		launchDaemonPlist,
-		pfRulesFile,
+	// Remove plist
+	cmd := exec.Command("sudo", "rm", "-f", launchDaemonPlist)
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("[WARN] Failed to remove %s: %v\n", launchDaemonPlist, err)
 	}
 
-	for _, file := range files {
-		cmd := exec.Command("sudo", "rm", "-f", file)
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("[WARN] Failed to remove %s: %v\n", file, err)
-		}
-	}
+	// Clean up legacy files too
+	m.cleanupLegacyPf()
 
 	fmt.Println("[OK] Port forwarding removed")
 	return nil
 }
 
-// createPfRules creates the pf (packet filter) rules file
-func (m *Manager) createPfRules() error {
-	rules := `# MageBox port forwarding rules
-# Forward privileged ports to unprivileged ports (IPv4 and IPv6)
-rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port 8080
-rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
-rdr pass on lo0 inet6 proto tcp from any to ::1 port 80 -> ::1 port 8080
-rdr pass on lo0 inet6 proto tcp from any to ::1 port 443 -> ::1 port 8443
-`
-
-	// Ensure directory exists
-	dir := filepath.Dir(pfRulesFile)
-	cmd := exec.Command("sudo", "mkdir", "-p", dir)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create pf.anchors directory: %w", err)
+// cleanupLegacyPf removes leftover files from the old pf-based approach
+func (m *Manager) cleanupLegacyPf() {
+	legacyFiles := []string{legacyPfRulesFile, legacyPfHelperScript}
+	for _, f := range legacyFiles {
+		if _, err := os.Stat(f); err == nil {
+			verbose.Debug("Removing legacy pf file: %s", f)
+			cmd := exec.Command("sudo", "rm", "-f", f)
+			_ = cmd.Run()
+		}
 	}
 
-	// Write rules file
-	tmpFile := "/tmp/com.magebox.pf"
-	if err := os.WriteFile(tmpFile, []byte(rules), 0644); err != nil {
-		return err
+	// Remove magebox anchor from /etc/pf.conf if present
+	content, err := os.ReadFile("/etc/pf.conf")
+	if err != nil {
+		return
 	}
-
-	cmd = exec.Command("sudo", "mv", tmpFile, pfRulesFile)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install pf rules: %w", err)
+	pfConf := string(content)
+	if !strings.Contains(pfConf, "com.magebox") {
+		return
 	}
-
-	return nil
+	verbose.Debug("Removing legacy magebox entries from /etc/pf.conf")
+	lines := strings.Split(pfConf, "\n")
+	cleaned := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if !strings.Contains(line, "com.magebox") {
+			cleaned = append(cleaned, line)
+		}
+	}
+	newContent := strings.Join(cleaned, "\n")
+	tmpFile := "/tmp/pf.conf.magebox-cleanup"
+	if err := os.WriteFile(tmpFile, []byte(newContent), 0644); err != nil {
+		return
+	}
+	defer os.Remove(tmpFile)
+	cmd := exec.Command("sudo", "cp", tmpFile, "/etc/pf.conf")
+	_ = cmd.Run()
 }
 
-// createLaunchDaemon creates the LaunchDaemon plist
+// createLaunchDaemon creates the LaunchDaemon plist that runs magebox _portforward
 func (m *Manager) createLaunchDaemon() error {
-	// Uses multiple triggers to ensure rules stay active across sleep/restart:
-	// - RunAtLoad: load on boot
-	// - KeepAlive with NetworkState: re-trigger when network comes up (after sleep)
-	// - WatchPaths: reload when pf.conf or network config changes
-	// - StartInterval: check every 30 seconds as a fallback
-	//
-	// The script checks if our port 80 redirect is active, and if not:
-	// 1. Checks if pf is enabled and reloads config
-	// 2. Or enables pf with our config
+	mageboxBin := findMageboxBinary()
+
 	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- MageBox-Version-%s -->
@@ -222,41 +239,24 @@ func (m *Manager) createLaunchDaemon() error {
 
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/sh</string>
-        <string>-c</string>
-        <string>sleep 2; pfctl -a com.magebox -sn 2>/dev/null | grep -q "port = 80" || (pfctl -s info 2>/dev/null | grep -q "Status: Enabled" &amp;&amp; pfctl -a com.magebox -f /etc/pf.anchors/com.magebox 2>/dev/null || pfctl -ef /etc/pf.conf 2>/dev/null); exit 0</string>
+        <string>%s</string>
+        <string>_portforward</string>
     </array>
 
     <key>RunAtLoad</key>
     <true/>
 
-    <key>StartInterval</key>
-    <integer>30</integer>
-
     <key>KeepAlive</key>
-    <dict>
-        <key>NetworkState</key>
-        <true/>
-    </dict>
-
-    <key>WatchPaths</key>
-    <array>
-        <string>/etc/pf.conf</string>
-        <string>/etc/pf.anchors</string>
-        <string>/Library/Preferences/SystemConfiguration</string>
-    </array>
-
-    <key>ThrottleInterval</key>
-    <integer>5</integer>
+    <true/>
 
     <key>StandardOutPath</key>
     <string>/var/log/magebox-portforward.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/magebox-portforward-error.log</string>
+    <string>/var/log/magebox-portforward.log</string>
 </dict>
 </plist>
-`, launchDaemonVersion)
+`, launchDaemonVersion, mageboxBin)
 
 	tmpFile := "/tmp/com.magebox.portforward.plist"
 	if err := os.WriteFile(tmpFile, []byte(plist), 0644); err != nil {
@@ -271,7 +271,6 @@ func (m *Manager) createLaunchDaemon() error {
 		return fmt.Errorf("failed to install launch daemon: %w", err)
 	}
 
-	// Set correct permissions
 	cmd = exec.Command("sudo", "chown", "root:wheel", launchDaemonPlist)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -291,17 +290,33 @@ func (m *Manager) createLaunchDaemon() error {
 	return nil
 }
 
-// loadLaunchDaemon loads the LaunchDaemon
+// loadLaunchDaemon loads the LaunchDaemon using both modern and legacy APIs
 func (m *Manager) loadLaunchDaemon() error {
-	cmd := exec.Command("sudo", "launchctl", "load", "-w", launchDaemonPlist)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd := exec.Command("sudo", "launchctl", "bootstrap", "system", launchDaemonPlist)
+	if err := cmd.Run(); err != nil {
+		verbose.Debug("launchctl bootstrap failed (trying legacy load): %v", err)
+		cmd = exec.Command("sudo", "launchctl", "load", "-w", launchDaemonPlist)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	return nil
 }
 
 // unloadLaunchDaemon unloads the LaunchDaemon
 func (m *Manager) unloadLaunchDaemon() error {
-	cmd := exec.Command("sudo", "launchctl", "unload", launchDaemonPlist)
+	cmd := exec.Command("sudo", "launchctl", "bootout", "system/"+launchDaemonLabel)
+	if err := cmd.Run(); err != nil {
+		verbose.Debug("launchctl bootout failed (trying legacy unload): %v", err)
+		cmd = exec.Command("sudo", "launchctl", "unload", launchDaemonPlist)
+		return cmd.Run()
+	}
+	return nil
+}
+
+// kickstartDaemon forces launchd to start the daemon immediately
+func (m *Manager) kickstartDaemon() error {
+	cmd := exec.Command("sudo", "launchctl", "kickstart", "-k", "system/"+launchDaemonLabel)
 	return cmd.Run()
 }
 
@@ -315,193 +330,42 @@ func (m *Manager) Status() error {
 
 	fmt.Println("[OK] Port forwarding is configured")
 	fmt.Println("    LaunchDaemon: " + launchDaemonPlist)
-	fmt.Println("    PF Rules: " + pfRulesFile)
+	fmt.Println("    Mode: TCP proxy (magebox _portforward)")
 	fmt.Println("    Forwarding: 80 → 8080, 443 → 8443")
 
-	// Check if loaded
+	if m.isDaemonLoaded() {
+		fmt.Println("[OK] Daemon is loaded")
+	} else {
+		fmt.Println("[WARN] Daemon is not loaded")
+	}
+
+	if m.AreRulesActive() {
+		fmt.Println("[OK] Port forwarding is active")
+	} else {
+		fmt.Println("[WARN] Port forwarding is NOT active")
+		fmt.Println("       Try: magebox bootstrap")
+	}
+
+	return nil
+}
+
+// isDaemonLoaded checks if the LaunchDaemon is loaded in launchd
+func (m *Manager) isDaemonLoaded() bool {
 	cmd := exec.Command("sudo", "launchctl", "list", launchDaemonLabel)
-	if err := cmd.Run(); err != nil {
-		fmt.Println("[WARN] LaunchDaemon is not loaded")
-	} else {
-		fmt.Println("[OK] LaunchDaemon is active")
-	}
-
-	// Check if rules are actually active
-	if m.areRulesActive() {
-		fmt.Println("[OK] PF rules are active")
-	} else {
-		fmt.Println("[WARN] PF rules are NOT active - port forwarding may not work")
-		fmt.Println("       Try: sudo pfctl -ef /etc/pf.conf")
-	}
-
-	return nil
+	return cmd.Run() == nil
 }
 
-// areRulesActive checks if the MageBox pf rules are currently loaded
-func (m *Manager) areRulesActive() bool {
-	// Check if pf is enabled and our rdr (redirect) rules are loaded
-	// Note: rdr rules are NAT rules, shown with -sn not -sr
-	cmd := exec.Command("sudo", "pfctl", "-a", "com.magebox", "-sn")
-	output, err := cmd.Output()
-	if err != nil {
-		verbose.Debug("Failed to get pf NAT rules: %v", err)
-		return false
+// AreRulesActive checks if port forwarding is actually working by testing
+// whether something is listening on the forwarded ports
+func (m *Manager) AreRulesActive() bool {
+	if m.platform != "darwin" {
+		return true
 	}
-
-	// Look for our redirect rules in the output
-	rules := string(output)
-	hasPort80 := strings.Contains(rules, "port = 80") || strings.Contains(rules, "port 80 ->")
-	hasPort443 := strings.Contains(rules, "port = 443") || strings.Contains(rules, "port 443 ->")
-
-	verbose.Debug("PF rules check: port80=%v, port443=%v", hasPort80, hasPort443)
-	return hasPort80 && hasPort443
-}
-
-// addAnchorToPfConf adds MageBox anchor references to /etc/pf.conf
-func (m *Manager) addAnchorToPfConf() error {
-	verbose.Debug("Checking if anchor is in /etc/pf.conf...")
-
-	content, err := os.ReadFile(pfConfFile)
-	if err != nil {
-		return fmt.Errorf("failed to read pf.conf: %w", err)
-	}
-
-	pfConf := string(content)
-
-	if strings.Contains(pfConf, "com.magebox") {
-		verbose.Debug("Anchor already present in pf.conf")
-		return nil
-	}
-
-	verbose.Debug("Adding MageBox anchor to pf.conf...")
-
-	newContent := m.insertAnchorIntoPfConf(pfConf)
-
-	if err := m.writePfConfWithBackup(newContent); err != nil {
-		return err
-	}
-
-	verbose.Debug("Added MageBox anchor to pf.conf")
-	return nil
-}
-
-// insertAnchorIntoPfConf inserts the MageBox anchor lines into pf.conf content
-// It adds: rdr-anchor "com.magebox" (near other rdr-anchor lines or before first rule)
-// And: load anchor "com.magebox" from "/etc/pf.anchors/com.magebox" (at end)
-func (m *Manager) insertAnchorIntoPfConf(pfConf string) string {
-	lines := strings.Split(pfConf, "\n")
-	result := make([]string, 0, len(lines)+2)
-
-	rdrAnchorAdded := false
-	lastRdrAnchorIdx := -1
-
-	// First pass: find the last rdr-anchor line
-	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "rdr-anchor") {
-			lastRdrAnchorIdx = i
-		}
-	}
-
-	// Second pass: build the new content
-	for i, line := range lines {
-		result = append(result, line)
-
-		// Add our rdr-anchor after the last existing rdr-anchor
-		if i == lastRdrAnchorIdx && !rdrAnchorAdded {
-			result = append(result, `rdr-anchor "com.magebox"`)
-			rdrAnchorAdded = true
-		}
-	}
-
-	// If no rdr-anchor existed, insert before first non-comment, non-empty line
-	if !rdrAnchorAdded {
-		result = m.insertRdrAnchorAtStart(result)
-	}
-
-	// Add load anchor at the end
-	result = append(result, `load anchor "com.magebox" from "/etc/pf.anchors/com.magebox"`)
-	result = append(result, "") // Trailing newline
-
-	return strings.Join(result, "\n")
-}
-
-// insertRdrAnchorAtStart inserts the rdr-anchor line before the first rule
-func (m *Manager) insertRdrAnchorAtStart(lines []string) []string {
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-			// Insert before this line
-			newLines := make([]string, 0, len(lines)+1)
-			newLines = append(newLines, lines[:i]...)
-			newLines = append(newLines, `rdr-anchor "com.magebox"`)
-			newLines = append(newLines, lines[i:]...)
-			return newLines
-		}
-	}
-	// Fallback: prepend
-	return append([]string{`rdr-anchor "com.magebox"`}, lines...)
-}
-
-// writePfConfWithBackup writes the new pf.conf content with a backup
-func (m *Manager) writePfConfWithBackup(content string) error {
-	tmpFile := "/tmp/pf.conf.magebox"
-	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-	defer os.Remove(tmpFile)
-
-	// Backup original
-	cmd := exec.Command("sudo", "cp", pfConfFile, pfConfFile+".magebox.bak")
-	if err := cmd.Run(); err != nil {
-		verbose.Debug("Warning: failed to backup pf.conf: %v", err)
-	}
-
-	// Copy new file
-	cmd = exec.Command("sudo", "cp", tmpFile, pfConfFile)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to update pf.conf: %w", err)
-	}
-
-	return nil
-}
-
-// isPfEnabled checks if pf is currently enabled
-func (m *Manager) isPfEnabled() bool {
-	cmd := exec.Command("sudo", "pfctl", "-s", "info")
-	output, err := cmd.Output()
+	// Try to connect to port 80 — if the proxy is running, it will accept
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:80", 500*time.Millisecond)
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(output), "Status: Enabled")
-}
-
-// reloadPfRules reloads the pf configuration
-func (m *Manager) reloadPfRules() error {
-	verbose.Debug("Reloading pf rules...")
-
-	// Check if pf is already enabled
-	if m.isPfEnabled() {
-		verbose.Debug("pf is already enabled, just reloading rules...")
-		// Just reload rules without trying to enable
-		cmd := exec.Command("sudo", "pfctl", "-f", pfConfFile)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			verbose.Debug("pfctl output: %s", string(output))
-			return fmt.Errorf("pfctl failed: %w", err)
-		}
-	} else {
-		verbose.Debug("pf is not enabled, enabling and loading rules...")
-		// Enable pf and load rules
-		cmd := exec.Command("sudo", "pfctl", "-ef", pfConfFile)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			verbose.Debug("pfctl output: %s", string(output))
-			return fmt.Errorf("pfctl failed: %w", err)
-		}
-	}
-
-	verbose.Debug("PF rules reloaded successfully")
-	return nil
+	conn.Close()
+	return true
 }

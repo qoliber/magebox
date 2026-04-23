@@ -69,15 +69,27 @@ find_php_binary() {
     local version_no_dot="${version//./}"
 
     # macOS: Use Cellar path directly (more reliable than opt symlinks)
-    # Apple Silicon
+    # Apple Silicon — versioned formula (php@8.3, php@8.2, etc.)
     php_bin=$(ls /opt/homebrew/Cellar/php@$version/*/bin/php 2>/dev/null | head -n1)
     if [[ -x "$php_bin" ]]; then
         echo "$php_bin"
         return 0
     fi
+    # Apple Silicon — unversioned formula (brew install php → current default)
+    php_bin=$(ls /opt/homebrew/Cellar/php/$version.*/bin/php 2>/dev/null | head -n1)
+    if [[ -x "$php_bin" ]]; then
+        echo "$php_bin"
+        return 0
+    fi
 
-    # Intel Mac
+    # Intel Mac — versioned formula
     php_bin=$(ls /usr/local/Cellar/php@$version/*/bin/php 2>/dev/null | head -n1)
+    if [[ -x "$php_bin" ]]; then
+        echo "$php_bin"
+        return 0
+    fi
+    # Intel Mac — unversioned formula
+    php_bin=$(ls /usr/local/Cellar/php/$version.*/bin/php 2>/dev/null | head -n1)
     if [[ -x "$php_bin" ]]; then
         echo "$php_bin"
         return 0

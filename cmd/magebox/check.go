@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/portforward"
 )
 
 var checkCmd = &cobra.Command{
@@ -422,6 +424,43 @@ func runCheck(cmd *cobra.Command, args []string) error {
 			}
 			printCheckResult(results[len(results)-1])
 		}
+		fmt.Println()
+	}
+
+	// Check 8: Port Forwarding (macOS only)
+	if runtime.GOOS == "darwin" {
+		fmt.Println(cli.Header("Port Forwarding"))
+		pfMgr := portforward.NewManager()
+
+		if pfMgr.IsInstalled() {
+			results = append(results, checkResult{
+				name:    "LaunchDaemon",
+				status:  "ok",
+				message: "Installed",
+			})
+		} else {
+			results = append(results, checkResult{
+				name:    "LaunchDaemon",
+				status:  "error",
+				message: "Not installed — run 'magebox bootstrap'",
+			})
+		}
+		printCheckResult(results[len(results)-1])
+
+		if pfMgr.AreRulesActive() {
+			results = append(results, checkResult{
+				name:    "PF Rules",
+				status:  "ok",
+				message: "Active (80→8080, 443→8443)",
+			})
+		} else {
+			results = append(results, checkResult{
+				name:    "PF Rules",
+				status:  "error",
+				message: "Not active — run 'magebox start' or 'sudo pfctl -ef /etc/pf.conf'",
+			})
+		}
+		printCheckResult(results[len(results)-1])
 		fmt.Println()
 	}
 

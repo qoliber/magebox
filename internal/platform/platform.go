@@ -250,9 +250,15 @@ func (p *Platform) PHPFPMBinary(version string) string {
 		if p.IsAppleSilicon {
 			base = "/opt/homebrew"
 		}
-		// Use Cellar path with glob to find actual installation
+		// Use Cellar path with glob to find actual installation (versioned formula: php@8.4)
 		cellarPath := filepath.Join(base, "Cellar", "php@"+normalizedVersion)
 		matches, err := filepath.Glob(filepath.Join(cellarPath, "*", "sbin", "php-fpm"))
+		if err == nil && len(matches) > 0 {
+			return matches[0]
+		}
+		// Check unversioned "php" formula (Homebrew's current default, e.g. php/8.4.x)
+		cellarPath = filepath.Join(base, "Cellar", "php")
+		matches, err = filepath.Glob(filepath.Join(cellarPath, normalizedVersion+".*", "sbin", "php-fpm"))
 		if err == nil && len(matches) > 0 {
 			return matches[0]
 		}
@@ -283,9 +289,15 @@ func (p *Platform) PHPBinary(version string) string {
 		if p.IsAppleSilicon {
 			base = "/opt/homebrew"
 		}
-		// Use Cellar path with glob to find actual installation
+		// Use Cellar path with glob to find actual installation (versioned formula: php@8.4)
 		cellarPath := filepath.Join(base, "Cellar", "php@"+normalizedVersion)
 		matches, err := filepath.Glob(filepath.Join(cellarPath, "*", "bin", "php"))
+		if err == nil && len(matches) > 0 {
+			return matches[0]
+		}
+		// Check unversioned "php" formula (Homebrew's current default, e.g. php/8.4.x)
+		cellarPath = filepath.Join(base, "Cellar", "php")
+		matches, err = filepath.Glob(filepath.Join(cellarPath, normalizedVersion+".*", "bin", "php"))
 		if err == nil && len(matches) > 0 {
 			return matches[0]
 		}

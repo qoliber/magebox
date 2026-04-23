@@ -5,6 +5,21 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-04-22
+
+### Changed
+
+- **macOS Port Forwarding: pf replaced with TCP proxy daemon** - The previous approach used macOS `pf` (packet filter) kernel rules to redirect ports 80→8080 and 443→8443. These rules were unreliable — Apple's own pf management would override custom anchors after reboot and sleep/wake, silently breaking all `.test` domains. MageBox now uses a persistent TCP proxy daemon (`magebox _portforward`) managed by launchd with `KeepAlive: true`. The daemon listens on ports 80/443 and forwards connections to nginx on 8080/8443. This eliminates all interaction with the macOS pf subsystem. Legacy pf anchor files (`/etc/pf.anchors/com.magebox`), helper scripts, and `/etc/pf.conf` modifications are automatically cleaned up on upgrade. ([#95](https://github.com/qoliber/magebox/issues/95))
+
+### Added
+
+- **Port forwarding self-healing on `magebox start`/`magebox restart`** - On macOS, `magebox start` and `magebox restart` verify that the port forwarding daemon is running and restart it if needed. Domains work immediately without needing `magebox bootstrap` again.
+- **Port Forwarding Health Check** - `magebox check` now includes a Port Forwarding section on macOS that reports whether the LaunchDaemon is installed and port forwarding is active.
+
+### Fixed
+
+- **macOS PHP Detection for Unversioned Homebrew Formula** - When PHP was installed via `brew install php` (the unversioned/current formula), MageBox failed to find it because it only looked in `Cellar/php@8.4/`. The unversioned formula installs to `Cellar/php/8.4.x/` instead. Both the Go binary detection and the PHP wrapper script now check both paths.
+
 ## [1.15.1] - 2026-04-21
 
 ### Fixed

@@ -44,6 +44,9 @@ func runRestart(cmd *cobra.Command, args []string) error {
 	cli.PrintTitle("Restarting MageBox Services")
 	fmt.Println()
 
+	// On macOS, verify pf port forwarding is active (survives reboot/sleep)
+	ensurePortForwarding()
+
 	// Stop
 	fmt.Print("Stopping services... ")
 	if err := mgr.Stop(cwd); err != nil {
