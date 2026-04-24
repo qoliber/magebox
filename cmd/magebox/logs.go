@@ -149,7 +149,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	multitailCmd := exec.Command("multitail",
 		"-s", "2",
 		"-n", "200",
-		"-m", "500",
+		"-m", "10000",
 		systemLog,
 		exceptionLog,
 	)
@@ -379,7 +379,7 @@ func multitailFiles(files []string) error {
 	fmt.Println("Press 'q' to quit, 'b' to scroll back")
 	fmt.Println()
 
-	args := []string{"-n", "200", "-m", "500"}
+	args := []string{"-n", "200", "-m", "10000"}
 	// -s splits into columns; multitail requires the value to be >= 2
 	if len(files) >= 2 {
 		args = append(args, "-s", "2")
