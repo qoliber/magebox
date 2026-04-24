@@ -217,15 +217,14 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		}
 	}
 
-	// Determine if there's only one DB service total (always gets standard port)
-	totalDBServices := len(requiredServices.mysql) + len(requiredServices.mariadb)
-	// Determine if there's only one search service total (always gets standard port 9200)
+	// Only the global default DB version gets the standard port 3306.
+	// MySQL default takes precedence over MariaDB default if both are configured.
 	totalSearchServices := len(requiredServices.opensearch) + len(requiredServices.elasticsearch)
 
 	// Add MySQL services
 	for version, svcCfg := range requiredServices.mysql {
 		serviceName := fmt.Sprintf("mysql%s", strings.ReplaceAll(version, ".", ""))
-		addStdPort := (totalDBServices == 1) || (version == defaultMySQL)
+		addStdPort := version == defaultMySQL
 		compose.Services[serviceName] = g.getMySQLService(svcCfg, addStdPort)
 		compose.Volumes[fmt.Sprintf("mysql%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
@@ -233,7 +232,7 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 	// Add MariaDB services
 	for version, svcCfg := range requiredServices.mariadb {
 		serviceName := fmt.Sprintf("mariadb%s", strings.ReplaceAll(version, ".", ""))
-		addStdPort := len(requiredServices.mysql) == 0 && ((totalDBServices == 1) || (version == defaultMariaDB))
+		addStdPort := len(requiredServices.mysql) == 0 && version == defaultMariaDB
 		compose.Services[serviceName] = g.getMariaDBService(svcCfg, addStdPort)
 		compose.Volumes[fmt.Sprintf("mariadb%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
 	}
