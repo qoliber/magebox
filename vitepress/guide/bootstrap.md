@@ -77,9 +77,11 @@ Running `magebox bootstrap` will:
    - **macOS**: Create `/etc/resolver/test` for wildcard resolution
    - Falls back to `/etc/hosts` mode if dnsmasq setup fails
 
-8. **Install PHP Wrapper**
-   - Create smart PHP wrapper at `~/.magebox/bin/php`
-   - Automatic PHP version detection per project
+8. **Install CLI Wrappers**
+   - Create smart PHP wrapper at `~/.magebox/bin/php` — automatic PHP version detection per project
+   - Create Composer wrapper at `~/.magebox/bin/composer` — runs with project PHP version
+   - Create Blackfire wrapper at `~/.magebox/bin/blackfire` — profiles with project PHP version
+   - Create magerun2 wrapper at `~/.magebox/bin/magerun2` — auto-downloads correct n98-magerun2 phar on first use
 
 9. **PHP-FPM Setup (Linux)**
    - Enable and start PHP-FPM services for installed versions

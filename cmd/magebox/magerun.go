@@ -12,11 +12,20 @@ import (
 	"qoliber/magebox/internal/php"
 )
 
-// magerunBinaries lists the known magerun2 executable names to look for in PATH.
+// magerunBinaries lists the known magerun2 executable names to look for in PATH
+// as a fallback when the MageBox-managed wrapper is not installed.
 var magerunBinaries = []string{"n98-magerun2", "n98-magerun2.phar", "magerun2"}
 
-// findMagerun returns the path to a magerun2 binary if one is available in PATH.
+// findMagerun returns the path to a magerun2 binary. It prefers the
+// MageBox-managed wrapper at ~/.magebox/bin/magerun2, falling back to any
+// magerun2 binary found in PATH.
 func findMagerun() (string, bool) {
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		managed := filepath.Join(homeDir, ".magebox", "bin", "magerun2")
+		if info, err := os.Stat(managed); err == nil && info.Mode().Perm()&0111 != 0 {
+			return managed, true
+		}
+	}
 	for _, name := range magerunBinaries {
 		if path, err := exec.LookPath(name); err == nil {
 			return path, true
