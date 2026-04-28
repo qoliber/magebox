@@ -106,8 +106,10 @@ server {
 
     set $MAGE_ROOT {{.DocumentRoot}};
     set $MAGE_MODE developer;
+{{- if .MultiStore}}
     set $MAGE_RUN_CODE {{.StoreCode}};
     set $MAGE_RUN_TYPE {{.MageRunType}};
+{{- end}}
 
     root $MAGE_ROOT;
     index index.php;
@@ -221,8 +223,10 @@ server {
 
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+{{- if .MultiStore}}
         fastcgi_param MAGE_RUN_CODE $MAGE_RUN_CODE;
         fastcgi_param MAGE_RUN_TYPE $MAGE_RUN_TYPE;
+{{- end}}
         include fastcgi_params;
     }
 

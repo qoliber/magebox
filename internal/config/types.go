@@ -20,7 +20,8 @@ type Config struct {
 	Domains       []Domain           `yaml:"domains"`
 	PHP           string             `yaml:"php"`
 	PHPINI        map[string]string  `yaml:"php_ini,omitempty"`
-	Isolated      bool               `yaml:"isolated,omitempty"` // Use dedicated PHP-FPM master for this project
+	Isolated      bool               `yaml:"isolated,omitempty"`    // Use dedicated PHP-FPM master for this project
+	MultiStore    bool               `yaml:"multi_store,omitempty"` // Inject MAGE_RUN_CODE/MAGE_RUN_TYPE into Nginx config
 	Services      Services           `yaml:"services"`
 	Env           map[string]string  `yaml:"env,omitempty"`
 	Commands      map[string]Command `yaml:"commands,omitempty"`

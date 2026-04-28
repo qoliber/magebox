@@ -287,6 +287,69 @@ func TestRenderVhost_SSLEnabled_NoIPv6(t *testing.T) {
 	}
 }
 
+func TestRenderVhost_MultiStoreDisabled(t *testing.T) {
+	g, tmpDir := setupTestGenerator(t)
+
+	cfg := VhostConfig{
+		ProjectName:   "mystore",
+		Domain:        "mystore.test",
+		DocumentRoot:  "/var/www/mystore/pub",
+		PHPVersion:    "8.2",
+		PHPSocketPath: filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock"),
+		MultiStore:    false,
+		StoreCode:     "mystore",
+		MageRunType:   "website",
+		HTTPPort:      80,
+		HTTPSPort:     443,
+	}
+
+	content, err := g.renderVhost(cfg)
+	if err != nil {
+		t.Fatalf("renderVhost failed: %v", err)
+	}
+
+	if strings.Contains(content, "MAGE_RUN_CODE") {
+		t.Error("Vhost with MultiStore=false should not contain MAGE_RUN_CODE")
+	}
+	if strings.Contains(content, "MAGE_RUN_TYPE") {
+		t.Error("Vhost with MultiStore=false should not contain MAGE_RUN_TYPE")
+	}
+}
+
+func TestRenderVhost_MultiStoreEnabled(t *testing.T) {
+	g, tmpDir := setupTestGenerator(t)
+
+	cfg := VhostConfig{
+		ProjectName:   "mystore",
+		Domain:        "mystore.test",
+		DocumentRoot:  "/var/www/mystore/pub",
+		PHPVersion:    "8.2",
+		PHPSocketPath: filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock"),
+		MultiStore:    true,
+		StoreCode:     "mystore_en",
+		MageRunType:   "website",
+		HTTPPort:      80,
+		HTTPSPort:     443,
+	}
+
+	content, err := g.renderVhost(cfg)
+	if err != nil {
+		t.Fatalf("renderVhost failed: %v", err)
+	}
+
+	checks := []string{
+		"set $MAGE_RUN_CODE mystore_en",
+		"set $MAGE_RUN_TYPE website",
+		"fastcgi_param MAGE_RUN_CODE $MAGE_RUN_CODE",
+		"fastcgi_param MAGE_RUN_TYPE $MAGE_RUN_TYPE",
+	}
+	for _, check := range checks {
+		if !strings.Contains(content, check) {
+			t.Errorf("Vhost with MultiStore=true should contain %q", check)
+		}
+	}
+}
+
 func TestRenderVhost_SSLDisabled(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
