@@ -74,6 +74,7 @@ type VhostConfig struct {
 	HTTPSPort      int    // 443 on Linux, 8443 on macOS (port forwarding)
 	BackendPort    int    // Backend port for Varnish (always 8080 when Varnish enabled)
 	EnableIPv6     bool   // true on Linux to add [::]:port listen directives
+	MultiStore     bool   // Inject MAGE_RUN_CODE/MAGE_RUN_TYPE into Nginx config (default: false)
 	StoreCode      string // Magento store code for multi-store setup (default: "default")
 	MageRunType    string // Magento run type: "store" or "website" (default: "store")
 	AccessLog      string // Path to access log file
@@ -167,6 +168,7 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 			HTTPSPort:     httpsPort,
 			BackendPort:   backendPort,
 			EnableIPv6:    enableIPv6,
+			MultiStore:    cfg.MultiStore,
 			StoreCode:     domain.GetStoreCode(),
 			MageRunType:   domain.GetMageRunType(),
 			AccessLog:     filepath.Join(logsDir, fmt.Sprintf("%s-access.log", sanitizedDomain)),
