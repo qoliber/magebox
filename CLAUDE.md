@@ -18,6 +18,23 @@ Single package test: `go test ./internal/config/... -v`
 
 Always run `make lint` and `make test` before committing Go code. Both must pass.
 
+## Documentation
+
+Documentation lives in `vitepress/`. The main files to keep in sync with code:
+
+- `vitepress/reference/commands.md` — one section per non-hidden CLI command
+- `vitepress/reference/config-options.md` — every field in `internal/config/types.go`
+- `vitepress/guide/bootstrap.md` — reflects actual bootstrap behaviour per platform
+
+**Whenever you add or change a feature, proactively check whether the docs need updating before committing.** Specifically:
+
+- New CLI command or subcommand → add a section to `commands.md`
+- New config field in `types.go` → add it to `config-options.md`
+- Changed behaviour (flags, defaults, internal mechanics) → update the relevant guide or reference page
+- Removed or renamed command/flag → remove or correct the docs entry
+
+Do not wait to be asked. Treat outdated docs as a bug.
+
 ## Project structure
 
 - `cmd/magebox/` - CLI commands (one file per command, uses Cobra)
