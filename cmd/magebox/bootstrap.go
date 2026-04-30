@@ -20,6 +20,7 @@ import (
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/dns"
 	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/magerunwrapper"
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/phpwrapper"
@@ -831,6 +832,20 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		if err := wrapperMgr.InstallBlackfire(); err != nil {
 			fmt.Println(cli.Error("failed"))
 			cli.PrintWarning("Blackfire wrapper installation failed: %v", err)
+		} else {
+			fmt.Println(cli.Success("done"))
+		}
+	}
+
+	// magerun2 wrapper (auto-downloads the correct n98-magerun2 phar on first use)
+	magerunMgr := magerunwrapper.NewManager(p)
+	if magerunMgr.IsInstalled() {
+		fmt.Println("  magerun2 wrapper already installed " + cli.Success("✓"))
+	} else {
+		fmt.Print("  Installing magerun2 wrapper script... ")
+		if err := magerunMgr.Install(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("magerun2 wrapper installation failed: %v", err)
 		} else {
 			fmt.Println(cli.Success("done"))
 		}

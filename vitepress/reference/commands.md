@@ -535,9 +535,17 @@ When called without a command name, an interactive TUI menu is shown listing all
 
 ---
 
-### Magerun2 Fallback
+### Magerun2
 
-Any command not recognized by MageBox is automatically forwarded to magerun2 (if installed).
+MageBox automatically manages n98-magerun2 — no manual installation required. The correct version is downloaded on first use based on your Magento version, then installed permanently.
+
+```bash
+magerun2 cache:flush
+magerun2 setup:upgrade
+magerun2 sys:info
+```
+
+Any command not recognized by MageBox is also automatically forwarded to magerun2:
 
 ```bash
 magebox cache:flush          # → magerun2 cache:flush
@@ -546,6 +554,15 @@ magebox sys:info             # → magerun2 sys:info
 ```
 
 MageBox verifies the command exists in magerun2 before forwarding. The project's configured PHP version is automatically used. Custom commands defined in `.magebox.yaml` take priority over magerun2 commands.
+
+**Version selection** is based on the Magento version detected from `composer.lock`:
+
+| Magento version | n98-magerun2 |
+|-----------------|--------------|
+| 2.4.0 – 2.4.4  | 7.5.0 |
+| 2.4.5 and up   | Latest |
+
+The phar is installed in `~/.magebox/magerun/` and never re-downloaded automatically. To update: `rm ~/.magebox/magerun/n98-magerun2-*.phar`.
 
 ## Database Commands
 
