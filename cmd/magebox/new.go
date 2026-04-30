@@ -812,16 +812,16 @@ commands:
     --search-engine=opensearch \
     --opensearch-host=127.0.0.1 \
     --opensearch-port=%d \
-    --opensearch-index-prefix=magento2 \
-    --opensearch-timeout=15`, searchPort)
+    --opensearch-index-prefix=%s \
+    --opensearch-timeout=15`, searchPort, projectName)
 	} else if searchEngine == "elasticsearch" {
 		searchPort := docker.GetElasticsearchPort(searchVersion)
 		installCmd += fmt.Sprintf(` \
     --search-engine=elasticsearch7 \
     --elasticsearch-host=127.0.0.1 \
     --elasticsearch-port=%d \
-    --elasticsearch-index-prefix=magento2 \
-    --elasticsearch-timeout=15`, searchPort)
+    --elasticsearch-index-prefix=%s \
+    --elasticsearch-timeout=15`, searchPort, projectName)
 	}
 
 	// Add cache config (Valkey is Redis-compatible, same Magento flags)
@@ -1174,7 +1174,7 @@ commands:
 		"--search-engine=opensearch",
 		"--opensearch-host=127.0.0.1",
 		fmt.Sprintf("--opensearch-port=%d", opensearchPort),
-		"--opensearch-index-prefix=magento2",
+		"--opensearch-index-prefix=" + projectName,
 		"--opensearch-timeout=15",
 	}
 

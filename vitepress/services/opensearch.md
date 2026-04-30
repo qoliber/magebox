@@ -85,12 +85,16 @@ These plugins enable:
 
 ### Via Install Command
 
+::: warning Use your project name as index prefix
+MageBox projects share a single OpenSearch/Elasticsearch Docker instance on port 9200. Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
+:::
+
 ```bash
 php bin/magento setup:install \
     --search-engine=opensearch \
     --opensearch-host=127.0.0.1 \
     --opensearch-port=9200 \
-    --opensearch-index-prefix=magento2 \
+    --opensearch-index-prefix=myproject \
     --opensearch-timeout=15 \
     # ... other options
 ```
@@ -102,7 +106,7 @@ php bin/magento setup:install \
     --search-engine=elasticsearch8 \
     --elasticsearch-host=127.0.0.1 \
     --elasticsearch-port=9200 \
-    --elasticsearch-index-prefix=magento2 \
+    --elasticsearch-index-prefix=myproject \
     --elasticsearch-timeout=15 \
     # ... other options
 ```
@@ -125,7 +129,7 @@ php bin/magento setup:install \
                 'engine' => 'opensearch',
                 'opensearch_server_hostname' => '127.0.0.1',
                 'opensearch_server_port' => '9200',
-                'opensearch_index_prefix' => 'magento2',
+                'opensearch_index_prefix' => 'myproject',
                 'opensearch_server_timeout' => '15'
             ]
         ]
@@ -159,7 +163,7 @@ php bin/magento indexer:reindex catalogsearch_fulltext
 
 ```bash
 # Delete all Magento indices
-curl -X DELETE http://127.0.0.1:9200/magento2_*
+curl -X DELETE http://127.0.0.1:9200/myproject_*
 
 # Reindex
 php bin/magento indexer:reindex catalogsearch_fulltext
@@ -265,7 +269,7 @@ If status is "red":
 
 ```bash
 # Delete all indices and reindex
-curl -X DELETE http://127.0.0.1:9200/magento2_*
+curl -X DELETE http://127.0.0.1:9200/myproject_*
 php bin/magento indexer:reindex catalogsearch_fulltext
 ```
 
@@ -388,7 +392,7 @@ After large catalog imports:
 
 ```bash
 # Force merge (reduces segment count)
-curl -X POST "http://127.0.0.1:9200/magento2_*/_forcemerge?max_num_segments=1"
+curl -X POST "http://127.0.0.1:9200/myproject_*/_forcemerge?max_num_segments=1"
 ```
 
 ### Query Debugging
@@ -405,7 +409,7 @@ Then check `var/log/debug.log` for search queries.
 
 ```bash
 # Watch indexing in real-time
-watch -n 1 'curl -s http://127.0.0.1:9200/_cat/indices?v | grep magento'
+watch -n 1 'curl -s http://127.0.0.1:9200/_cat/indices?v | grep myproject'
 
 # Check pending tasks
 curl http://127.0.0.1:9200/_cluster/pending_tasks?pretty

@@ -71,6 +71,10 @@ services:
 
 ## Magento Configuration
 
+::: warning Use your project name as index prefix
+MageBox projects share a single OpenSearch/Elasticsearch Docker instance on port 9200. Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
+:::
+
 ### OpenSearch
 
 Via CLI:
@@ -79,7 +83,7 @@ Via CLI:
 php bin/magento config:set catalog/search/engine opensearch
 php bin/magento config:set catalog/search/opensearch_server_hostname 127.0.0.1
 php bin/magento config:set catalog/search/opensearch_server_port 9200
-php bin/magento config:set catalog/search/opensearch_index_prefix magento2
+php bin/magento config:set catalog/search/opensearch_index_prefix myproject
 ```
 
 Or in `app/etc/env.php`:
@@ -92,7 +96,7 @@ Or in `app/etc/env.php`:
                 'engine' => 'opensearch',
                 'opensearch_server_hostname' => '127.0.0.1',
                 'opensearch_server_port' => '9200',
-                'opensearch_index_prefix' => 'magento2',
+                'opensearch_index_prefix' => 'myproject',
                 'opensearch_enable_auth' => '0',
                 'opensearch_server_timeout' => '15'
             ]
@@ -111,7 +115,7 @@ Or in `app/etc/env.php`:
                 'engine' => 'elasticsearch7',
                 'elasticsearch7_server_hostname' => '127.0.0.1',
                 'elasticsearch7_server_port' => '9200',
-                'elasticsearch7_index_prefix' => 'magento2',
+                'elasticsearch7_index_prefix' => 'myproject',
                 'elasticsearch7_enable_auth' => '0',
                 'elasticsearch7_server_timeout' => '15'
             ]
@@ -130,7 +134,7 @@ Or in `app/etc/env.php`:
                 'engine' => 'elasticsearch8',
                 'elasticsearch8_server_hostname' => '127.0.0.1',
                 'elasticsearch8_server_port' => '9200',
-                'elasticsearch8_index_prefix' => 'magento2',
+                'elasticsearch8_index_prefix' => 'myproject',
                 'elasticsearch8_enable_auth' => '0',
                 'elasticsearch8_server_timeout' => '15'
             ]
