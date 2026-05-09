@@ -145,9 +145,6 @@ install_binary() {
     local install_path="${INSTALL_DIR}/${BINARY_NAME}"
 
     info "Installing to ${install_path}..."
-
-    # Define the target directory
-    INSTALL_DIR="/usr/local/bin"
     
     # Check if the target is the standard /usr/local/bin AND it doesn't exist
     if [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ ! -d "$INSTALL_DIR" ]; then
