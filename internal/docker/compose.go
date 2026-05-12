@@ -754,6 +754,7 @@ func (g *ComposeGenerator) getMariaDBPort(version string) int {
 }
 
 // normalizeSearchVersion extracts major.minor from a version string like "2.19.4".
+// If the input does not contain at least two dot-separated parts, it is returned unchanged.
 func normalizeSearchVersion(version string) string {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) >= 2 {
