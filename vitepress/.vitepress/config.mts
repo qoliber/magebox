@@ -1,10 +1,14 @@
 import { defineConfig } from 'vitepress'
 import { readFileSync } from 'fs'
+import llmstxt from 'vitepress-plugin-llms'
 
 const version = readFileSync('../VERSION', 'utf-8').trim()
 
 export default defineConfig({
   title: "MageBox",
+  vite: {
+    plugins: [llmstxt()],
+  },
   description: "Fast, native Magento development environment",
 
   ignoreDeadLinks: [
