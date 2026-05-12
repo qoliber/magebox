@@ -30,6 +30,8 @@ services:
     memory: "2g"
 ```
 
+You can also use supported major-version shorthands. For example, `elasticsearch: "7"` resolves to the latest `7.17.x` image, `elasticsearch: "8"` resolves to the latest `8.17.x` image, and `opensearch: "2"` resolves to the latest `2.19.x` image.
+
 ::: tip
 OpenSearch is recommended for new projects. It's fully compatible with Elasticsearch and is the default for Magento 2.4.6+.
 :::

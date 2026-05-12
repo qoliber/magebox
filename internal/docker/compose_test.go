@@ -499,6 +499,7 @@ func TestGetOpenSearchPort(t *testing.T) {
 		version  string
 		expected int
 	}{
+		{"2", 9259}, // major-only shorthand resolves to latest supported minor
 		{"1.3", 9223},
 		{"2.5", 9245},
 		{"2.11", 9251},
@@ -525,8 +526,10 @@ func TestGetElasticsearchPort(t *testing.T) {
 		version  string
 		expected int
 	}{
+		{"7", 9657}, // major-only shorthand resolves to latest supported minor
 		{"7.6", 9646},
 		{"7.17", 9657},
+		{"8", 9677}, // major-only shorthand resolves to latest supported minor
 		{"8.0", 9660},
 		{"8.11", 9671},
 		{"8.17", 9677},
@@ -556,6 +559,9 @@ func TestResolveElasticsearchVersion(t *testing.T) {
 		version  string
 		expected string
 	}{
+		// major-only inputs should resolve via the default supported minor series
+		{"7", "7.17.28"},
+		{"8", "8.17.4"},
 		// major.minor inputs should resolve to highest patch version
 		{"7.17", "7.17.28"},
 		{"8.11", "8.11.4"},
@@ -592,6 +598,10 @@ func TestResolveOpenSearchVersion(t *testing.T) {
 		version  string
 		expected string
 	}{
+		// major-only inputs should resolve via the default supported minor series
+		{"1", "1.3.20"},
+		{"2", "2.19.2"},
+		{"3", "3.3.0"},
 		// major.minor inputs should resolve to highest patch version
 		{"2.19", "2.19.2"},
 		{"1.3", "1.3.20"},
@@ -636,6 +646,31 @@ func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
 	// Container name should still use the user-specified version
 	if svc.ContainerName != "magebox-elasticsearch-7.17" {
 		t.Errorf("ContainerName = %v, want magebox-elasticsearch-7.17", svc.ContainerName)
+	}
+}
+
+func TestComposeService_Elasticsearch_MajorVersionResolvesImageAndPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7.17": {"7.17.26", "7.17.28", "7.17.27"},
+	})
+	defer cleanup()
+
+	g, _ := setupTestComposeGenerator(t)
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "7",
+	}
+	svc := g.getElasticsearchService(svcCfg, false)
+
+	if svc.Image != "elasticsearch:7.17.28" {
+		t.Errorf("Image = %v, want elasticsearch:7.17.28", svc.Image)
+	}
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9657:9200") {
+		t.Errorf("Ports = %v, want [9657:9200]", svc.Ports)
+	}
+	if svc.ContainerName != "magebox-elasticsearch-7" {
+		t.Errorf("ContainerName = %v, want magebox-elasticsearch-7", svc.ContainerName)
 	}
 }
 

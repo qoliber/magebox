@@ -48,6 +48,8 @@ services:
   elasticsearch: "8.11"
 ```
 
+Supported major-version shorthands are also accepted. For example, `elasticsearch: "7"` resolves to the latest `7.17.x` image, `elasticsearch: "8"` resolves to the latest `8.17.x` image, and `opensearch: "2"` resolves to the latest `2.19.x` image.
+
 ### With Memory Allocation
 
 For better performance (recommended for large catalogs):
