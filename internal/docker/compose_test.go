@@ -495,11 +495,16 @@ func TestComposeService_Elasticsearch_WithStandardPort(t *testing.T) {
 }
 
 func TestGetOpenSearchPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:2": {"2.19.1", "2.19.2", "2.5.0"},
+	})
+	defer cleanup()
+
 	tests := []struct {
 		version  string
 		expected int
 	}{
-		{"2", 9259}, // major-only shorthand resolves to latest supported minor
+		{"2", 9259}, // major-only shorthand resolves to latest available minor
 		{"1.3", 9223},
 		{"2.5", 9245},
 		{"2.11", 9251},
@@ -522,14 +527,20 @@ func TestGetOpenSearchPort(t *testing.T) {
 }
 
 func TestGetElasticsearchPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7": {"7.17.27", "7.17.28", "7.6.2"},
+		"library/elasticsearch:8": {"8.17.4", "8.11.4", "8.0.0"},
+	})
+	defer cleanup()
+
 	tests := []struct {
 		version  string
 		expected int
 	}{
-		{"7", 9657}, // major-only shorthand resolves to latest supported minor
+		{"7", 9657}, // major-only shorthand resolves to latest available minor
 		{"7.6", 9646},
 		{"7.17", 9657},
-		{"8", 9677}, // major-only shorthand resolves to latest supported minor
+		{"8", 9677}, // major-only shorthand resolves to latest available minor
 		{"8.0", 9660},
 		{"8.11", 9671},
 		{"8.17", 9677},
@@ -548,6 +559,8 @@ func TestGetElasticsearchPort(t *testing.T) {
 
 func TestResolveElasticsearchVersion(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7":    {"7.17.27", "7.17.28", "7.6.2"},
+		"library/elasticsearch:8":    {"8.17.4", "8.11.4", "8.0.0"},
 		"library/elasticsearch:7.17": {"7.17.27", "7.17.28", "7.17.26"},
 		"library/elasticsearch:8.11": {"8.11.3", "8.11.4", "8.11.2"},
 		"library/elasticsearch:8.17": {"8.17.4", "8.17.3"},
@@ -559,7 +572,7 @@ func TestResolveElasticsearchVersion(t *testing.T) {
 		version  string
 		expected string
 	}{
-		// major-only inputs should resolve via the default supported minor series
+		// major-only inputs should resolve to the latest available release in that major series
 		{"7", "7.17.28"},
 		{"8", "8.17.4"},
 		// major.minor inputs should resolve to highest patch version
@@ -586,6 +599,9 @@ func TestResolveElasticsearchVersion(t *testing.T) {
 
 func TestResolveOpenSearchVersion(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:1":    {"1.3.19", "1.3.20"},
+		"opensearchproject/opensearch:2":    {"2.19.1", "2.19.2", "2.5.0"},
+		"opensearchproject/opensearch:3":    {"3.3.0", "3.0.0"},
 		"opensearchproject/opensearch:2.19": {"2.19.1", "2.19.2", "2.19.0"},
 		"opensearchproject/opensearch:1.3":  {"1.3.19", "1.3.20", "1.3.18"},
 		"opensearchproject/opensearch:2.5":  {"2.5.0"},
@@ -598,7 +614,7 @@ func TestResolveOpenSearchVersion(t *testing.T) {
 		version  string
 		expected string
 	}{
-		// major-only inputs should resolve via the default supported minor series
+		// major-only inputs should resolve to the latest available release in that major series
 		{"1", "1.3.20"},
 		{"2", "2.19.2"},
 		{"3", "3.3.0"},
@@ -651,7 +667,7 @@ func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
 
 func TestComposeService_Elasticsearch_MajorVersionResolvesImageAndPort(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
-		"library/elasticsearch:7.17": {"7.17.26", "7.17.28", "7.17.27"},
+		"library/elasticsearch:7": {"7.17.26", "7.17.28", "7.6.2"},
 	})
 	defer cleanup()
 
@@ -700,7 +716,7 @@ func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
 
 func TestComposeService_OpenSearch_MajorVersionResolvesImageAndPort(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
-		"opensearchproject/opensearch:2.19": {"2.19.0", "2.19.2", "2.19.1"},
+		"opensearchproject/opensearch:2": {"2.19.0", "2.19.2", "2.5.0"},
 	})
 	defer cleanup()
 

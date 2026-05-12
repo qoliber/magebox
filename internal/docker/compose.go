@@ -524,7 +524,7 @@ func (g *ComposeGenerator) getValkeyService() ComposeService {
 func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
 	version := svcCfg.Version
 	imageVersion := ResolveOpenSearchVersion(version)
-	port := GetOpenSearchPort(version)
+	port := GetOpenSearchPort(imageVersion)
 
 	// Default to 1GB if not specified
 	memory := "1g"
@@ -563,7 +563,7 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, ad
 func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
 	version := svcCfg.Version
 	imageVersion := ResolveElasticsearchVersion(version)
-	port := GetElasticsearchPort(version)
+	port := GetElasticsearchPort(imageVersion)
 
 	// Default to 1GB if not specified
 	memory := "1g"
@@ -753,31 +753,23 @@ func (g *ComposeGenerator) getMariaDBPort(version string) int {
 	return 33106 // default
 }
 
-var openSearchMajorVersionDefaults = map[string]string{
-	"1": "1.3",
-	"2": "2.19",
-	"3": "3.3",
-}
-
-var elasticsearchMajorVersionDefaults = map[string]string{
-	"7": "7.17",
-	"8": "8.17",
-}
-
-// normalizeSearchVersion resolves supported major-only shorthands and extracts the
-// major.minor portion from a version string like "2.19.4". Unsupported or
-// non-numeric inputs are returned unchanged so higher-level callers can keep the
-// original version and let Docker surface an actionable error if needed.
-func normalizeSearchVersion(version string, majorDefaults map[string]string) string {
-	if normalized, ok := majorDefaults[version]; ok {
-		return normalized
-	}
-
+// normalizeSearchVersion extracts major.minor from a version string like "2.19.4".
+func normalizeSearchVersion(version string) string {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) >= 2 {
 		return parts[0] + "." + parts[1]
 	}
 	return version
+}
+
+// resolveSearchPortVersion normalizes a search version for port selection. When the
+// user provides a major-only version, it first resolves the latest available image
+// tag for that major so the selected port matches the resolved major.minor series.
+func resolveSearchPortVersion(version string, resolver func(string) string) string {
+	if !strings.Contains(version, ".") {
+		return normalizeSearchVersion(resolver(version))
+	}
+	return normalizeSearchVersion(version)
 }
 
 // computeSearchPort calculates a port from base + major*20 + minor using a
@@ -799,7 +791,7 @@ func computeSearchPort(basePort int, majorMinorVersion string) int {
 // GetOpenSearchPort returns the host port for an OpenSearch version.
 // Port convention: 9200 + major*20 + minor (e.g., OS 2.19 → 9259, OS 3.3 → 9263).
 func GetOpenSearchPort(version string) int {
-	normalized := normalizeSearchVersion(version, openSearchMajorVersionDefaults)
+	normalized := resolveSearchPortVersion(version, ResolveOpenSearchVersion)
 	ports := map[string]int{
 		"1.3":  9223,
 		"2.5":  9245,
@@ -822,7 +814,7 @@ func GetOpenSearchPort(version string) int {
 // GetElasticsearchPort returns the host port for an Elasticsearch version.
 // Port convention: 9500 + major*20 + minor (e.g., ES 7.17 → 9657, ES 8.11 → 9671).
 func GetElasticsearchPort(version string) int {
-	normalized := normalizeSearchVersion(version, elasticsearchMajorVersionDefaults)
+	normalized := resolveSearchPortVersion(version, ResolveElasticsearchVersion)
 	ports := map[string]int{
 		"7.6":  9646,
 		"7.9":  9649,
@@ -851,7 +843,7 @@ func ResolveElasticsearchVersion(version string) string {
 	if isFullVersion(version) {
 		return version
 	}
-	return resolveDockerTagVersion("library", "elasticsearch", normalizeSearchVersion(version, elasticsearchMajorVersionDefaults))
+	return resolveDockerTagVersion("library", "elasticsearch", version)
 }
 
 // ResolveOpenSearchVersion resolves a major.minor version string to the latest available full
@@ -860,7 +852,7 @@ func ResolveOpenSearchVersion(version string) string {
 	if isFullVersion(version) {
 		return version
 	}
-	return resolveDockerTagVersion("opensearchproject", "opensearch", normalizeSearchVersion(version, openSearchMajorVersionDefaults))
+	return resolveDockerTagVersion("opensearchproject", "opensearch", version)
 }
 
 // ComposeDir returns the compose directory path
