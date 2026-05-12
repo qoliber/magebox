@@ -497,6 +497,22 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		})
 	}
 	printCheckResult(results[len(results)-1])
+
+	// Check mysql-client (required for magerun2 database commands)
+	if platform.CommandExists("mysqldump") {
+		results = append(results, checkResult{
+			name:    "mysql-client",
+			status:  "ok",
+			message: "mysqldump available",
+		})
+	} else {
+		results = append(results, checkResult{
+			name:    "mysql-client",
+			status:  "error",
+			message: fmt.Sprintf("Not installed — run '%s'", p.MysqlClientInstallCommand()),
+		})
+	}
+	printCheckResult(results[len(results)-1])
 	fmt.Println()
 
 	// Summary

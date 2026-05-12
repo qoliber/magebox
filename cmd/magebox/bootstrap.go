@@ -191,6 +191,12 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		errors = append(errors, "mkcert is not installed. Install: "+p.MkcertInstallCommand())
 	}
 
+	// Check mysql-client (required by magerun2 for database operations)
+	verbose.Debug("Checking mysql-client installation...")
+	mysqlClientInstalled := platform.CommandExists("mysqldump")
+	verbose.Debug("mysql-client installed: %v", mysqlClientInstalled)
+	fmt.Printf("  %-15s %s\n", "mysql-client:", cli.StatusInstalled(mysqlClientInstalled))
+
 	// Check PHP versions
 	verbose.Debug("Detecting installed PHP versions...")
 	detector := php.NewDetector(p)
@@ -203,7 +209,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// If critical dependencies are missing, offer to install them
-	if !dockerInstalled || !nginxInstalled || !mkcertInstalled {
+	if !dockerInstalled || !nginxInstalled || !mkcertInstalled || !mysqlClientInstalled {
 		cli.PrintWarning("Missing dependencies detected!")
 		fmt.Println()
 
@@ -214,6 +220,9 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 		if !mkcertInstalled {
 			missingDeps = append(missingDeps, "mkcert")
+		}
+		if !mysqlClientInstalled {
+			missingDeps = append(missingDeps, "mysql-client")
 		}
 
 		fmt.Println("  Missing: " + cli.Highlight(strings.Join(missingDeps, ", ")))
@@ -257,9 +266,31 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 				fmt.Println()
 			}
 
+			if !mysqlClientInstalled {
+				fmt.Println("  Installing mysql-client...")
+				if err := inst.InstallMysqlClient(); err != nil {
+					cli.PrintError("Failed to install mysql-client: %v", err)
+					fmt.Println()
+					cli.PrintInfo("Please install manually: %s", p.MysqlClientInstallCommand())
+				} else {
+					fmt.Printf("  mysql-client installed %s\n", cli.Success("✓"))
+					if p.Type == platform.Darwin {
+						shellRC := filepath.Base(os.Getenv("SHELL"))
+						if shellRC == "" {
+							shellRC = "zsh"
+						}
+						fmt.Println()
+						cli.PrintInfo("Note: mysql-client is keg-only on macOS. To add it to your PATH:")
+						fmt.Printf("    echo 'export PATH=\"$(brew --prefix mysql-client)/bin:$PATH\"' >> ~/.%src\n", shellRC)
+					}
+				}
+				fmt.Println()
+			}
+
 			// Re-check after installation
 			nginxInstalled = p.IsNginxInstalled()
 			mkcertInstalled = platform.CommandExists("mkcert")
+			mysqlClientInstalled = platform.CommandExists("mysqldump")
 		} else {
 			fmt.Println()
 			cli.PrintInfo("Install missing dependencies and run %s again", cli.Command("magebox bootstrap"))
