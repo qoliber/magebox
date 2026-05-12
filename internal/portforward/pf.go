@@ -161,6 +161,45 @@ func (m *Manager) needsUpgrade() bool {
 	return false
 }
 
+// StopDaemon unloads the LaunchDaemon to free web ports without removing the
+// plist file. The daemon can be restarted with StartDaemon.
+func (m *Manager) StopDaemon() error {
+	if m.platform != "darwin" {
+		return nil
+	}
+
+	if !m.IsInstalled() {
+		return nil
+	}
+
+	if !m.isDaemonLoaded() {
+		return nil
+	}
+
+	return m.unloadLaunchDaemon()
+}
+
+// StartDaemon loads the LaunchDaemon so that web ports are forwarded again.
+func (m *Manager) StartDaemon() error {
+	if m.platform != "darwin" {
+		return nil
+	}
+
+	if !m.IsInstalled() {
+		return fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
+	}
+
+	if m.isDaemonLoaded() {
+		// Already loaded; make sure it is actually listening
+		if !m.AreRulesActive() {
+			return m.kickstartDaemon()
+		}
+		return nil
+	}
+
+	return m.loadLaunchDaemon()
+}
+
 // Remove uninstalls port forwarding
 func (m *Manager) Remove() error {
 	if m.platform != "darwin" {

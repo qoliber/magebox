@@ -1251,7 +1251,7 @@ Start global services.
 magebox global start
 ```
 
-Starts Nginx and Docker services.
+Starts Nginx and Docker services. On macOS, also loads the port-forwarding LaunchDaemon so that ports 80 and 443 are forwarded to Nginx.
 
 ---
 
@@ -1263,7 +1263,7 @@ Stop all MageBox services.
 magebox global stop
 ```
 
-Stops all Docker containers and Nginx.
+Stops all Docker containers and Nginx. On macOS, also unloads the port-forwarding LaunchDaemon so that ports 80 and 443 are released back to the system.
 
 ---
 
