@@ -698,6 +698,31 @@ func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
 	}
 }
 
+func TestComposeService_OpenSearch_MajorVersionResolvesImageAndPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:2.19": {"2.19.0", "2.19.2", "2.19.1"},
+	})
+	defer cleanup()
+
+	g, _ := setupTestComposeGenerator(t)
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "2",
+	}
+	svc := g.getOpenSearchService(svcCfg, false)
+
+	if svc.Image != "opensearchproject/opensearch:2.19.2" {
+		t.Errorf("Image = %v, want opensearchproject/opensearch:2.19.2", svc.Image)
+	}
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9259:9200") {
+		t.Errorf("Ports = %v, want [9259:9200]", svc.Ports)
+	}
+	if svc.ContainerName != "magebox-opensearch-2" {
+		t.Errorf("ContainerName = %v, want magebox-opensearch-2", svc.ContainerName)
+	}
+}
+
 func TestResolveDockerTagVersion_FallbackOnHTTPError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
