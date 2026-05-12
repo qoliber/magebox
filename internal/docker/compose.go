@@ -778,11 +778,11 @@ func normalizeSearchVersion(version string, majorDefaults map[string]string) str
 	return version
 }
 
-// computeSearchPort calculates a port from base + major*20 + minor.
-// This guarantees unique ports for versions where minor < 20.
-// OpenSearch uses base 9200, Elasticsearch uses base 9500 to avoid range overlap.
-func computeSearchPort(basePort int, version string) int {
-	parts := strings.SplitN(version, ".", 2)
+// computeSearchPort calculates a port from base + major*20 + minor using a
+// normalized major.minor version string. OpenSearch uses base 9200,
+// Elasticsearch uses base 9500 to avoid range overlap.
+func computeSearchPort(basePort int, normalizedVersion string) int {
+	parts := strings.SplitN(normalizedVersion, ".", 2)
 	if len(parts) == 2 {
 		major, err1 := strconv.Atoi(parts[0])
 		minor, err2 := strconv.Atoi(parts[1])
