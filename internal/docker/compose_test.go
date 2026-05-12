@@ -1065,3 +1065,151 @@ func TestComposeConfig_Networks(t *testing.T) {
 		t.Error("Compose should have magebox network")
 	}
 }
+
+func TestComposeGenerator_GenerateDefaultServices_RedisWhenEnabled(t *testing.T) {
+	g, tmpDir := setupTestComposeGenerator(t)
+
+	// Create global config with Redis enabled
+	configDir := filepath.Join(tmpDir, ".magebox")
+	os.MkdirAll(configDir, 0755)
+	os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("default_services:\n  mysql: \"8.0\"\n  redis: true\n"), 0644)
+
+	globalCfg, err := config.LoadGlobalConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig failed: %v", err)
+	}
+
+	if err := g.GenerateDefaultServices(globalCfg); err != nil {
+		t.Fatalf("GenerateDefaultServices failed: %v", err)
+	}
+
+	content, err := os.ReadFile(g.ComposeFilePath())
+	if err != nil {
+		t.Fatalf("Failed to read compose file: %v", err)
+	}
+
+	var compose ComposeConfig
+	if err := yaml.Unmarshal(content, &compose); err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	if _, ok := compose.Services["redis"]; !ok {
+		t.Error("Compose should contain redis service when redis: true in global config")
+	}
+	if _, ok := compose.Services["valkey"]; ok {
+		t.Error("Compose should not contain valkey service when redis: true in global config")
+	}
+}
+
+func TestComposeGenerator_GenerateDefaultServices_NoRedisWhenDisabled(t *testing.T) {
+	g, tmpDir := setupTestComposeGenerator(t)
+
+	// Create global config with Redis explicitly disabled
+	configDir := filepath.Join(tmpDir, ".magebox")
+	os.MkdirAll(configDir, 0755)
+	os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("default_services:\n  mysql: \"8.0\"\n  redis: false\n"), 0644)
+
+	globalCfg, err := config.LoadGlobalConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig failed: %v", err)
+	}
+
+	if err := g.GenerateDefaultServices(globalCfg); err != nil {
+		t.Fatalf("GenerateDefaultServices failed: %v", err)
+	}
+
+	content, err := os.ReadFile(g.ComposeFilePath())
+	if err != nil {
+		t.Fatalf("Failed to read compose file: %v", err)
+	}
+
+	var compose ComposeConfig
+	if err := yaml.Unmarshal(content, &compose); err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	if _, ok := compose.Services["redis"]; ok {
+		t.Error("Compose should not contain redis service when redis: false in global config")
+	}
+	if _, ok := compose.Services["valkey"]; ok {
+		t.Error("Compose should not contain valkey service when neither redis nor valkey is enabled")
+	}
+}
+
+func TestComposeGenerator_GenerateDefaultServices_ValkeyWhenEnabled(t *testing.T) {
+	g, tmpDir := setupTestComposeGenerator(t)
+
+	// Create global config with Valkey enabled
+	configDir := filepath.Join(tmpDir, ".magebox")
+	os.MkdirAll(configDir, 0755)
+	os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("default_services:\n  mysql: \"8.0\"\n  valkey: true\n"), 0644)
+
+	globalCfg, err := config.LoadGlobalConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadGlobalConfig failed: %v", err)
+	}
+
+	if err := g.GenerateDefaultServices(globalCfg); err != nil {
+		t.Fatalf("GenerateDefaultServices failed: %v", err)
+	}
+
+	content, err := os.ReadFile(g.ComposeFilePath())
+	if err != nil {
+		t.Fatalf("Failed to read compose file: %v", err)
+	}
+
+	var compose ComposeConfig
+	if err := yaml.Unmarshal(content, &compose); err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	if _, ok := compose.Services["valkey"]; !ok {
+		t.Error("Compose should contain valkey service when valkey: true in global config")
+	}
+	if _, ok := compose.Services["redis"]; ok {
+		t.Error("Compose should not contain redis service when valkey: true in global config")
+	}
+}
+
+func TestComposeGenerator_GenerateGlobalServices_NoRedisWhenNotRequired(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	// All projects have redis: false
+	configs := []*config.Config{
+		{
+			Name: "project1",
+			Services: config.Services{
+				MySQL: &config.ServiceConfig{Enabled: true, Version: "8.0"},
+				Redis: &config.ServiceConfig{Enabled: false},
+			},
+		},
+		{
+			Name: "project2",
+			Services: config.Services{
+				MySQL: &config.ServiceConfig{Enabled: true, Version: "8.0"},
+			},
+		},
+	}
+
+	err := g.GenerateGlobalServices(configs)
+	if err != nil {
+		t.Fatalf("GenerateGlobalServices failed: %v", err)
+	}
+
+	content, err := os.ReadFile(g.ComposeFilePath())
+	if err != nil {
+		t.Fatalf("Failed to read compose file: %v", err)
+	}
+
+	var compose ComposeConfig
+	if err := yaml.Unmarshal(content, &compose); err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	if _, ok := compose.Services["redis"]; ok {
+		t.Error("Compose should not contain redis service when no project requires it")
+	}
+	if _, ok := compose.Services["valkey"]; ok {
+		t.Error("Compose should not contain valkey service when no project requires it")
+	}
+}
