@@ -766,7 +766,8 @@ var elasticsearchMajorVersionDefaults = map[string]string{
 
 // normalizeSearchVersion resolves supported major-only shorthands and extracts the
 // major.minor portion from a version string like "2.19.4". Unsupported or
-// non-numeric inputs are returned unchanged so callers can fall back safely.
+// non-numeric inputs are returned unchanged so higher-level callers can keep the
+// original version and let Docker surface an actionable error if needed.
 func normalizeSearchVersion(version string, majorDefaults map[string]string) string {
 	if normalized, ok := majorDefaults[version]; ok {
 		return normalized
@@ -780,11 +781,11 @@ func normalizeSearchVersion(version string, majorDefaults map[string]string) str
 }
 
 // computeSearchPort calculates a port from base + major*20 + minor using a
-// normalized major.minor version string. If the input is not normalized or
-// cannot be parsed numerically, it falls back to basePort. OpenSearch uses base
-// 9200, Elasticsearch uses base 9500 to avoid range overlap.
-func computeSearchPort(basePort int, normalizedVersion string) int {
-	parts := strings.SplitN(normalizedVersion, ".", 2)
+// caller-supplied major.minor version string. If the input cannot be parsed
+// numerically, it falls back to basePort. OpenSearch uses base 9200,
+// Elasticsearch uses base 9500 to avoid range overlap.
+func computeSearchPort(basePort int, majorMinorVersion string) int {
+	parts := strings.SplitN(majorMinorVersion, ".", 2)
 	if len(parts) == 2 {
 		major, err1 := strconv.Atoi(parts[0])
 		minor, err2 := strconv.Atoi(parts[1])
