@@ -35,7 +35,7 @@ php bin/magento setup:install \
     --search-engine=opensearch \
     --opensearch-host=127.0.0.1 \
     --opensearch-port=9200 \
-    --opensearch-index-prefix=magento2 \
+    --opensearch-index-prefix=mystore \
     --session-save=redis \
     --session-save-redis-host=127.0.0.1 \
     --session-save-redis-port=6379 \
