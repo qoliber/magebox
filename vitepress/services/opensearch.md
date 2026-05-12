@@ -48,7 +48,7 @@ services:
   elasticsearch: "8.11"
 ```
 
-Supported major-version shorthands are also accepted. For example, `elasticsearch: "7"` resolves to the latest `7.17.x` image, `elasticsearch: "8"` resolves to the latest `8.17.x` image, and `opensearch: "2"` resolves to the latest `2.19.x` image.
+Supported major-version shorthands are also accepted. For example, `elasticsearch: "7"` resolves to the latest `7.17.x` image, `elasticsearch: "8"` resolves to the latest `8.17.x` image, and `opensearch: "2"` resolves to the latest `2.19.x` image. If you specify an exact supported minor such as `8.11`, MageBox keeps that minor and only resolves the patch release.
 
 ### With Memory Allocation
 
