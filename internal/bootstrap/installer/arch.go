@@ -123,6 +123,11 @@ func (a *ArchInstaller) InstallDnsmasq() error {
 	return a.RunSudo("pacman", "-S", "--noconfirm", "dnsmasq")
 }
 
+// InstallMysqlClient installs the MySQL client tools
+func (a *ArchInstaller) InstallMysqlClient() error {
+	return a.RunSudo("pacman", "-S", "--noconfirm", "mariadb-clients")
+}
+
 // InstallMultitail installs multitail
 func (a *ArchInstaller) InstallMultitail() error {
 	return a.RunSudo("pacman", "-S", "--noconfirm", "multitail")

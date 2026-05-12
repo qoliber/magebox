@@ -87,6 +87,11 @@ func (b *Bootstrapper) InstallDependency(name string) error {
 	}
 }
 
+// InstallMysqlClient installs mysql-client tools required by magerun2
+func (b *Bootstrapper) InstallMysqlClient() error {
+	return b.installer.InstallMysqlClient()
+}
+
 // InstallPHP installs a specific PHP version
 func (b *Bootstrapper) InstallPHP(version string) error {
 	if err := b.installer.InstallPHP(version); err != nil {
