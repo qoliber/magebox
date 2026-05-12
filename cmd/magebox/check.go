@@ -18,6 +18,7 @@ import (
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/magerunwrapper"
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
@@ -463,6 +464,40 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		printCheckResult(results[len(results)-1])
 		fmt.Println()
 	}
+
+	// Check: magerun2
+	fmt.Println(cli.Header("magerun2"))
+	magerunMgr := magerunwrapper.NewManager(p)
+	if magerunMgr.IsInstalled() {
+		results = append(results, checkResult{
+			name:    "Wrapper",
+			status:  "ok",
+			message: "~/.magebox/bin/magerun2 installed",
+		})
+	} else {
+		results = append(results, checkResult{
+			name:    "Wrapper",
+			status:  "error",
+			message: "Not installed — run 'magebox bootstrap'",
+		})
+	}
+	printCheckResult(results[len(results)-1])
+
+	if cached := magerunMgr.CachedVersion(); cached != "" {
+		results = append(results, checkResult{
+			name:    "Phar",
+			status:  "ok",
+			message: fmt.Sprintf("n98-magerun2 %s installed", cached),
+		})
+	} else {
+		results = append(results, checkResult{
+			name:    "Phar",
+			status:  "warning",
+			message: "Not yet downloaded — will auto-download on first use",
+		})
+	}
+	printCheckResult(results[len(results)-1])
+	fmt.Println()
 
 	// Summary
 	printCheckSummary(results)

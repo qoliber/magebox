@@ -1,10 +1,11 @@
 # CLI Wrappers
 
-MageBox includes smart CLI wrappers that automatically use the correct PHP version based on your project configuration. After bootstrap, three wrappers are installed in `~/.magebox/bin/`:
+MageBox includes smart CLI wrappers that automatically use the correct tool versions based on your project configuration. After bootstrap, four wrappers are installed in `~/.magebox/bin/`:
 
 - **php** - Automatically uses project's PHP version
 - **composer** - Runs Composer with project's PHP version
 - **blackfire** - Runs Blackfire profiler with project's PHP version
+- **magerun2** - Automatically downloads and runs the correct n98-magerun2 version
 
 ## Overview
 
@@ -228,6 +229,62 @@ blackfire agent:start
 blackfire --ignore-exit-status run php bin/magento some:command
 ```
 
+## magerun2 Wrapper
+
+The magerun2 wrapper at `~/.magebox/bin/magerun2` automatically manages the correct n98-magerun2 version for your project. No manual installation or version management required.
+
+### How It Works
+
+```bash
+# When you run:
+magerun2 cache:flush
+
+# The wrapper:
+# 1. Walks up from $PWD to find the project directory
+# 2. Reads the Magento version from composer.lock
+# 3. Ensures the correct phar is downloaded (once, then installed)
+# 4. Executes via ~/.magebox/bin/php for correct PHP version
+```
+
+### Version Selection
+
+| Magento version | n98-magerun2 |
+|-----------------|--------------|
+| 2.4.0 – 2.4.4  | 7.5.0 (legacy series) |
+| 2.4.5 and up   | Latest release from GitHub |
+
+The GitHub API is called **at most once** — on first use when no phar is installed yet. After that, invocations are fully offline with zero network overhead.
+
+Phars are stored in `~/.magebox/magerun/` and multiple versions can coexist, so switching between projects with different Magento versions is seamless.
+
+### Usage Examples
+
+```bash
+cd /path/to/project
+
+# All standard magerun2 commands work as-is
+magerun2 cache:flush
+magerun2 setup:upgrade
+magerun2 indexer:reindex
+magerun2 sys:info
+
+# MageBox also forwards unknown commands automatically
+magebox cache:flush   # → magerun2 cache:flush
+```
+
+### Updating magerun2
+
+The wrapper never auto-updates — once a phar is installed it is used permanently. To get a newer version, delete the installed phar and run any `magerun2` command:
+
+```bash
+rm ~/.magebox/magerun/n98-magerun2-*.phar
+magerun2 --version   # downloads latest
+```
+
+::: tip Health Check
+`magebox check` shows the wrapper status and which phar version is installed.
+:::
+
 ## Multiple PHP Versions
 
 The wrappers support all PHP versions installed on your system:
@@ -407,3 +464,4 @@ export PATH=$(echo $PATH | sed "s|$HOME/.magebox/bin:||")
 | PHP | `~/.magebox/bin/php` | Automatic PHP version detection |
 | Composer | `~/.magebox/bin/composer` | Runs Composer with correct PHP |
 | Blackfire | `~/.magebox/bin/blackfire` | Profiles with correct PHP |
+| magerun2 | `~/.magebox/bin/magerun2` | Auto-managed n98-magerun2 phar |
