@@ -145,6 +145,17 @@ install_binary() {
     local install_path="${INSTALL_DIR}/${BINARY_NAME}"
 
     info "Installing to ${install_path}..."
+    
+    # Check if the target is the standard /usr/local/bin AND it doesn't exist
+    if [ "$INSTALL_DIR" = "/usr/local/bin" ] && [ ! -d "$INSTALL_DIR" ]; then
+        echo "Default directory $INSTALL_DIR does not exist. Creating it..."
+        if sudo mkdir -p -m 775 "$INSTALL_DIR"; then
+            echo "Successfully created $INSTALL_DIR"
+        else
+            echo "Error: Failed to create $INSTALL_DIR. Please create it manually."
+            exit 1
+        fi
+    fi
 
     # Check if we need sudo
     if [ -w "$INSTALL_DIR" ]; then
