@@ -884,6 +884,19 @@ func (c *DockerController) Up() error {
 	return cmd.Run()
 }
 
+// UpServices starts only the named services. Falls back to starting all services
+// when the list is empty.
+func (c *DockerController) UpServices(serviceNames []string) error {
+	if len(serviceNames) == 0 {
+		return c.Up()
+	}
+	args := append([]string{"up", "-d"}, serviceNames...)
+	cmd := buildComposeCmd(c.composeFile, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // Down stops all services
 func (c *DockerController) Down() error {
 	cmd := buildComposeCmd(c.composeFile, "down")
