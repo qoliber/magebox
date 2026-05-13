@@ -861,7 +861,7 @@ func NewDockerController(composeFile string) *DockerController {
 
 // Up starts all services
 func (c *DockerController) Up() error {
-	cmd := buildComposeCmd(c.composeFile, "up", "-d")
+	cmd := buildComposeCmd(c.composeFile, "up", "-d", "--remove-orphans")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -1071,11 +1071,10 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 		compose.Volumes["mysql80_data"] = ComposeVolume{}
 	}
 
-	// Add cache service (Valkey or Redis)
+	// Add cache service (Valkey or Redis) only if configured
 	if globalCfg.DefaultServices.Valkey {
 		compose.Services["valkey"] = g.getValkeyService()
-	} else {
-		// Default to Redis
+	} else if globalCfg.DefaultServices.Redis {
 		compose.Services["redis"] = g.getRedisService()
 	}
 
