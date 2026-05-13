@@ -417,9 +417,41 @@ func (m *Manager) startDockerServices(cfg *config.Config) error {
 		return err
 	}
 
-	// Start the services
+	// Start only the services this project needs, so the output matches the
+	// Services summary instead of also touching containers owned by other
+	// projects in the shared compose file.
 	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
-	return dockerController.Up()
+	return dockerController.UpServices(projectComposeServiceNames(cfg))
+}
+
+// projectComposeServiceNames returns the docker-compose service names that
+// belong to this project, matching the naming used in the global compose file.
+func projectComposeServiceNames(cfg *config.Config) []string {
+	var names []string
+	if cfg.Services.HasMySQL() {
+		names = append(names, fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", "")))
+	}
+	if cfg.Services.HasMariaDB() {
+		names = append(names, fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", "")))
+	}
+	if cfg.Services.HasCacheService() {
+		names = append(names, cfg.Services.GetCacheServiceName())
+	}
+	if cfg.Services.HasOpenSearch() {
+		names = append(names, fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", "")))
+	}
+	if cfg.Services.HasElasticsearch() {
+		names = append(names, fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", "")))
+	}
+	if cfg.Services.HasRabbitMQ() {
+		names = append(names, "rabbitmq")
+	}
+	if cfg.Services.HasVarnish() {
+		names = append(names, "varnish")
+	}
+	// Mailpit is always started for local-dev safety, matching getStartedServices.
+	names = append(names, "mailpit")
+	return names
 }
 
 // collectAllProjectConfigs gathers configs from all registered projects
