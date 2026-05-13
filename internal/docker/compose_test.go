@@ -495,10 +495,16 @@ func TestComposeService_Elasticsearch_WithStandardPort(t *testing.T) {
 }
 
 func TestGetOpenSearchPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:2": {"2.19.1", "2.19.2", "2.5.0"},
+	})
+	defer cleanup()
+
 	tests := []struct {
 		version  string
 		expected int
 	}{
+		{"2", 9259}, // major-only shorthand resolves to latest available minor
 		{"1.3", 9223},
 		{"2.5", 9245},
 		{"2.11", 9251},
@@ -521,12 +527,20 @@ func TestGetOpenSearchPort(t *testing.T) {
 }
 
 func TestGetElasticsearchPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7": {"7.17.27", "7.17.28", "7.6.2"},
+		"library/elasticsearch:8": {"8.17.4", "8.11.4", "8.0.0"},
+	})
+	defer cleanup()
+
 	tests := []struct {
 		version  string
 		expected int
 	}{
+		{"7", 9657}, // major-only shorthand resolves to latest available minor
 		{"7.6", 9646},
 		{"7.17", 9657},
+		{"8", 9677}, // major-only shorthand resolves to latest available minor
 		{"8.0", 9660},
 		{"8.11", 9671},
 		{"8.17", 9677},
@@ -545,6 +559,8 @@ func TestGetElasticsearchPort(t *testing.T) {
 
 func TestResolveElasticsearchVersion(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7":    {"7.17.27", "7.17.28", "7.6.2"},
+		"library/elasticsearch:8":    {"8.17.4", "8.11.4", "8.0.0"},
 		"library/elasticsearch:7.17": {"7.17.27", "7.17.28", "7.17.26"},
 		"library/elasticsearch:8.11": {"8.11.3", "8.11.4", "8.11.2"},
 		"library/elasticsearch:8.17": {"8.17.4", "8.17.3"},
@@ -556,6 +572,9 @@ func TestResolveElasticsearchVersion(t *testing.T) {
 		version  string
 		expected string
 	}{
+		// major-only inputs should resolve to the latest available release in that major series
+		{"7", "7.17.28"},
+		{"8", "8.17.4"},
 		// major.minor inputs should resolve to highest patch version
 		{"7.17", "7.17.28"},
 		{"8.11", "8.11.4"},
@@ -580,6 +599,9 @@ func TestResolveElasticsearchVersion(t *testing.T) {
 
 func TestResolveOpenSearchVersion(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:1":    {"1.3.19", "1.3.20"},
+		"opensearchproject/opensearch:2":    {"2.19.1", "2.19.2", "2.5.0"},
+		"opensearchproject/opensearch:3":    {"3.3.0", "3.0.0"},
 		"opensearchproject/opensearch:2.19": {"2.19.1", "2.19.2", "2.19.0"},
 		"opensearchproject/opensearch:1.3":  {"1.3.19", "1.3.20", "1.3.18"},
 		"opensearchproject/opensearch:2.5":  {"2.5.0"},
@@ -592,6 +614,10 @@ func TestResolveOpenSearchVersion(t *testing.T) {
 		version  string
 		expected string
 	}{
+		// major-only inputs should resolve to the latest available release in that major series
+		{"1", "1.3.20"},
+		{"2", "2.19.2"},
+		{"3", "3.3.0"},
 		// major.minor inputs should resolve to highest patch version
 		{"2.19", "2.19.2"},
 		{"1.3", "1.3.20"},
@@ -639,6 +665,31 @@ func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
 	}
 }
 
+func TestComposeService_Elasticsearch_MajorVersionResolvesImageAndPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"library/elasticsearch:7": {"7.17.26", "7.17.28", "7.6.2"},
+	})
+	defer cleanup()
+
+	g, _ := setupTestComposeGenerator(t)
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "7",
+	}
+	svc := g.getElasticsearchService(svcCfg, false)
+
+	if svc.Image != "elasticsearch:7.17.28" {
+		t.Errorf("Image = %v, want elasticsearch:7.17.28", svc.Image)
+	}
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9657:9200") {
+		t.Errorf("Ports = %v, want [9657:9200]", svc.Ports)
+	}
+	if svc.ContainerName != "magebox-elasticsearch-7" {
+		t.Errorf("ContainerName = %v, want magebox-elasticsearch-7", svc.ContainerName)
+	}
+}
+
 func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
 	cleanup := setupMockDockerHub(t, map[string][]string{
 		"opensearchproject/opensearch:2.19": {"2.19.0", "2.19.2", "2.19.1"},
@@ -660,6 +711,31 @@ func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
 	// Container name should still use the user-specified version
 	if svc.ContainerName != "magebox-opensearch-2.19" {
 		t.Errorf("ContainerName = %v, want magebox-opensearch-2.19", svc.ContainerName)
+	}
+}
+
+func TestComposeService_OpenSearch_MajorVersionResolvesImageAndPort(t *testing.T) {
+	cleanup := setupMockDockerHub(t, map[string][]string{
+		"opensearchproject/opensearch:2": {"2.19.0", "2.19.2", "2.5.0"},
+	})
+	defer cleanup()
+
+	g, _ := setupTestComposeGenerator(t)
+
+	svcCfg := &config.ServiceConfig{
+		Enabled: true,
+		Version: "2",
+	}
+	svc := g.getOpenSearchService(svcCfg, false)
+
+	if svc.Image != "opensearchproject/opensearch:2.19.2" {
+		t.Errorf("Image = %v, want opensearchproject/opensearch:2.19.2", svc.Image)
+	}
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9259:9200") {
+		t.Errorf("Ports = %v, want [9259:9200]", svc.Ports)
+	}
+	if svc.ContainerName != "magebox-opensearch-2" {
+		t.Errorf("ContainerName = %v, want magebox-opensearch-2", svc.ContainerName)
 	}
 }
 
