@@ -5,6 +5,22 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-05-13
+
+### Added
+
+- **Auto-Managed `magerun2` Wrapper** - Bootstrap now installs `~/.magebox/bin/magerun2`, so no manual version management is required. The wrapper detects the Magento version from `composer.lock` and maps it to the correct `n98-magerun2` release (7.5.0 for Magento < 2.4.5, latest GitHub release for 2.4.5+), downloads the phar once with SHA256 checksum verification, and runs fully offline on subsequent invocations. `magebox check` reports wrapper and phar status. ([#101](https://github.com/qoliber/magebox/pull/101))
+- **AI-Accessible Documentation** - The VitePress docs now generate `llms.txt`, `llms-full.txt`, and per-page `.md` files at build time via `vitepress-plugin-llms`, making `magebox.dev` consumable by AI agents per the [llmstxt.org](https://llmstxt.org) standard. ([#110](https://github.com/qoliber/magebox/pull/110))
+
+### Changed
+
+- **OpenSearch/Elasticsearch Index Prefix Scoped to Project** - `magebox new` now passes the project name as the index prefix in both the interactive wizard's displayed `setup:install` command and the quick-install execution path. Multiple MageBox projects share one Docker search engine instance, so the previous hardcoded `magento2` prefix caused index collisions across projects. Docs were updated to use project-name placeholders with a warning callout explaining why a project-scoped prefix is required. ([#111](https://github.com/qoliber/magebox/pull/111))
+
+### Fixed
+
+- **`magebox start` Touches Only This Project's Services** - The Services summary lists services scoped to the current project, but `docker compose up` previously started every service in the shared global compose file, so the printed container list included `mysql8.0`, `opensearch-2.12.0`, `rabbitmq`, etc. owned by other projects. `magebox start` now passes the current project's compose service names to `docker compose up -d`, so the container output matches the Services summary.
+- **Installer Directory Creation** - The `install.sh` script now creates the installation directory before copying the binary into it, instead of failing when the parent directory doesn't already exist. The redundant `INSTALL_DIR` definition was also removed. ([#113](https://github.com/qoliber/magebox/pull/113))
+
 ## [1.16.1] - 2026-04-24
 
 ### Added
