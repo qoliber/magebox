@@ -287,7 +287,7 @@ func TestRenderVhost_SSLEnabled_NoIPv6(t *testing.T) {
 	}
 }
 
-func TestRenderVhost_MultiStoreDisabled(t *testing.T) {
+func TestRenderVhost_NoStoreCodes(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
 	cfg := VhostConfig{
@@ -296,9 +296,7 @@ func TestRenderVhost_MultiStoreDisabled(t *testing.T) {
 		DocumentRoot:  "/var/www/mystore/pub",
 		PHPVersion:    "8.2",
 		PHPSocketPath: filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock"),
-		MultiStore:    false,
-		StoreCode:     "mystore",
-		MageRunType:   "website",
+		HasStoreCodes: false,
 		HTTPPort:      80,
 		HTTPSPort:     443,
 	}
@@ -309,14 +307,17 @@ func TestRenderVhost_MultiStoreDisabled(t *testing.T) {
 	}
 
 	if strings.Contains(content, "MAGE_RUN_CODE") {
-		t.Error("Vhost with MultiStore=false should not contain MAGE_RUN_CODE")
+		t.Error("Vhost without store codes should not contain MAGE_RUN_CODE")
 	}
 	if strings.Contains(content, "MAGE_RUN_TYPE") {
-		t.Error("Vhost with MultiStore=false should not contain MAGE_RUN_TYPE")
+		t.Error("Vhost without store codes should not contain MAGE_RUN_TYPE")
+	}
+	if strings.Contains(content, "set $MAGE_RUN") {
+		t.Error("Vhost without store codes should not contain set $MAGE_RUN_* directives")
 	}
 }
 
-func TestRenderVhost_MultiStoreEnabled(t *testing.T) {
+func TestRenderVhost_WithStoreCodes(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
 	cfg := VhostConfig{
@@ -325,9 +326,7 @@ func TestRenderVhost_MultiStoreEnabled(t *testing.T) {
 		DocumentRoot:  "/var/www/mystore/pub",
 		PHPVersion:    "8.2",
 		PHPSocketPath: filepath.Join(tmpDir, ".magebox", "run", "mystore-php8.2.sock"),
-		MultiStore:    true,
-		StoreCode:     "mystore_en",
-		MageRunType:   "website",
+		HasStoreCodes: true,
 		HTTPPort:      80,
 		HTTPSPort:     443,
 	}
@@ -338,15 +337,110 @@ func TestRenderVhost_MultiStoreEnabled(t *testing.T) {
 	}
 
 	checks := []string{
-		"set $MAGE_RUN_CODE mystore_en",
-		"set $MAGE_RUN_TYPE website",
-		"fastcgi_param MAGE_RUN_CODE $MAGE_RUN_CODE",
-		"fastcgi_param MAGE_RUN_TYPE $MAGE_RUN_TYPE",
+		"fastcgi_param   MAGE_RUN_CODE $MAGE_RUN_CODE if_not_empty",
+		"fastcgi_param   MAGE_RUN_TYPE $MAGE_RUN_TYPE if_not_empty",
 	}
 	for _, check := range checks {
 		if !strings.Contains(content, check) {
-			t.Errorf("Vhost with MultiStore=true should contain %q", check)
+			t.Errorf("Vhost with store codes should contain %q", check)
 		}
+	}
+	// map-based setup: no set directives in the server block
+	if strings.Contains(content, "set $MAGE_RUN_CODE") {
+		t.Error("Vhost should not use set $MAGE_RUN_CODE (handled by map block)")
+	}
+}
+
+func TestRenderMap(t *testing.T) {
+	g, _ := setupTestGenerator(t)
+
+	cfg := MapConfig{
+		ProjectName: "mystore",
+		Domains: []config.Domain{
+			{Host: "mystore.test", StoreCode: "default"},
+			{Host: "de.mystore.test", StoreCode: "german"},
+			{Host: "fr.mystore.test", StoreCode: "french", StoreType: "website"},
+			{Host: "admin.mystore.test"}, // no store code — should be omitted
+		},
+	}
+
+	content, err := g.renderMap(cfg)
+	if err != nil {
+		t.Fatalf("renderMap failed: %v", err)
+	}
+
+	checks := []string{
+		"map $host $MAGE_RUN_CODE",
+		"map $host $MAGE_RUN_TYPE",
+		"hostnames;",
+		".mystore.test    default",
+		".de.mystore.test    german",
+		".fr.mystore.test    french",
+		".fr.mystore.test    website",
+	}
+	for _, check := range checks {
+		if !strings.Contains(content, check) {
+			t.Errorf("Map content should contain %q\nGot:\n%s", check, content)
+		}
+	}
+
+	// Domains without store code should not appear in the map
+	if strings.Contains(content, "admin.mystore.test") {
+		t.Error("Domain without store code should not appear in map")
+	}
+	// Default store type should be "store"
+	if !strings.Contains(content, ".mystore.test    store") {
+		t.Error("Domain with no store_type should default to store in MAGE_RUN_TYPE map")
+	}
+}
+
+func TestGenerate_CreatesMapFileWhenStoreCodesPresent(t *testing.T) {
+	g, tmpDir := setupTestGenerator(t)
+
+	projectPath := filepath.Join(tmpDir, "projects", "mystore")
+	cfg := &config.Config{
+		Name: "mystore",
+		Domains: []config.Domain{
+			{Host: "mystore.test", Root: "pub", StoreCode: "default"},
+			{Host: "de.mystore.test", Root: "pub", StoreCode: "german"},
+		},
+		PHP: "8.2",
+	}
+
+	if err := g.Generate(cfg, projectPath); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	mapFile := filepath.Join(g.vhostsDir, "mystore-map.conf")
+	if _, err := os.Stat(mapFile); os.IsNotExist(err) {
+		t.Error("Map file should have been created when store codes are present")
+	}
+
+	content, _ := os.ReadFile(mapFile)
+	if !strings.Contains(string(content), "map $host $MAGE_RUN_CODE") {
+		t.Error("Map file should contain MAGE_RUN_CODE map block")
+	}
+}
+
+func TestGenerate_NoMapFileWithoutStoreCodes(t *testing.T) {
+	g, tmpDir := setupTestGenerator(t)
+
+	projectPath := filepath.Join(tmpDir, "projects", "mystore")
+	cfg := &config.Config{
+		Name: "mystore",
+		Domains: []config.Domain{
+			{Host: "mystore.test", Root: "pub"},
+		},
+		PHP: "8.2",
+	}
+
+	if err := g.Generate(cfg, projectPath); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	mapFile := filepath.Join(g.vhostsDir, "mystore-map.conf")
+	if _, err := os.Stat(mapFile); !os.IsNotExist(err) {
+		t.Error("Map file should NOT be created when no store codes are configured")
 	}
 }
 
