@@ -233,6 +233,27 @@ magebox ssl trust
 magebox ssl generate
 ```
 
+### Wrong certificate / `ERR_CERT_COMMON_NAME_INVALID`
+
+After migrating from Valet, Chrome may show a certificate for **another** `*.test` site (often the first project you ran `magebox start` on). `--update-projects` alone does not create nginx vhosts.
+
+**Solution:**
+
+```bash
+# All parked projects with .magebox.yaml
+valet-to-magebox --start-projects
+
+# Or per project
+cd /path/to/project && magebox start
+
+# Reload nginx
+magebox global stop && magebox global start
+```
+
+`magebox check` warns when only an upstream file exists (`project-upstream.conf`) but no `project-domain.test.conf`.
+
+MageBox also installs `000-magebox-default-ssl.conf` so unknown hostnames no longer receive another project's certificate (requires nginx 1.25+ with `ssl_reject_handshake`).
+
 ### 502 Bad Gateway
 
 **Solution:**
