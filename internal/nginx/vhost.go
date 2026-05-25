@@ -29,12 +29,18 @@ var proxyTemplateEmbed string
 //go:embed templates/upstream.conf.tmpl
 var upstreamTemplateEmbed string
 
+//go:embed templates/default-ssl.conf.tmpl
+var defaultSSLTemplateEmbed string
+
+const defaultSSLVhostFile = "000-magebox-default-ssl.conf"
+
 func init() {
 	// Register embedded templates as fallbacks
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "vhost.conf.tmpl", vhostTemplateEmbed)
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "vhost-laravel.conf.tmpl", vhostLaravelTemplateEmbed)
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "proxy.conf.tmpl", proxyTemplateEmbed)
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "upstream.conf.tmpl", upstreamTemplateEmbed)
+	lib.RegisterFallbackTemplate(lib.TemplateNginx, "default-ssl.conf.tmpl", defaultSSLTemplateEmbed)
 }
 
 // Template variables available in vhost.conf.tmpl:
@@ -123,6 +129,20 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 		return fmt.Errorf("failed to create nginx logs directory: %w", err)
 	}
 
+	// Determine ports based on platform
+	httpPort := 80
+	httpsPort := 443
+	enableIPv6 := true
+	if g.platform.Type == platform.Darwin {
+		httpPort = 8080
+		httpsPort = 8443
+		enableIPv6 = false
+	}
+
+	if err := g.ensureDefaultSSLCatchAll(httpsPort, enableIPv6); err != nil {
+		return fmt.Errorf("default ssl vhost: %w", err)
+	}
+
 	// Generate upstream config (once per project, not per domain)
 	upstreamCfg := UpstreamConfig{
 		ProjectName:   cfg.Name,
@@ -130,16 +150,6 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 	}
 	if err := g.generateUpstream(upstreamCfg); err != nil {
 		return fmt.Errorf("failed to generate upstream config: %w", err)
-	}
-
-	// Determine ports based on platform
-	// macOS uses port forwarding (80->8080, 443->8443), Linux uses standard ports
-	httpPort := 80
-	httpsPort := 443
-	enableIPv6 := true
-	if g.platform.Type == platform.Darwin {
-		httpPort = 8080
-		httpsPort = 8443
 	}
 
 	for _, domain := range cfg.Domains {
@@ -371,6 +381,38 @@ func (g *VhostGenerator) renderProxyVhost(cfg ProxyConfig) (string, error) {
 	return buf.String(), nil
 }
 
+// ensureDefaultSSLCatchAll installs a default_server block so HTTPS without a matching vhost
+// does not present another project's certificate (common after Valet → MageBox migration).
+func (g *VhostGenerator) ensureDefaultSSLCatchAll(httpsPort int, enableIPv6 bool) error {
+	tmplContent, err := lib.GetTemplate(lib.TemplateNginx, "default-ssl.conf.tmpl")
+	if err != nil {
+		tmplContent = defaultSSLTemplateEmbed
+	}
+
+	tmpl, err := template.New("default-ssl").Parse(tmplContent)
+	if err != nil {
+		return fmt.Errorf("parse default ssl template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, struct {
+		HTTPSPort  int
+		EnableIPv6 bool
+	}{HTTPSPort: httpsPort, EnableIPv6: enableIPv6}); err != nil {
+		return fmt.Errorf("render default ssl template: %w", err)
+	}
+
+	vhostFile := filepath.Join(g.vhostsDir, defaultSSLVhostFile)
+	if existing, err := os.ReadFile(vhostFile); err == nil && bytes.Equal(existing, buf.Bytes()) {
+		return nil
+	}
+
+	if err := os.WriteFile(vhostFile, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("write default ssl vhost: %w", err)
+	}
+	return nil
+}
+
 // sanitizeDomain converts a domain to a safe filename
 func sanitizeDomain(domain string) string {
 	return domain // Domains are already safe for filenames
@@ -429,8 +471,7 @@ func (c *Controller) Test() error {
 func (c *Controller) Start() error {
 	switch c.platform.Type {
 	case platform.Darwin:
-		cmd := exec.Command("brew", "services", "start", "nginx")
-		return cmd.Run()
+		return c.startDarwin()
 	case platform.Linux:
 		cmd := exec.Command("sudo", "systemctl", "start", "nginx")
 		return cmd.Run()
@@ -442,8 +483,7 @@ func (c *Controller) Start() error {
 func (c *Controller) Stop() error {
 	switch c.platform.Type {
 	case platform.Darwin:
-		cmd := exec.Command("brew", "services", "stop", "nginx")
-		return cmd.Run()
+		return c.stopDarwin()
 	case platform.Linux:
 		cmd := exec.Command("sudo", "systemctl", "stop", "nginx")
 		return cmd.Run()
@@ -455,13 +495,37 @@ func (c *Controller) Stop() error {
 func (c *Controller) Restart() error {
 	switch c.platform.Type {
 	case platform.Darwin:
-		cmd := exec.Command("brew", "services", "restart", "nginx")
-		return cmd.Run()
+		if err := c.stopDarwin(); err != nil {
+			return err
+		}
+		return c.startDarwin()
 	case platform.Linux:
 		cmd := exec.Command("sudo", "systemctl", "restart", "nginx")
 		return cmd.Run()
 	}
 	return fmt.Errorf("unsupported platform")
+}
+
+// startDarwin starts Homebrew nginx using the MageBox config (bootstrap uses `nginx` directly).
+func (c *Controller) startDarwin() error {
+	if c.IsRunning() {
+		return c.Reload()
+	}
+	cmd := exec.Command("nginx")
+	if err := cmd.Run(); err == nil {
+		return nil
+	}
+	return exec.Command("brew", "services", "start", "nginx").Run()
+}
+
+// stopDarwin stops the MageBox nginx master (brew services alone does not stop a direct `nginx` process).
+func (c *Controller) stopDarwin() error {
+	stopCmd := exec.Command("nginx", "-s", "stop")
+	if err := stopCmd.Run(); err == nil {
+		return nil
+	}
+	// Fallback for installs managed only via brew services.
+	return exec.Command("brew", "services", "stop", "nginx").Run()
 }
 
 // IsRunning checks if Nginx is running
@@ -488,6 +552,22 @@ func (c *Controller) SetupNginxConfig() error {
 	if err := c.EnsureHashBucketSize(); err != nil {
 		// Non-fatal: log warning but continue
 		fmt.Printf("  [warn] Could not set server_names_hash_bucket_size: %v\n", err)
+	}
+
+	sslMgr := ssl.NewManager(c.platform)
+	vhostGen := NewVhostGenerator(c.platform, sslMgr)
+	if err := os.MkdirAll(vhostGen.vhostsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create vhosts directory: %w", err)
+	}
+
+	httpsPort := 443
+	enableIPv6 := true
+	if c.platform.Type == platform.Darwin {
+		httpsPort = 8443
+		enableIPv6 = false
+	}
+	if err := vhostGen.ensureDefaultSSLCatchAll(httpsPort, enableIPv6); err != nil {
+		return err
 	}
 
 	switch c.platform.Type {
