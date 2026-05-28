@@ -23,10 +23,6 @@ func setupTestPoolGenerator(t *testing.T) (*PoolGenerator, string) {
 func TestNewPoolGenerator(t *testing.T) {
 	g, tmpDir := setupTestPoolGenerator(t)
 
-	if g == nil {
-		t.Fatal("NewPoolGenerator should not return nil")
-	}
-
 	expectedPoolsDir := filepath.Join(tmpDir, ".magebox", "php", "pools")
 	if g.PoolsDir() != expectedPoolsDir {
 		t.Errorf("PoolsDir() = %v, want %v", g.PoolsDir(), expectedPoolsDir)
@@ -228,9 +224,6 @@ func TestNewFPMController(t *testing.T) {
 	p := &platform.Platform{Type: platform.Linux}
 	c := NewFPMController(p, "8.2")
 
-	if c == nil {
-		t.Fatal("NewFPMController should not return nil")
-	}
 	if c.version != "8.2" {
 		t.Errorf("version = %v, want 8.2", c.version)
 	}
@@ -251,14 +244,8 @@ func TestGetCurrentGroup(t *testing.T) {
 }
 
 func TestPoolTemplateValidity(t *testing.T) {
-	// Test that the embedded template parses correctly
-	tmpl, err := template.New("pool").Parse(poolTemplateEmbed)
-	if err != nil {
+	if _, err := template.New("pool").Parse(poolTemplateEmbed); err != nil {
 		t.Fatalf("Pool template parsing failed: %v", err)
-	}
-
-	if tmpl == nil {
-		t.Error("Parsed template should not be nil")
 	}
 
 	// Verify template contains expected sections

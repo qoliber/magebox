@@ -5,6 +5,22 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-05-28
+
+### Added
+
+- **STOP Protocol Support** - New `magebox stop-protocol` command group (`enable`, `disable`, `status`) that toggles the Static Precompilation & OPcache Protocol for the current project. Enabling writes the required `opcache.*` keys (including `opcache.preload = <project>/app/preload.php`, `opcache.preload_user`, JIT settings, and 512 MB memory) to `.magebox.local.yaml` and performs a full PHP-FPM restart (not a reload), because `opcache.preload` is only evaluated at master start. A new `FPMController.Restart()` was added for this purpose. See the [STOP guide](https://magebox.dev/guide/stop-protocol). ([#121](https://github.com/qoliber/magebox/pull/121))
+- **PR Build Artifacts** - CI now uploads binaries built from pull request branches as GitHub Actions artifacts and posts a comment on the PR with download links, so reviewers can test changes without building locally.
+
+### Changed
+
+- **Search Service Version Resolution** - `opensearch:2` or `elasticsearch:7` (major-only shorthands) are now resolved to a concrete image tag that actually exists in the registry, instead of failing with a missing-image error. Hardcoded version defaults were removed in favour of registry lookups, and the docs for OpenSearch and Elasticsearch were updated. ([#118](https://github.com/qoliber/magebox/pull/118))
+
+### Fixed
+
+- **Redis No Longer Starts Unconditionally** - `GenerateDefaultServices` previously emitted a Redis service in the generated compose file even when `globalCfg.DefaultServices.Redis` was `false`, so `magebox start` would spin up Redis for every project. Redis is now only added when explicitly enabled, and `docker compose up` runs with `--remove-orphans` so previously-started Redis containers are cleaned up on the next start. ([#115](https://github.com/qoliber/magebox/pull/115))
+- **Mailpit Sendmail Compatibility with Symfony Mailer** - The generated PHP-FPM pool now sets `sendmail_path` to `mailpit sendmail -t`. Without `-t`, Symfony Mailer (used by recent Magento versions) fails to deliver mail through Mailpit because recipients aren't passed on the command line. ([#125](https://github.com/qoliber/magebox/pull/125))
+
 ## [1.17.0] - 2026-05-13
 
 ### Added

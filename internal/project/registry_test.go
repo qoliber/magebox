@@ -14,9 +14,8 @@ func TestNewProjectDiscovery(t *testing.T) {
 		HomeDir: "/home/test",
 	}
 
-	d := NewProjectDiscovery(p)
-	if d == nil {
-		t.Fatal("NewProjectDiscovery should not return nil")
+	if d := NewProjectDiscovery(p); d == nil {
+		t.Error("NewProjectDiscovery should not return nil")
 	}
 }
 

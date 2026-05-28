@@ -24,10 +24,6 @@ func setupTestVCLGenerator(t *testing.T) (*VCLGenerator, string) {
 func TestNewVCLGenerator(t *testing.T) {
 	g, tmpDir := setupTestVCLGenerator(t)
 
-	if g == nil {
-		t.Fatal("NewVCLGenerator should not return nil")
-	}
-
 	expectedDir := filepath.Join(tmpDir, ".magebox", "varnish")
 	if g.vclDir != expectedDir {
 		t.Errorf("vclDir = %v, want %v", g.vclDir, expectedDir)
@@ -262,9 +258,6 @@ func TestNewController(t *testing.T) {
 	p := &platform.Platform{Type: platform.Linux}
 	c := NewController(p, "/path/to/default.vcl")
 
-	if c == nil {
-		t.Fatal("NewController should not return nil")
-	}
 	if c.vclFile != "/path/to/default.vcl" {
 		t.Errorf("vclFile = %v, want /path/to/default.vcl", c.vclFile)
 	}
@@ -378,13 +371,8 @@ func TestVCLTemplate_StaticContent(t *testing.T) {
 
 func TestVCLTemplateValidity(t *testing.T) {
 	// Test that the embedded template parses correctly
-	tmpl, err := template.New("vcl").Parse(vclTemplateEmbed)
-	if err != nil {
+	if _, err := template.New("vcl").Parse(vclTemplateEmbed); err != nil {
 		t.Fatalf("VCL template parsing failed: %v", err)
-	}
-
-	if tmpl == nil {
-		t.Error("Parsed template should not be nil")
 	}
 
 	// Verify template contains expected sections

@@ -192,8 +192,7 @@ func TestMergeSandboxConfigs(t *testing.T) {
 }
 
 func TestMergeSandboxConfigs_BothNil(t *testing.T) {
-	merged := MergeSandboxConfigs(nil, nil)
-	if merged == nil {
+	if merged := MergeSandboxConfigs(nil, nil); merged == nil {
 		t.Error("merged config should not be nil")
 	}
 }

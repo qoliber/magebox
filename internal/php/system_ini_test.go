@@ -151,9 +151,6 @@ func TestSystemINIManager(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetCurrentOwner failed: %v", err)
 	}
-	if owner == nil {
-		t.Fatal("Expected owner, got nil")
-	}
 	if owner.ProjectName != "project-a" {
 		t.Errorf("owner.ProjectName = %q, want %q", owner.ProjectName, "project-a")
 	}

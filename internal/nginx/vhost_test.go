@@ -26,10 +26,6 @@ func setupTestGenerator(t *testing.T) (*VhostGenerator, string) {
 func TestNewVhostGenerator(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
-	if g == nil {
-		t.Fatal("NewVhostGenerator should not return nil")
-	}
-
 	expectedDir := filepath.Join(tmpDir, ".magebox", "nginx", "vhosts")
 	if g.vhostsDir != expectedDir {
 		t.Errorf("vhostsDir = %v, want %v", g.vhostsDir, expectedDir)
@@ -315,9 +311,7 @@ func TestRenderVhost_SSLDisabled(t *testing.T) {
 
 func TestNewController(t *testing.T) {
 	p := &platform.Platform{Type: platform.Linux}
-	c := NewController(p)
-
-	if c == nil {
+	if c := NewController(p); c == nil {
 		t.Error("NewController should not return nil")
 	}
 }
@@ -341,14 +335,8 @@ func TestSanitizeDomain(t *testing.T) {
 }
 
 func TestUpstreamTemplateValidity(t *testing.T) {
-	// Test that the upstream template parses correctly
-	tmpl, err := template.New("upstream").Parse(upstreamTemplateEmbed)
-	if err != nil {
+	if _, err := template.New("upstream").Parse(upstreamTemplateEmbed); err != nil {
 		t.Fatalf("Upstream template parsing failed: %v", err)
-	}
-
-	if tmpl == nil {
-		t.Error("Parsed template should not be nil")
 	}
 
 	// Verify template contains expected sections
@@ -365,14 +353,8 @@ func TestUpstreamTemplateValidity(t *testing.T) {
 }
 
 func TestVhostTemplateValidity(t *testing.T) {
-	// Test that the embedded template parses correctly
-	tmpl, err := template.New("vhost").Parse(vhostTemplateEmbed)
-	if err != nil {
+	if _, err := template.New("vhost").Parse(vhostTemplateEmbed); err != nil {
 		t.Fatalf("Vhost template parsing failed: %v", err)
-	}
-
-	if tmpl == nil {
-		t.Error("Parsed template should not be nil")
 	}
 
 	// Verify template contains expected sections (upstream is now in separate template)

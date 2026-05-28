@@ -15,9 +15,6 @@ import (
 
 func TestNewDeployer(t *testing.T) {
 	d := NewDeployer()
-	if d == nil {
-		t.Fatal("NewDeployer returned nil")
-	}
 	if d.timeout == 0 {
 		t.Error("Deployer timeout should be set")
 	}

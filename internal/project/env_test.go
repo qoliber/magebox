@@ -15,9 +15,6 @@ func TestNewEnvGenerator(t *testing.T) {
 	}
 	g := newEnvGenerator("/path/to/project", cfg)
 
-	if g == nil {
-		t.Fatal("newEnvGenerator should not return nil")
-	}
 	if g.projectPath != "/path/to/project" {
 		t.Errorf("projectPath = %v, want /path/to/project", g.projectPath)
 	}

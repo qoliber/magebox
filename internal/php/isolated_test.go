@@ -21,10 +21,6 @@ func setupTestIsolatedController(t *testing.T) (*IsolatedFPMController, string) 
 func TestNewIsolatedFPMController(t *testing.T) {
 	c, _ := setupTestIsolatedController(t)
 
-	if c == nil {
-		t.Fatal("NewIsolatedFPMController should not return nil")
-	}
-
 	if c.registry == nil {
 		t.Error("registry should not be nil")
 	}
@@ -71,10 +67,6 @@ func TestIsolatedRegistry_AddAndGet(t *testing.T) {
 	retrieved, err := c.registry.Get("testproject")
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
-	}
-
-	if retrieved == nil {
-		t.Fatal("Retrieved project should not be nil")
 	}
 
 	if retrieved.ProjectName != "testproject" {

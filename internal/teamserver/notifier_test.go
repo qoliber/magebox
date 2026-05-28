@@ -23,9 +23,6 @@ func TestNewNotifier(t *testing.T) {
 	}
 
 	n := NewNotifier(config)
-	if n == nil {
-		t.Fatal("NewNotifier returned nil")
-	}
 
 	if !n.enabled {
 		t.Error("Notifier should be enabled")

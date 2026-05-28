@@ -85,10 +85,6 @@ func setupTestComposeGenerator(t *testing.T) (*ComposeGenerator, string) {
 func TestNewComposeGenerator(t *testing.T) {
 	g, tmpDir := setupTestComposeGenerator(t)
 
-	if g == nil {
-		t.Fatal("NewComposeGenerator should not return nil")
-	}
-
 	expectedDir := filepath.Join(tmpDir, ".magebox", "docker")
 	if g.composeDir != expectedDir {
 		t.Errorf("composeDir = %v, want %v", g.composeDir, expectedDir)
@@ -876,9 +872,6 @@ func TestComposeService_Mailpit(t *testing.T) {
 func TestNewDockerController(t *testing.T) {
 	c := NewDockerController("/path/to/docker-compose.yml")
 
-	if c == nil {
-		t.Fatal("NewDockerController should not return nil")
-	}
 	if c.composeFile != "/path/to/docker-compose.yml" {
 		t.Errorf("composeFile = %v, want /path/to/docker-compose.yml", c.composeFile)
 	}

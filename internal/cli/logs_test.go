@@ -10,9 +10,6 @@ import (
 func TestNewLogTailer(t *testing.T) {
 	tailer := NewLogTailer("/var/log", "*.log", true, 10)
 
-	if tailer == nil {
-		t.Fatal("NewLogTailer should not return nil")
-	}
 	if tailer.logDir != "/var/log" {
 		t.Errorf("logDir = %v, want /var/log", tailer.logDir)
 	}

@@ -120,7 +120,7 @@ func TestNewServer(t *testing.T) {
 	defer cleanup()
 
 	if server == nil {
-		t.Error("Server should not be nil")
+		t.Error("setupTestServer should not return nil server")
 	}
 }
 

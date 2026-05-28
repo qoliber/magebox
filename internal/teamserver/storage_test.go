@@ -56,7 +56,7 @@ func TestNewStorage(t *testing.T) {
 	defer cleanup()
 
 	if storage == nil {
-		t.Error("Storage should not be nil")
+		t.Error("setupTestStorage should not return nil storage")
 	}
 }
 

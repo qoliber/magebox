@@ -9,9 +9,7 @@ import (
 
 func TestNewDnsmasqManager(t *testing.T) {
 	p := &platform.Platform{Type: platform.Linux}
-	m := NewDnsmasqManager(p)
-
-	if m == nil {
+	if m := NewDnsmasqManager(p); m == nil {
 		t.Error("NewDnsmasqManager should not return nil")
 	}
 }
