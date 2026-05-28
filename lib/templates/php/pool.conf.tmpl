@@ -45,7 +45,7 @@ php_value[session.gc_maxlifetime] = 86400
 
 ; Mailpit email configuration
 ; Routes PHP mail() to Mailpit SMTP server at {{.SendmailPath}}
-php_admin_value[sendmail_path] = {{.SendmailPath}}
+php_admin_value[sendmail_path] = {{.SendmailPath}} -t
 php_admin_value[SMTP] = 127.0.0.1
 php_admin_value[smtp_port] = 1025
 {{end}}
