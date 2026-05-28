@@ -1763,6 +1763,63 @@ the Tideways dashboard. The access token is generated at
 [app.tideways.io/user/cli-import-settings](https://app.tideways.io/user/cli-import-settings).
 See [Tideways](/services/tideways#credential-storage) for details.
 
+## STOP Protocol Commands
+
+STOP (Static Precompilation & OPcache Protocol) enables OPcache and configures
+`app/preload.php` as the preload script for the current project. See the
+[STOP guide](/guide/stop-protocol) for the full picture.
+
+### `magebox stop-protocol enable`
+
+Enable STOP for the current project.
+
+```bash
+magebox stop-protocol enable
+```
+
+Writes the following keys to `.magebox.local.yaml` under `php_ini` and
+restarts PHP-FPM:
+
+- `opcache.enable = 1`
+- `opcache.preload = <project>/app/preload.php`
+- `opcache.preload_user = <current OS user>`
+- `opcache.memory_consumption = 512`
+- `opcache.jit = tracing`
+- `opcache.jit_buffer_size = 100M`
+
+A full PHP-FPM restart (not a reload) is performed, because `opcache.preload`
+is only evaluated at master start. If `app/preload.php` is missing, the
+command warns and continues — OPcache will skip preloading until the file
+exists.
+
+---
+
+### `magebox stop-protocol disable`
+
+Disable STOP.
+
+```bash
+magebox stop-protocol disable
+```
+
+Sets `opcache.enable = 0` in `.magebox.local.yaml`, removes the other
+STOP-managed keys, and restarts PHP-FPM.
+
+---
+
+### `magebox stop-protocol status`
+
+Show whether STOP is currently active.
+
+```bash
+magebox stop-protocol status
+```
+
+Reports the merged `opcache.enable`, `opcache.preload`, and
+`opcache.preload_user` values, and warns if the preload script doesn't
+exist on disk. Running `magebox stop-protocol` with no subcommand is
+equivalent to `status`.
+
 ## Team Commands
 
 ### `magebox team list`

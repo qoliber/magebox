@@ -618,6 +618,29 @@ func (c *FPMController) Reload() error {
 	return nil
 }
 
+// Restart performs a full restart of PHP-FPM (not just a reload).
+//
+// A reload (SIGUSR2) recycles workers but keeps the master process — so master-level
+// state such as the loaded zend_extension config, opcache initialization, and
+// opcache.preload are NOT re-evaluated. When something that only takes effect at
+// master startup changes (notably opcache.preload), callers need this Restart instead.
+func (c *FPMController) Restart() error {
+	if c.useSystemd() {
+		serviceName := c.getSystemdServiceName()
+		cmd := exec.Command("sudo", "systemctl", "restart", serviceName)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to restart php-fpm: %w\nOutput: %s", err, output)
+		}
+		return nil
+	}
+
+	// macOS / non-systemd: stop then start so the master is re-execed.
+	if err := c.Stop(); err != nil {
+		return fmt.Errorf("failed to stop php-fpm: %w", err)
+	}
+	return c.Start()
+}
+
 // Start starts PHP-FPM service
 func (c *FPMController) Start() error {
 	if c.useSystemd() {
