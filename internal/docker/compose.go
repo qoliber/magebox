@@ -524,7 +524,7 @@ func (g *ComposeGenerator) getValkeyService() ComposeService {
 func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
 	version := svcCfg.Version
 	imageVersion := ResolveOpenSearchVersion(version)
-	port := GetOpenSearchPort(version)
+	port := GetOpenSearchPort(imageVersion)
 
 	// Default to 1GB if not specified
 	memory := "1g"
@@ -563,7 +563,7 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, ad
 func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
 	version := svcCfg.Version
 	imageVersion := ResolveElasticsearchVersion(version)
-	port := GetElasticsearchPort(version)
+	port := GetElasticsearchPort(imageVersion)
 
 	// Default to 1GB if not specified
 	memory := "1g"
@@ -753,7 +753,8 @@ func (g *ComposeGenerator) getMariaDBPort(version string) int {
 	return 33106 // default
 }
 
-// normalizeSearchVersion extracts major.minor from a version string like "2.19.4"
+// normalizeSearchVersion extracts major.minor from a version string like "2.19.4".
+// If the input does not contain at least two dot-separated parts, it is returned unchanged.
 func normalizeSearchVersion(version string) string {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) >= 2 {
@@ -762,12 +763,22 @@ func normalizeSearchVersion(version string) string {
 	return version
 }
 
-// computeSearchPort calculates a port from base + major*20 + minor.
-// This guarantees unique ports for versions where minor < 20.
-// OpenSearch uses base 9200, Elasticsearch uses base 9500 to avoid range overlap.
-func computeSearchPort(basePort int, version string) int {
-	normalized := normalizeSearchVersion(version)
-	parts := strings.SplitN(normalized, ".", 2)
+// resolveSearchPortVersion normalizes a search version for port selection. When the
+// user provides a major-only version, it first resolves the latest available image
+// tag for that major so the selected port matches the resolved major.minor series.
+func resolveSearchPortVersion(version string, resolver func(string) string) string {
+	if !strings.Contains(version, ".") {
+		return normalizeSearchVersion(resolver(version))
+	}
+	return normalizeSearchVersion(version)
+}
+
+// computeSearchPort calculates a port from base + major*20 + minor using a
+// caller-supplied major.minor version string. If the input cannot be parsed
+// numerically, it falls back to basePort. OpenSearch uses base 9200,
+// Elasticsearch uses base 9500 to avoid range overlap.
+func computeSearchPort(basePort int, majorMinorVersion string) int {
+	parts := strings.SplitN(majorMinorVersion, ".", 2)
 	if len(parts) == 2 {
 		major, err1 := strconv.Atoi(parts[0])
 		minor, err2 := strconv.Atoi(parts[1])
@@ -781,7 +792,7 @@ func computeSearchPort(basePort int, version string) int {
 // GetOpenSearchPort returns the host port for an OpenSearch version.
 // Port convention: 9200 + major*20 + minor (e.g., OS 2.19 → 9259, OS 3.3 → 9263).
 func GetOpenSearchPort(version string) int {
-	normalized := normalizeSearchVersion(version)
+	normalized := resolveSearchPortVersion(version, ResolveOpenSearchVersion)
 	ports := map[string]int{
 		"1.3":  9223,
 		"2.5":  9245,
@@ -804,7 +815,7 @@ func GetOpenSearchPort(version string) int {
 // GetElasticsearchPort returns the host port for an Elasticsearch version.
 // Port convention: 9500 + major*20 + minor (e.g., ES 7.17 → 9657, ES 8.11 → 9671).
 func GetElasticsearchPort(version string) int {
-	normalized := normalizeSearchVersion(version)
+	normalized := resolveSearchPortVersion(version, ResolveElasticsearchVersion)
 	ports := map[string]int{
 		"7.6":  9646,
 		"7.9":  9649,
@@ -830,12 +841,18 @@ func GetElasticsearchPort(version string) int {
 // component it is returned unchanged. On any network or parse error the input is also returned
 // unchanged so that Docker can produce an actionable error message.
 func ResolveElasticsearchVersion(version string) string {
+	if isFullVersion(version) {
+		return version
+	}
 	return resolveDockerTagVersion("library", "elasticsearch", version)
 }
 
 // ResolveOpenSearchVersion resolves a major.minor version string to the latest available full
 // (major.minor.patch) version by querying Docker Hub. See ResolveElasticsearchVersion for rules.
 func ResolveOpenSearchVersion(version string) string {
+	if isFullVersion(version) {
+		return version
+	}
 	return resolveDockerTagVersion("opensearchproject", "opensearch", version)
 }
 
