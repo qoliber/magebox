@@ -1234,7 +1234,7 @@ magebox bootstrap
 ```
 
 Performs:
-- Dependency checking
+- Dependency checking (Docker, Nginx, mkcert, mysql-client)
 - Global configuration creation
 - SSL CA setup
 - Nginx configuration
@@ -2435,6 +2435,7 @@ Verifies:
 - SSL certificates
 - Nginx vhost configuration
 - File permissions
+- magerun2 wrapper and mysql-client availability
 
 ---
 

@@ -122,6 +122,11 @@ func (d *DarwinInstaller) InstallDnsmasq() error {
 	return d.RunCommand("brew install dnsmasq")
 }
 
+// InstallMysqlClient installs the MySQL client tools via Homebrew
+func (d *DarwinInstaller) InstallMysqlClient() error {
+	return d.RunCommand("brew install mysql-client")
+}
+
 // InstallMultitail installs multitail via Homebrew
 func (d *DarwinInstaller) InstallMultitail() error {
 	return d.RunCommand("brew install multitail")
