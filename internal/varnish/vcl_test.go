@@ -80,16 +80,20 @@ func TestVCLGenerator_Generate(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Verify essential VCL elements
+	// Verify essential VCL elements. The backend is always the single shared "magento"
+	// backend regardless of project name (Nginx routes per project by Host).
 	checks := []string{
 		"vcl 4.1",
-		"backend mystore",
+		"backend magento",
 		"acl purge",
 		"sub vcl_recv",
 		"sub vcl_hash",
 		"sub vcl_backend_response",
 		"sub vcl_deliver",
 		"X-Magento-Tags",
+		// Health probe must hit /health_check.php and expect 200 (Magento returns 302 on HEAD /).
+		"GET /health_check.php HTTP/1.1",
+		".expected_response = 200",
 	}
 
 	for _, check := range checks {
@@ -131,19 +135,28 @@ func TestVCLGenerator_GenerateMultipleProjects(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Both backends should be present
-	if !strings.Contains(contentStr, "backend store1") {
-		t.Error("VCL should contain backend store1")
+	// Regression: with 2+ projects we must emit exactly ONE backend, not one per project.
+	// Varnish 7.x treats a defined-but-unused backend as a fatal compile error, so the
+	// previous per-project backends crash-looped the shared container.
+	if n := strings.Count(contentStr, "\nbackend "); n != 1 {
+		t.Errorf("expected exactly 1 backend definition, got %d", n)
 	}
-	if !strings.Contains(contentStr, "backend store2") {
-		t.Error("VCL should contain backend store2")
+	if !strings.Contains(contentStr, "backend magento") {
+		t.Error("VCL should contain the single shared backend magento")
+	}
+	if strings.Contains(contentStr, "backend store1") || strings.Contains(contentStr, "backend store2") {
+		t.Error("VCL must not contain per-project backends (would be unused -> Varnish compile error)")
+	}
+	// The single backend must be the one referenced as the hint (no unused backends).
+	if !strings.Contains(contentStr, "set req.backend_hint = magento") {
+		t.Error("backend_hint should reference the single magento backend")
 	}
 }
 
 func TestVCLGenerator_GenerateEmptyConfigs(t *testing.T) {
 	g, _ := setupTestVCLGenerator(t)
 
-	// Generate with no configs - should create default backend
+	// Generate with no configs - should still create the single shared backend.
 	err := g.Generate([]*config.Config{})
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -156,32 +169,9 @@ func TestVCLGenerator_GenerateEmptyConfigs(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Should have default backend
-	if !strings.Contains(contentStr, "backend default") {
-		t.Error("VCL should contain default backend when no configs provided")
-	}
-}
-
-func TestSanitizeName(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"mystore", "mystore"},
-		{"my-store", "my_store"},
-		{"my_store", "my_store"},
-		{"my.store", "my_store"},
-		{"MyStore123", "MyStore123"},
-		{"store@123", "store_123"},
-		{"store with spaces", "store_with_spaces"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			if got := sanitizeName(tt.input); got != tt.expected {
-				t.Errorf("sanitizeName(%v) = %v, want %v", tt.input, got, tt.expected)
-			}
-		})
+	// Should have the single shared backend even with no projects.
+	if !strings.Contains(contentStr, "backend magento") {
+		t.Error("VCL should contain the magento backend when no configs provided")
 	}
 }
 
@@ -195,14 +185,18 @@ func TestVCLGenerator_buildVCLConfig(t *testing.T) {
 
 	vclCfg := g.buildVCLConfig(configs)
 
-	// Should have 2 backends
-	if len(vclCfg.Backends) != 2 {
-		t.Errorf("Expected 2 backends, got %d", len(vclCfg.Backends))
+	// Always exactly one shared backend, regardless of how many projects exist.
+	if len(vclCfg.Backends) != 1 {
+		t.Errorf("Expected 1 backend, got %d", len(vclCfg.Backends))
 	}
-
-	// First backend should be default
-	if vclCfg.DefaultBackend != "store1" {
-		t.Errorf("DefaultBackend = %v, want store1", vclCfg.DefaultBackend)
+	if vclCfg.DefaultBackend != "magento" {
+		t.Errorf("DefaultBackend = %v, want magento", vclCfg.DefaultBackend)
+	}
+	if vclCfg.Backends[0].Name != "magento" {
+		t.Errorf("backend name = %v, want magento", vclCfg.Backends[0].Name)
+	}
+	if vclCfg.Backends[0].ProbeURL != "/health_check.php" {
+		t.Errorf("ProbeURL = %v, want /health_check.php", vclCfg.Backends[0].ProbeURL)
 	}
 
 	// Should have purge ACL
