@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.1] - 2026-06-11
+
+### Fixed
+
+- **Varnish VCL Crash with Multiple Projects** - The shared Varnish container generated one backend per registered project, but the template only ever referenced the default backend (`set req.backend_hint = {{.DefaultBackend}}`). Varnish 7.x treats a defined-but-unused backend as a fatal compile error (`Unused backend …`), so with two or more projects the `magebox-varnish` container failed to compile its VCL and crash-looped, returning 502. The health probe also used `HEAD /` expecting `301`, but Magento returns `302`, marking the backend `sick` (503). All generated backends were identical anyway, since Nginx already routes to the correct project by `Host` header. The VCL now emits a single `magento` backend and probes `GET /health_check.php` expecting `200`.
+
 ## [1.18.0] - 2026-05-28
 
 ### Added
