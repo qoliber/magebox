@@ -3,11 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
+	"qoliber/magebox/internal/telemetry"
 	"qoliber/magebox/internal/updater"
 	"qoliber/magebox/internal/verbose"
 )
@@ -20,7 +22,24 @@ var verbosity int
 // versionChecker runs an async update check in the background
 var versionChecker *updater.VersionChecker
 
+// telemetryStart and telemetryCommand capture the command that's about to run
+// so that main() can record an event on exit regardless of whether the
+// command succeeded. They are set in PersistentPreRun and read after
+// rootCmd.Execute() returns. Zero value means "nothing to record".
+var (
+	telemetryStart   time.Time
+	telemetryCommand string
+)
+
 func main() {
+	// If this process was spawned by a parent to flush telemetry, run only
+	// the flush and exit. This short-circuits the rest of main() so the
+	// child never runs custom command delegation, consent prompts, version
+	// checks, or any CLI command. Must be the very first thing in main().
+	if telemetry.FlushFromEnv() {
+		return
+	}
+
 	// If the first non-flag argument is not a known command,
 	// check if it's a custom command from .magebox and delegate to "run".
 	if len(os.Args) > 1 {
@@ -58,9 +77,30 @@ func main() {
 		}
 	}
 
-	if err := rootCmd.Execute(); err != nil {
+	err := rootCmd.Execute()
+	exitCode := 0
+	if err != nil {
+		exitCode = 1
+	}
+
+	// Record the command event after Execute returns, so failed commands
+	// are captured too. If PersistentPreRun never fired (unknown command,
+	// --version, etc.) telemetryCommand is empty and Record is a no-op.
+	if telemetryCommand != "" && !telemetry.ShouldSkipCommand(telemetryCommand) {
+		if home, herr := os.UserHomeDir(); herr == nil {
+			telemetry.Record(telemetry.RecordInput{
+				HomeDir:   home,
+				MBVersion: version,
+				Command:   telemetryCommand,
+				ExitCode:  exitCode,
+				Duration:  time.Since(telemetryStart),
+			})
+		}
+	}
+
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(exitCode)
 	}
 }
 
@@ -80,6 +120,21 @@ with Docker for services like MySQL, Redis, OpenSearch, and Varnish.`,
 			verbose.Debug("MageBox version: %s", version)
 			verbose.Debug("Verbosity level: %d", verbosity)
 			verbose.Env()
+		}
+
+		// Capture command metadata for the exit-path telemetry record.
+		telemetryCommand = telemetry.CanonicalCommand(cmd.CommandPath())
+		telemetryStart = time.Now()
+
+		// First-run telemetry consent prompt. Runs at most once per install
+		// and is silently skipped for non-interactive runs and for the
+		// telemetry subcommand itself.
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			if cfg, err := config.LoadGlobalConfig(homeDir); err == nil {
+				if telemetry.ShouldPrompt(cfg) {
+					_, _ = telemetry.MaybePrompt(homeDir, cfg, telemetryCommand, os.Stdin, os.Stdout)
+				}
+			}
 		}
 
 		// Start async version check (skip for self-update and dev builds)
