@@ -1,21 +1,31 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"qoliber/magebox/internal/cli"
+	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/project"
 )
 
 var openCmd = &cobra.Command{
-	Use:   "open",
+	Use:   "open [worktree]",
 	Short: "Open project in browser",
-	Long:  "Starts the project if not already running, then opens the first domain from .magebox.yaml in the default browser",
-	RunE:  runOpen,
+	Long: "Starts the project if not already running, then opens the first domain from .magebox.yaml in the default browser.\n\n" +
+		"With a worktree argument, MageBox targets .claude/worktrees/<worktree>: it derives a .magebox.local.yaml from " +
+		"that worktree's .magebox.yaml (appending .<worktree> to the project name and inserting .<worktree> before the " +
+		"TLD of each domain host), then starts and opens the worktree as its own isolated project.",
+	Args: cobra.MaximumNArgs(1),
+	RunE: runOpen,
 }
 
 func init() {
@@ -28,7 +38,22 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, ok := loadProjectConfig(cwd)
+	projectPath := cwd
+	if len(args) == 1 {
+		projectPath, err = prepareWorktree(cwd, args[0])
+		if err != nil {
+			cli.PrintError("%v", err)
+			return nil
+		}
+	}
+
+	return openProject(projectPath)
+}
+
+// openProject ensures the project at projectPath is running and opens its first
+// domain in the default browser.
+func openProject(projectPath string) error {
+	cfg, ok := loadProjectConfig(projectPath)
 	if !ok {
 		return nil
 	}
@@ -44,8 +69,8 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	mgr := project.NewManager(p)
-	if !projectFullyRunning(mgr, cwd) {
-		if err := startProject(mgr, cwd, true); err != nil {
+	if !projectFullyRunning(mgr, projectPath) {
+		if err := startProject(mgr, projectPath, true); err != nil {
 			return err
 		}
 		fmt.Println()
@@ -60,15 +85,116 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	cli.PrintInfo("Opening %s", cli.URL(url))
 
-	var openCmd *exec.Cmd
+	var browser *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		openCmd = exec.Command("open", url)
+		browser = exec.Command("open", url)
 	default:
-		openCmd = exec.Command("xdg-open", url)
+		browser = exec.Command("xdg-open", url)
 	}
 
-	return openCmd.Start()
+	return browser.Start()
+}
+
+// prepareWorktree resolves the worktree directory at
+// <baseDir>/.claude/worktrees/<name>, derives a .magebox.local.yaml from its
+// .magebox.yaml (appending ".<name>" to the project name and inserting ".<name>"
+// before the TLD of each domain host), and returns the worktree path. The
+// override is rewritten on every call, so the command is idempotent.
+func prepareWorktree(baseDir, name string) (string, error) {
+	worktreePath := filepath.Join(baseDir, ".claude", "worktrees", name)
+
+	info, err := os.Stat(worktreePath)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("worktree not found: %s", worktreePath)
+	}
+
+	srcPath := filepath.Join(worktreePath, config.ConfigFileName)
+	src, err := os.ReadFile(srcPath)
+	if os.IsNotExist(err) {
+		// Fall back to the legacy ".magebox" filename.
+		srcPath = filepath.Join(worktreePath, config.ConfigFileNameLegacy)
+		src, err = os.ReadFile(srcPath)
+	}
+	if err != nil {
+		return "", fmt.Errorf("cannot read %s in worktree: %w", config.ConfigFileName, err)
+	}
+
+	out, err := worktreeLocalConfig(src, name)
+	if err != nil {
+		return "", err
+	}
+
+	destPath := filepath.Join(worktreePath, config.LocalConfigFileName)
+	if err := os.WriteFile(destPath, out, 0644); err != nil {
+		return "", fmt.Errorf("cannot write %s: %w", config.LocalConfigFileName, err)
+	}
+
+	cli.PrintSuccess("Prepared %s", cli.Path(destPath))
+	return worktreePath, nil
+}
+
+// worktreeLocalConfig transforms a .magebox.yaml document into a worktree-specific
+// .magebox.local.yaml: it appends ".<suffix>" to the project name and inserts
+// ".<suffix>" before the TLD of every domain host, preserving the original
+// comments and layout.
+func worktreeLocalConfig(src []byte, suffix string) ([]byte, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(src, &root); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", config.ConfigFileName, err)
+	}
+
+	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s: unexpected document structure", config.ConfigFileName)
+	}
+	doc := root.Content[0]
+
+	if nameNode := mappingValue(doc, "name"); nameNode != nil {
+		nameNode.Value += "." + suffix
+	}
+
+	if domainsNode := mappingValue(doc, "domains"); domainsNode != nil && domainsNode.Kind == yaml.SequenceNode {
+		for _, item := range domainsNode.Content {
+			if item.Kind != yaml.MappingNode {
+				continue
+			}
+			if hostNode := mappingValue(item, "host"); hostNode != nil {
+				hostNode.Value = suffixHostBeforeTLD(hostNode.Value, suffix)
+			}
+		}
+	}
+
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&root); err != nil {
+		return nil, fmt.Errorf("failed to encode local config: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return nil, fmt.Errorf("failed to encode local config: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// mappingValue returns the value node for key in a YAML mapping node, or nil.
+func mappingValue(m *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return m.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// suffixHostBeforeTLD inserts ".<suffix>" before the final label (the TLD) of host:
+// "shop.localhost" + "b2b-case" -> "shop.b2b-case.localhost". A host with no dot is
+// treated as a bare TLD, so the suffix is prepended: "localhost" -> "b2b-case.localhost".
+func suffixHostBeforeTLD(host, suffix string) string {
+	idx := strings.LastIndex(host, ".")
+	if idx == -1 {
+		return suffix + "." + host
+	}
+	return host[:idx] + "." + suffix + host[idx:]
 }
 
 // projectFullyRunning reports whether all essential services for the project

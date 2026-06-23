@@ -149,10 +149,25 @@ Combine `--quick --hyva` for the fastest way to get a Hyvä-powered store runnin
 Open the project in the default browser.
 
 ```bash
-magebox open
+magebox open [worktree]
 ```
 
 Opens the first domain from `.magebox.yaml` using `https://` when SSL is enabled, otherwise `http://`. If the project is not fully running, `magebox open` starts it first (skipping optional Xdebug and Blackfire). If everything is already up, the browser opens immediately.
+
+#### Opening a worktree
+
+Pass a single argument to target a git worktree under `.claude/worktrees/<worktree>`:
+
+```bash
+magebox open b2b-case
+```
+
+MageBox derives a `.magebox.local.yaml` inside that worktree from its `.magebox.yaml`, then starts and opens the worktree as its own isolated project:
+
+- `.<worktree>` is appended to the project `name` — e.g. `mystore` becomes `mystore.b2b-case`, so the worktree runs as a separate MageBox project.
+- `.<worktree>` is inserted before the TLD of every domain `host` — e.g. `mystore.localhost` becomes `mystore.b2b-case.localhost`.
+
+Comments and layout from `.magebox.yaml` are preserved, and the override is rewritten on every run, so the command is safe to repeat.
 
 ---
 
