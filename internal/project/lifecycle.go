@@ -387,16 +387,28 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 	return status, nil
 }
 
-// generateSSLCerts generates SSL certificates for all domains
+// generateSSLCerts generates SSL certificates for all domains. Hosts are grouped
+// by base domain so a single wildcard certificate covers a project's subdomains,
+// while each exact host is also added as a SAN — a wildcard only matches one
+// label, so a nested host like "shop.nl.b2b-case.localhost" would otherwise not
+// be covered by "*.b2b-case.localhost".
 func (m *Manager) generateSSLCerts(cfg *config.Config) error {
+	hostsByBase := make(map[string][]string)
+	var bases []string
 	for _, domain := range cfg.Domains {
-		if domain.IsSSLEnabled() {
-			baseDomain := ssl.ExtractBaseDomain(domain.Host)
-			if !m.sslManager.CertExists(baseDomain) {
-				if _, err := m.sslManager.GenerateCert(baseDomain); err != nil {
-					return err
-				}
-			}
+		if !domain.IsSSLEnabled() {
+			continue
+		}
+		base := ssl.ExtractBaseDomain(domain.Host)
+		if _, seen := hostsByBase[base]; !seen {
+			bases = append(bases, base)
+		}
+		hostsByBase[base] = append(hostsByBase[base], domain.Host)
+	}
+
+	for _, base := range bases {
+		if _, err := m.sslManager.EnsureCert(base, hostsByBase[base]...); err != nil {
+			return err
 		}
 	}
 	return nil

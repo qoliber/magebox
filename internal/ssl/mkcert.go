@@ -2,7 +2,9 @@ package ssl
 
 import (
 	"bytes"
+	"crypto/x509"
 	_ "embed"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"os/exec"
@@ -131,35 +133,38 @@ func (m *Manager) getCARoot() (string, error) {
 
 // GenerateCert generates a certificate for the given domain
 func (m *Manager) GenerateCert(domain string) (*CertPaths, error) {
+	return m.EnsureCert(domain)
+}
+
+// EnsureCert generates (or reuses) a certificate stored under the base domain's
+// directory. The certificate always covers "baseDomain" and "*.baseDomain", plus
+// any extra hosts passed in. Extra hosts are required because a wildcard only
+// matches a single label: a deeply nested host such as
+// "shop.nl.b2b-case.localhost" is NOT covered by "*.b2b-case.localhost" and must
+// be listed explicitly. An existing certificate is reused only when it already
+// covers every requested host; otherwise it is regenerated.
+func (m *Manager) EnsureCert(baseDomain string, hosts ...string) (*CertPaths, error) {
 	if !m.IsMkcertInstalled() {
 		return nil, &MkcertNotInstalledError{Platform: m.platform}
 	}
 
-	// Ensure certs directory exists
-	domainDir := filepath.Join(m.certsDir, domain)
+	domainDir := filepath.Join(m.certsDir, baseDomain)
+	certFile := filepath.Join(domainDir, "cert.pem")
+	keyFile := filepath.Join(domainDir, "key.pem")
+	paths := &CertPaths{CertFile: certFile, KeyFile: keyFile, Domain: baseDomain}
+
+	// Reuse the existing certificate only if it already covers every host.
+	if m.CertExists(baseDomain) && certCovers(certFile, hosts) {
+		return paths, nil
+	}
+
 	if err := os.MkdirAll(domainDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create certs directory: %w", err)
 	}
 
-	certFile := filepath.Join(domainDir, "cert.pem")
-	keyFile := filepath.Join(domainDir, "key.pem")
-
-	// Check if cert already exists
-	if m.CertExists(domain) {
-		return &CertPaths{
-			CertFile: certFile,
-			KeyFile:  keyFile,
-			Domain:   domain,
-		}, nil
-	}
-
-	// Generate cert using mkcert
-	cmd := exec.Command("mkcert",
-		"-cert-file", certFile,
-		"-key-file", keyFile,
-		domain,
-		"*."+domain,
-	)
+	names := dedupeStrings(append([]string{baseDomain, "*." + baseDomain}, hosts...))
+	args := append([]string{"-cert-file", certFile, "-key-file", keyFile}, names...)
+	cmd := exec.Command("mkcert", args...)
 	cmd.Dir = domainDir
 
 	output, err := cmd.CombinedOutput()
@@ -167,11 +172,49 @@ func (m *Manager) GenerateCert(domain string) (*CertPaths, error) {
 		return nil, fmt.Errorf("failed to generate certificate: %w\nOutput: %s", err, output)
 	}
 
-	return &CertPaths{
-		CertFile: certFile,
-		KeyFile:  keyFile,
-		Domain:   domain,
-	}, nil
+	return paths, nil
+}
+
+// certCovers reports whether the certificate at certFile is valid for every host
+// in hosts (honoring wildcard matching). An empty host list is trivially covered.
+func certCovers(certFile string, hosts []string) bool {
+	if len(hosts) == 0 {
+		return true
+	}
+
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		return false
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return false
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+
+	for _, host := range hosts {
+		if cert.VerifyHostname(host) != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// dedupeStrings returns in with duplicate values removed, preserving order.
+func dedupeStrings(in []string) []string {
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
 }
 
 // GenerateCerts generates certificates for multiple domains

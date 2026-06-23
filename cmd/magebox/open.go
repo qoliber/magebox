@@ -38,21 +38,26 @@ func runOpen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	projectPath := cwd
 	if len(args) == 1 {
-		projectPath, err = prepareWorktree(cwd, args[0])
+		worktreePath, err := prepareWorktree(cwd, args[0])
 		if err != nil {
 			cli.PrintError("%v", err)
 			return nil
 		}
+		// A worktree is a freshly-derived project: always start it so its nginx
+		// vhost, PHP-FPM pool, DNS entry and SSL certificate are created — even
+		// when the shared global services are already running for the base
+		// project (which would otherwise make it look "fully running").
+		return openProject(worktreePath, true)
 	}
 
-	return openProject(projectPath)
+	return openProject(cwd, false)
 }
 
 // openProject ensures the project at projectPath is running and opens its first
-// domain in the default browser.
-func openProject(projectPath string) error {
+// domain in the default browser. When forceStart is true the project is started
+// unconditionally, rather than only when its services appear stopped.
+func openProject(projectPath string, forceStart bool) error {
 	cfg, ok := loadProjectConfig(projectPath)
 	if !ok {
 		return nil
@@ -69,7 +74,7 @@ func openProject(projectPath string) error {
 	}
 
 	mgr := project.NewManager(p)
-	if !projectFullyRunning(mgr, projectPath) {
+	if forceStart || !projectFullyRunning(mgr, projectPath) {
 		if err := startProject(mgr, projectPath, true); err != nil {
 			return err
 		}
