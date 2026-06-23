@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Self-Healing Web-UI Commands** - `phpmyadmin`, `elasticvue`, and `mailpit` now start their container on demand instead of dead-ending when it is stopped (which happens routinely after a Docker Desktop or machine restart). `phpmyadmin open` and `elasticvue open` start the container when the service is enabled but stopped, then open the browser; `mailpit open` always starts it (Mailpit is always on). `phpmyadmin enable` and `elasticvue enable` are now idempotent — when already enabled but stopped, they restart the container instead of printing "already enabled" and doing nothing. Only the requested UI container is started (no full `global start`, no databases dragged in), and a clear message is shown when Docker itself is not running. `status` now points to the relevant `open` command. Shared helpers (`isContainerRunning`, `openInBrowser`, `ensureGlobalServiceRunning`, `decideServiceUI`) de-duplicate the logic across the three commands.
+
 ## [1.18.2] - 2026-06-23
 
 ### Fixed

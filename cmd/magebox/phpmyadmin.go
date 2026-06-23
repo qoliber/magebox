@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,12 +12,16 @@ import (
 	"qoliber/magebox/internal/docker"
 )
 
-const phpmyadminDefaultPort = "8036"
+const (
+	phpmyadminDefaultPort = "8036"
+	phpmyadminContainer   = "magebox-phpmyadmin"
+	phpmyadminService     = "phpmyadmin"
+)
 
 // getPhpMyAdminURL returns the phpMyAdmin URL, reading the actual port from the running container.
 // Falls back to the default port if the container is not running.
 func getPhpMyAdminURL() string {
-	portCmd := exec.Command("docker", "port", "magebox-phpmyadmin", "80")
+	portCmd := exec.Command("docker", "port", phpmyadminContainer, "80")
 	output, err := portCmd.Output()
 	if err == nil {
 		// Output format: "0.0.0.0:8036" or "[::]:8036"
@@ -65,7 +68,7 @@ var phpmyadminStatusCmd = &cobra.Command{
 var phpmyadminOpenCmd = &cobra.Command{
 	Use:   "open",
 	Short: "Open phpMyAdmin in browser",
-	Long:  "Opens the phpMyAdmin web UI in the default browser",
+	Long:  "Opens the phpMyAdmin web UI in the default browser, starting it if needed",
 	RunE:  runPhpMyAdminOpen,
 }
 
@@ -88,48 +91,55 @@ func runPhpMyAdminEnable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 
-	if globalCfg.PhpMyAdmin {
-		cli.PrintInfo("phpMyAdmin is already enabled")
+	switch decideServiceUI(globalCfg.PhpMyAdmin, isContainerRunning(phpmyadminContainer)) {
+	case decisionProceed:
+		cli.PrintInfo("phpMyAdmin is already enabled and running")
 		fmt.Println()
 		fmt.Printf("  Web UI: %s\n", cli.Highlight(getPhpMyAdminURL()))
 		return nil
+
+	case decisionStart:
+		cli.PrintTitle("Starting phpMyAdmin")
+		fmt.Println()
+		fmt.Print("phpMyAdmin is enabled but stopped, starting... ")
+		if err := ensureGlobalServiceRunning(p, phpmyadminService); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintError("%v", err)
+			return nil
+		}
+		fmt.Println(cli.Success("done"))
+		fmt.Println()
+		cli.PrintSuccess("phpMyAdmin started!")
+		fmt.Println()
+		fmt.Printf("  Web UI: %s\n", cli.Highlight(getPhpMyAdminURL()))
+		return nil
+
+	default: // decisionNotEnabled
+		cli.PrintTitle("Enabling phpMyAdmin")
+		fmt.Println()
+
+		globalCfg.PhpMyAdmin = true
+		if err := config.SaveGlobalConfig(p.HomeDir, globalCfg); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+
+		fmt.Print("Starting phpMyAdmin container... ")
+		if err := ensureGlobalServiceRunning(p, phpmyadminService); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintError("%v", err)
+			return nil
+		}
+		fmt.Println(cli.Success("done"))
+
+		fmt.Println()
+		cli.PrintSuccess("phpMyAdmin enabled!")
+		fmt.Println()
+		fmt.Printf("  Web UI: %s\n", cli.Highlight(getPhpMyAdminURL()))
+		fmt.Println()
+		cli.PrintInfo("Use arbitrary server mode to connect to any MySQL/MariaDB instance")
+		cli.PrintInfo("Database containers are accessible by their container name (e.g. magebox-mysql-8.0)")
+		return nil
 	}
-
-	cli.PrintTitle("Enabling phpMyAdmin")
-	fmt.Println()
-
-	globalCfg.PhpMyAdmin = true
-	if err := config.SaveGlobalConfig(p.HomeDir, globalCfg); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	// Regenerate docker-compose and start
-	fmt.Print("Starting phpMyAdmin container... ")
-	composeGen := docker.NewComposeGenerator(p)
-
-	// Discover all project configs to regenerate docker-compose
-	configs := discoverAllConfigs(p)
-	if err := composeGen.GenerateGlobalServices(configs); err != nil {
-		fmt.Println(cli.Error("failed"))
-		return fmt.Errorf("failed to generate docker-compose: %w", err)
-	}
-
-	dockerCtrl := docker.NewDockerController(composeGen.ComposeFilePath())
-	if err := dockerCtrl.StartService("phpmyadmin"); err != nil {
-		fmt.Println(cli.Error("failed"))
-		return fmt.Errorf("failed to start phpMyAdmin: %w", err)
-	}
-	fmt.Println(cli.Success("done"))
-
-	fmt.Println()
-	cli.PrintSuccess("phpMyAdmin enabled!")
-	fmt.Println()
-	fmt.Printf("  Web UI: %s\n", cli.Highlight(getPhpMyAdminURL()))
-	fmt.Println()
-	cli.PrintInfo("Use arbitrary server mode to connect to any MySQL/MariaDB instance")
-	cli.PrintInfo("Database containers are accessible by their container name (e.g. magebox-mysql-8.0)")
-
-	return nil
 }
 
 func runPhpMyAdminDisable(cmd *cobra.Command, args []string) error {
@@ -155,7 +165,7 @@ func runPhpMyAdminDisable(cmd *cobra.Command, args []string) error {
 	fmt.Print("Stopping phpMyAdmin container... ")
 	composeGen := docker.NewComposeGenerator(p)
 	dockerCtrl := docker.NewDockerController(composeGen.ComposeFilePath())
-	if err := dockerCtrl.StopService("phpmyadmin"); err != nil {
+	if err := dockerCtrl.StopService(phpmyadminService); err != nil {
 		fmt.Println(cli.Warning("not running"))
 	} else {
 		fmt.Println(cli.Success("done"))
@@ -167,8 +177,7 @@ func runPhpMyAdminDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	// Regenerate docker-compose without phpMyAdmin
-	configs := discoverAllConfigs(p)
-	if err := composeGen.GenerateGlobalServices(configs); err != nil {
+	if err := composeGen.GenerateGlobalServices(discoverAllConfigs(p)); err != nil {
 		return fmt.Errorf("failed to update docker-compose: %w", err)
 	}
 
@@ -201,42 +210,47 @@ func runPhpMyAdminStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Enabled: " + cli.Success("yes"))
 
-	// Check if container is running
-	checkCmd := exec.Command("docker", "ps", "--filter", "name=magebox-phpmyadmin", "--filter", "status=running", "-q")
-	output, err := checkCmd.Output()
-	if err == nil && len(strings.TrimSpace(string(output))) > 0 {
+	if isContainerRunning(phpmyadminContainer) {
 		fmt.Println("Status:  " + cli.Success("running"))
 		fmt.Printf("Web UI:  %s\n", cli.Highlight(getPhpMyAdminURL()))
 	} else {
 		fmt.Println("Status:  " + cli.Warning("stopped"))
 		fmt.Println()
-		cli.PrintInfo("Start global services with: magebox global start")
+		cli.PrintInfo("Start with: magebox phpmyadmin open")
 	}
 
 	return nil
 }
 
 func runPhpMyAdminOpen(cmd *cobra.Command, args []string) error {
-	// Check if container is running
-	checkCmd := exec.Command("docker", "ps", "--filter", "name=magebox-phpmyadmin", "--filter", "status=running", "-q")
-	output, err := checkCmd.Output()
-	if err != nil || len(strings.TrimSpace(string(output))) == 0 {
-		cli.PrintError("phpMyAdmin is not running")
+	p, err := getPlatform()
+	if err != nil {
+		return err
+	}
+
+	globalCfg, err := config.LoadGlobalConfig(p.HomeDir)
+	if err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+
+	switch decideServiceUI(globalCfg.PhpMyAdmin, isContainerRunning(phpmyadminContainer)) {
+	case decisionNotEnabled:
+		cli.PrintError("phpMyAdmin is not enabled")
 		fmt.Println()
 		cli.PrintInfo("Enable with: magebox phpmyadmin enable")
 		return nil
+
+	case decisionStart:
+		fmt.Print("phpMyAdmin is not running, starting... ")
+		if err := ensureGlobalServiceRunning(p, phpmyadminService); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintError("%v", err)
+			return nil
+		}
+		fmt.Println(cli.Success("done"))
 	}
 
 	url := getPhpMyAdminURL()
 	cli.PrintInfo("Opening %s", cli.URL(url))
-
-	var openCmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		openCmd = exec.Command("open", url)
-	default:
-		openCmd = exec.Command("xdg-open", url)
-	}
-
-	return openCmd.Start()
+	return openInBrowser(url)
 }
