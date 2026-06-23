@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.1] - 2026-06-23
+
+### Added
+
+- **Worktree Argument for `magebox open`** - `magebox open <name>` now targets the git worktree at `.claude/worktrees/<name>`. MageBox derives a `.magebox.local.yaml` from the worktree's `.magebox.yaml` — appending `.<name>` to the project name and inserting `.<name>` before the TLD of each domain host (e.g. `mystore.localhost` → `mystore.<name>.localhost`) — then starts and opens the worktree as its own isolated project. Comments and layout from `.magebox.yaml` are preserved, and the override is rewritten on every run.
+
 ## [1.18.0] - 2026-05-28
 
 ### Added
