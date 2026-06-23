@@ -5,6 +5,13 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.2] - 2026-06-23
+
+### Fixed
+
+- **`magebox open <worktree>` Served the Wrong Project** - The worktree branch skipped `start` when the shared global services (MySQL, Redis, …) were already running for the base project, so the worktree's Nginx vhost was never generated and requests fell through to Nginx's default server (a different project). The worktree is now started unconditionally.
+- **SSL for Nested Worktree Hosts** - Certificates were generated only for the two-label base domain with a `*.base` wildcard, which matches a single label, so a nested host such as `shop.nl.b2b-case.localhost` was not covered and HTTPS failed. Certificate generation now adds each exact host as a SAN — regenerating only when the existing certificate does not already cover every host — fixing SSL for deeply nested domains.
+
 ## [1.18.1] - 2026-06-23
 
 ### Added
