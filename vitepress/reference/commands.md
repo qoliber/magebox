@@ -1043,6 +1043,8 @@ magebox elasticvue enable
 
 Starts the Elasticvue container on port 8090. Access at http://localhost:8090.
 
+This command is idempotent and self-healing: if Elasticvue is already enabled but its container is stopped (for example after a Docker or machine restart), it starts the container again instead of doing nothing.
+
 ---
 
 ### `magebox elasticvue disable`
@@ -1065,7 +1067,19 @@ Show Elasticvue status.
 magebox elasticvue status
 ```
 
-Shows whether Elasticvue is enabled, running, and the web UI URL.
+Shows whether Elasticvue is enabled, running, and the web UI URL. When enabled but stopped, it points you to `magebox elasticvue open`, which starts it for you.
+
+---
+
+### `magebox elasticvue open`
+
+Open Elasticvue in the default browser.
+
+```bash
+magebox elasticvue open
+```
+
+Requires Elasticvue to be enabled (otherwise it tells you to run `magebox elasticvue enable`). If it is enabled but the container is stopped, it starts the container first and then opens the browser. Returns a clear message if Docker itself is not running.
 
 ## Mailpit Commands
 
@@ -1077,7 +1091,7 @@ Open the Mailpit email testing UI in the default browser.
 magebox mailpit open
 ```
 
-Reads the actual port from the running container via `docker port`. Falls back to port 8025 if the container is not running.
+Reads the actual port from the running container via `docker port`. Falls back to port 8025 if the container is not running. If the Mailpit container is stopped, it is started automatically before the browser opens (Mailpit is always enabled). Returns a clear message if Docker itself is not running.
 
 ---
 
@@ -1107,6 +1121,8 @@ magebox phpmyadmin enable
 
 Sets `phpmyadmin: true` in the global config, starts the container, and prints the URL (default port 8036). Uses arbitrary server mode — connect to any database container by name (e.g. `magebox-mysql-8.0`).
 
+This command is idempotent and self-healing: if phpMyAdmin is already enabled but its container is stopped (for example after a Docker or machine restart), it starts the container again instead of doing nothing.
+
 ---
 
 ### `magebox phpmyadmin disable`
@@ -1129,6 +1145,8 @@ Show phpMyAdmin status.
 magebox phpmyadmin status
 ```
 
+Shows whether phpMyAdmin is enabled, running, and the web UI URL. When enabled but stopped, it points you to `magebox phpmyadmin open`, which starts it for you.
+
 ---
 
 ### `magebox phpmyadmin open`
@@ -1139,7 +1157,7 @@ Open phpMyAdmin in the default browser.
 magebox phpmyadmin open
 ```
 
-Reads the actual port from the running container. Errors if phpMyAdmin is not running.
+Requires phpMyAdmin to be enabled (otherwise it tells you to run `magebox phpmyadmin enable`). If it is enabled but the container is stopped, it starts the container first and then opens the browser. Returns a clear message if Docker itself is not running.
 
 ## Expose Commands
 
