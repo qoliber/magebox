@@ -100,6 +100,7 @@ var TemplateNames = map[string][]string{
 		"vhost.conf.tmpl",
 		"proxy.conf.tmpl",
 		"upstream.conf.tmpl",
+		"map.conf.tmpl",
 	},
 	TemplatePHP: {
 		"pool.conf.tmpl",

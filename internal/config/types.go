@@ -173,11 +173,11 @@ func (c *Command) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Domain represents a domain configuration
 type Domain struct {
-	Host        string `yaml:"host"`
-	Root        string `yaml:"root,omitempty"`
-	SSL         *bool  `yaml:"ssl,omitempty"`
-	MageRunCode string `yaml:"mage_run_code,omitempty"` // Magento store/website code for multi-store setup
-	MageRunType string `yaml:"mage_run_type,omitempty"` // "store" or "website" (default: "store")
+	Host      string `yaml:"host"`
+	Root      string `yaml:"root,omitempty"`
+	SSL       *bool  `yaml:"ssl,omitempty"`
+	StoreCode string `yaml:"store_code,omitempty"` // Magento store/website code for multi-store setup
+	StoreType string `yaml:"store_type,omitempty"` // "store" or "website" (default: "store")
 }
 
 // Services represents the services configuration
@@ -320,20 +320,22 @@ func (d *Domain) IsSSLEnabled() bool {
 	return *d.SSL
 }
 
-// GetStoreCode returns the Magento store code, defaulting to "default"
-func (d *Domain) GetStoreCode() string {
-	if d.MageRunCode == "" {
-		return "default"
-	}
-	return d.MageRunCode
-}
-
-// GetMageRunType returns the Magento run type, defaulting to "store"
-func (d *Domain) GetMageRunType() string {
-	if d.MageRunType == "" {
+// GetStoreType returns the Magento run type, defaulting to "store"
+func (d *Domain) GetStoreType() string {
+	if d.StoreType == "" {
 		return "store"
 	}
-	return d.MageRunType
+	return d.StoreType
+}
+
+// HasMultiStore returns true if any domain has a store code configured
+func (c *Config) HasMultiStore() bool {
+	for _, d := range c.Domains {
+		if d.StoreCode != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // Validate checks if the configuration is valid
