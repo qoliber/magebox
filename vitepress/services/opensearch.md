@@ -24,8 +24,8 @@ Search engines power Magento's catalog search, providing:
 
 | Version | Port | Magento Compatibility |
 |---------|------|----------------------|
-| Elasticsearch 7.17 | 9200 | Magento 2.4.4 - 2.4.5 |
-| Elasticsearch 8.x | 9200 | Magento 2.4.6+ |
+| Elasticsearch 7.17 | 9500 | Magento 2.4.4 - 2.4.5 |
+| Elasticsearch 8.x | 9500 | Magento 2.4.6+ |
 
 ::: tip
 OpenSearch is recommended for new projects. It's a community-driven fork of Elasticsearch with full Magento compatibility.
@@ -80,15 +80,19 @@ These plugins enable:
 | Setting | Value |
 |---------|-------|
 | Host | `127.0.0.1` |
-| Port | `9200` |
+| Port (OpenSearch) | `9200` |
+| Port (Elasticsearch) | `9500` |
 | Protocol | HTTP |
+
+MageBox runs a single shared container per engine, on a fixed port. OpenSearch and
+Elasticsearch use different ports so both can run simultaneously.
 
 ## Magento Configuration
 
 ### Via Install Command
 
 ::: warning Use your project name as index prefix
-MageBox projects share a single OpenSearch/Elasticsearch Docker instance on port 9200. Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
+MageBox projects share a single OpenSearch/Elasticsearch Docker instance (OpenSearch on port 9200, Elasticsearch on port 9500). Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
 :::
 
 ```bash
@@ -107,7 +111,7 @@ For Elasticsearch:
 php bin/magento setup:install \
     --search-engine=elasticsearch8 \
     --elasticsearch-host=127.0.0.1 \
-    --elasticsearch-port=9200 \
+    --elasticsearch-port=9500 \
     --elasticsearch-index-prefix=myproject \
     --elasticsearch-timeout=15 \
     # ... other options

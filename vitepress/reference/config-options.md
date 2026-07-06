@@ -125,7 +125,7 @@ Use either `mysql` OR `mariadb`, not both.
 | `redis` | boolean | 6379 | In-memory cache/session |
 | `valkey` | boolean | 6379 | In-memory cache/session (Redis alternative) |
 | `opensearch` | string/boolean | 9200 | Catalog search |
-| `elasticsearch` | string/boolean | 9200 | Catalog search (alternative) |
+| `elasticsearch` | string/boolean | 9500 | Catalog search (alternative) |
 | `rabbitmq` | boolean | 5672, 15672 | Message queue |
 | `mailpit` | boolean | 1025, 8025 | Email testing |
 | `varnish` | boolean | 6081 | HTTP cache |

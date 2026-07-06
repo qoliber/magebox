@@ -284,7 +284,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 		// Check project-specific services
 		if cfg != nil {
 			if cfg.Services.HasOpenSearch() {
-				osPort := docker.GetOpenSearchPort(cfg.Services.OpenSearch.Version)
+				osPort := docker.GetOpenSearchPort()
 				if dockerCtrl.IsServiceRunning("opensearch") {
 					results = append(results, checkResult{
 						name:    "OpenSearch",

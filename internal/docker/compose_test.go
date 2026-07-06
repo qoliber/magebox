@@ -226,7 +226,7 @@ func TestComposeGenerator_GenerateAllServices(t *testing.T) {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
 
-	expectedServices := []string{"mysql80", "redis", "opensearch212", "rabbitmq", "mailpit"}
+	expectedServices := []string{"mysql80", "redis", "opensearch", "rabbitmq", "mailpit"}
 	for _, svc := range expectedServices {
 		if _, ok := compose.Services[svc]; !ok {
 			t.Errorf("Compose should contain %s service", svc)
@@ -428,13 +428,16 @@ func TestComposeService_OpenSearch(t *testing.T) {
 		Version: "2.12",
 		Memory:  "2g",
 	}
-	svc := g.getOpenSearchService(svcCfg, false)
+	svc := g.getOpenSearchService(svcCfg)
 
 	if !strings.Contains(svc.Image, "opensearch") {
 		t.Errorf("Image = %v, should contain opensearch", svc.Image)
 	}
-	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9252:9200") {
-		t.Errorf("Ports = %v, want [9252:9200]", svc.Ports)
+	if svc.ContainerName != "magebox-opensearch" {
+		t.Errorf("ContainerName = %v, want magebox-opensearch", svc.ContainerName)
+	}
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9200:9200") {
+		t.Errorf("Ports = %v, want [9200:9200]", svc.Ports)
 	}
 	if svc.Environment["DISABLE_SECURITY_PLUGIN"] != "true" {
 		t.Error("DISABLE_SECURITY_PLUGIN should be true")
@@ -450,106 +453,65 @@ func TestComposeService_OpenSearch(t *testing.T) {
 	}
 }
 
-func TestComposeService_OpenSearch_WithStandardPort(t *testing.T) {
+func TestComposeService_OpenSearch_FixedPortAndVolumes(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
 	svcCfg := &config.ServiceConfig{
 		Enabled: true,
 		Version: "2.19.4",
 	}
-	svc := g.getOpenSearchService(svcCfg, true)
+	svc := g.getOpenSearchService(svcCfg)
 
-	if len(svc.Ports) != 2 {
-		t.Fatalf("Ports = %v, want 2 port mappings (version-specific + standard)", svc.Ports)
+	// The single shared container always exposes the fixed standard port.
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9200:9200") {
+		t.Errorf("Ports = %v, want [9200:9200]", svc.Ports)
 	}
-	if !strings.Contains(svc.Ports[0], "9259:9200") {
-		t.Errorf("Ports[0] = %v, want 9259:9200", svc.Ports[0])
+	// Volumes are unversioned so all projects share the same data.
+	wantVolumes := []string{
+		"opensearch_data:/usr/share/opensearch/data",
+		"opensearch_plugins:/usr/share/opensearch/plugins",
 	}
-	if !strings.Contains(svc.Ports[1], "9200:9200") {
-		t.Errorf("Ports[1] = %v, want 9200:9200", svc.Ports[1])
+	for i, want := range wantVolumes {
+		if i >= len(svc.Volumes) || svc.Volumes[i] != want {
+			t.Errorf("Volumes = %v, want %v", svc.Volumes, wantVolumes)
+			break
+		}
 	}
 }
 
-func TestComposeService_Elasticsearch_WithStandardPort(t *testing.T) {
+func TestComposeService_Elasticsearch_FixedPortAndVolumes(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
 	svcCfg := &config.ServiceConfig{
 		Enabled: true,
 		Version: "7.17",
 	}
-	svc := g.getElasticsearchService(svcCfg, true)
+	svc := g.getElasticsearchService(svcCfg)
 
-	if len(svc.Ports) != 2 {
-		t.Fatalf("Ports = %v, want 2 port mappings (version-specific + standard)", svc.Ports)
+	// Elasticsearch uses a distinct fixed port so it can coexist with OpenSearch.
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9500:9200") {
+		t.Errorf("Ports = %v, want [9500:9200]", svc.Ports)
 	}
-	if !strings.Contains(svc.Ports[0], "9657:9200") {
-		t.Errorf("Ports[0] = %v, want 9657:9200", svc.Ports[0])
-	}
-	if !strings.Contains(svc.Ports[1], "9200:9200") {
-		t.Errorf("Ports[1] = %v, want 9200:9200", svc.Ports[1])
+	if svc.ContainerName != "magebox-elasticsearch" {
+		t.Errorf("ContainerName = %v, want magebox-elasticsearch", svc.ContainerName)
 	}
 }
 
 func TestGetOpenSearchPort(t *testing.T) {
-	cleanup := setupMockDockerHub(t, map[string][]string{
-		"opensearchproject/opensearch:2": {"2.19.1", "2.19.2", "2.5.0"},
-	})
-	defer cleanup()
-
-	tests := []struct {
-		version  string
-		expected int
-	}{
-		{"2", 9259}, // major-only shorthand resolves to latest available minor
-		{"1.3", 9223},
-		{"2.5", 9245},
-		{"2.11", 9251},
-		{"2.12", 9252},
-		{"2.19", 9259},
-		{"2.19.4", 9259}, // patch version should be stripped
-		{"3.0", 9260},
-		{"3.3", 9263},
-		{"4.0", 9280}, // unknown version uses formula
-		{"1.0", 9220}, // unknown version uses formula
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.version, func(t *testing.T) {
-			if got := GetOpenSearchPort(tt.version); got != tt.expected {
-				t.Errorf("GetOpenSearchPort(%v) = %v, want %v", tt.version, got, tt.expected)
-			}
-		})
+	// All projects share one OpenSearch container on a fixed port.
+	if got := GetOpenSearchPort(); got != StandardSearchPort {
+		t.Errorf("GetOpenSearchPort() = %v, want %v", got, StandardSearchPort)
 	}
 }
 
 func TestGetElasticsearchPort(t *testing.T) {
-	cleanup := setupMockDockerHub(t, map[string][]string{
-		"library/elasticsearch:7": {"7.17.27", "7.17.28", "7.6.2"},
-		"library/elasticsearch:8": {"8.17.4", "8.11.4", "8.0.0"},
-	})
-	defer cleanup()
-
-	tests := []struct {
-		version  string
-		expected int
-	}{
-		{"7", 9657}, // major-only shorthand resolves to latest available minor
-		{"7.6", 9646},
-		{"7.17", 9657},
-		{"8", 9677}, // major-only shorthand resolves to latest available minor
-		{"8.0", 9660},
-		{"8.11", 9671},
-		{"8.17", 9677},
-		{"8.11.3", 9671}, // patch version should be stripped
-		{"9.0", 9680},    // unknown version uses formula
+	// All projects share one Elasticsearch container on a fixed port,
+	// distinct from OpenSearch so both can run at once.
+	if got := GetElasticsearchPort(); got != StandardElasticsearchPort {
+		t.Errorf("GetElasticsearchPort() = %v, want %v", got, StandardElasticsearchPort)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.version, func(t *testing.T) {
-			if got := GetElasticsearchPort(tt.version); got != tt.expected {
-				t.Errorf("GetElasticsearchPort(%v) = %v, want %v", tt.version, got, tt.expected)
-			}
-		})
+	if StandardElasticsearchPort == StandardSearchPort {
+		t.Error("Elasticsearch and OpenSearch fixed ports must differ")
 	}
 }
 
@@ -650,14 +612,14 @@ func TestComposeService_Elasticsearch_ImageResolvesVersion(t *testing.T) {
 		Enabled: true,
 		Version: "7.17",
 	}
-	svc := g.getElasticsearchService(svcCfg, false)
+	svc := g.getElasticsearchService(svcCfg)
 
 	if svc.Image != "elasticsearch:7.17.28" {
 		t.Errorf("Image = %v, want elasticsearch:7.17.28 (resolved full version)", svc.Image)
 	}
-	// Container name should still use the user-specified version
-	if svc.ContainerName != "magebox-elasticsearch-7.17" {
-		t.Errorf("ContainerName = %v, want magebox-elasticsearch-7.17", svc.ContainerName)
+	// A single shared container is used regardless of version.
+	if svc.ContainerName != "magebox-elasticsearch" {
+		t.Errorf("ContainerName = %v, want magebox-elasticsearch", svc.ContainerName)
 	}
 }
 
@@ -673,16 +635,16 @@ func TestComposeService_Elasticsearch_MajorVersionResolvesImageAndPort(t *testin
 		Enabled: true,
 		Version: "7",
 	}
-	svc := g.getElasticsearchService(svcCfg, false)
+	svc := g.getElasticsearchService(svcCfg)
 
 	if svc.Image != "elasticsearch:7.17.28" {
 		t.Errorf("Image = %v, want elasticsearch:7.17.28", svc.Image)
 	}
-	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9657:9200") {
-		t.Errorf("Ports = %v, want [9657:9200]", svc.Ports)
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9500:9200") {
+		t.Errorf("Ports = %v, want [9500:9200]", svc.Ports)
 	}
-	if svc.ContainerName != "magebox-elasticsearch-7" {
-		t.Errorf("ContainerName = %v, want magebox-elasticsearch-7", svc.ContainerName)
+	if svc.ContainerName != "magebox-elasticsearch" {
+		t.Errorf("ContainerName = %v, want magebox-elasticsearch", svc.ContainerName)
 	}
 }
 
@@ -699,14 +661,14 @@ func TestComposeService_OpenSearch_ImageResolvesVersion(t *testing.T) {
 		Enabled: true,
 		Version: "2.19",
 	}
-	svc := g.getOpenSearchService(svcCfg, false)
+	svc := g.getOpenSearchService(svcCfg)
 
 	if svc.Image != "opensearchproject/opensearch:2.19.2" {
 		t.Errorf("Image = %v, want opensearchproject/opensearch:2.19.2 (resolved full version)", svc.Image)
 	}
-	// Container name should still use the user-specified version
-	if svc.ContainerName != "magebox-opensearch-2.19" {
-		t.Errorf("ContainerName = %v, want magebox-opensearch-2.19", svc.ContainerName)
+	// A single shared container is used regardless of version.
+	if svc.ContainerName != "magebox-opensearch" {
+		t.Errorf("ContainerName = %v, want magebox-opensearch", svc.ContainerName)
 	}
 }
 
@@ -722,16 +684,16 @@ func TestComposeService_OpenSearch_MajorVersionResolvesImageAndPort(t *testing.T
 		Enabled: true,
 		Version: "2",
 	}
-	svc := g.getOpenSearchService(svcCfg, false)
+	svc := g.getOpenSearchService(svcCfg)
 
 	if svc.Image != "opensearchproject/opensearch:2.19.2" {
 		t.Errorf("Image = %v, want opensearchproject/opensearch:2.19.2", svc.Image)
 	}
-	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9259:9200") {
-		t.Errorf("Ports = %v, want [9259:9200]", svc.Ports)
+	if len(svc.Ports) != 1 || !strings.Contains(svc.Ports[0], "9200:9200") {
+		t.Errorf("Ports = %v, want [9200:9200]", svc.Ports)
 	}
-	if svc.ContainerName != "magebox-opensearch-2" {
-		t.Errorf("ContainerName = %v, want magebox-opensearch-2", svc.ContainerName)
+	if svc.ContainerName != "magebox-opensearch" {
+		t.Errorf("ContainerName = %v, want magebox-opensearch", svc.ContainerName)
 	}
 }
 
@@ -1280,5 +1242,148 @@ func TestComposeGenerator_GenerateGlobalServices_NoRedisWhenNotRequired(t *testi
 	}
 	if _, ok := compose.Services["valkey"]; ok {
 		t.Error("Compose should not contain valkey service when no project requires it")
+	}
+}
+
+func TestSelectSearchService(t *testing.T) {
+	tests := []struct {
+		name           string
+		requested      map[string]*config.ServiceConfig
+		defaultVersion string
+		wantVersion    string
+		wantMemory     string
+	}{
+		{
+			name:        "none requested",
+			requested:   map[string]*config.ServiceConfig{},
+			wantVersion: "",
+		},
+		{
+			name: "single version",
+			requested: map[string]*config.ServiceConfig{
+				"2.19": {Enabled: true, Version: "2.19"},
+			},
+			wantVersion: "2.19",
+		},
+		{
+			name: "highest wins when no default",
+			requested: map[string]*config.ServiceConfig{
+				"2.19": {Enabled: true, Version: "2.19"},
+				"3.0":  {Enabled: true, Version: "3.0"},
+				"2.5":  {Enabled: true, Version: "2.5"},
+			},
+			wantVersion: "3.0",
+		},
+		{
+			name: "global default wins over highest",
+			requested: map[string]*config.ServiceConfig{
+				"2.19": {Enabled: true, Version: "2.19"},
+				"3.0":  {Enabled: true, Version: "3.0"},
+			},
+			defaultVersion: "2.19",
+			wantVersion:    "2.19",
+		},
+		{
+			name: "largest requested memory provisioned",
+			requested: map[string]*config.ServiceConfig{
+				"2.19": {Enabled: true, Version: "2.19", Memory: "1g"},
+				"3.0":  {Enabled: true, Version: "3.0", Memory: "512m"},
+			},
+			wantVersion: "3.0",
+			wantMemory:  "1g",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			version, cfg := selectSearchService(tt.requested, tt.defaultVersion)
+			if version != tt.wantVersion {
+				t.Errorf("version = %q, want %q", version, tt.wantVersion)
+			}
+			if tt.wantVersion == "" {
+				if cfg != nil {
+					t.Errorf("cfg = %v, want nil", cfg)
+				}
+				return
+			}
+			if cfg == nil {
+				t.Fatal("cfg = nil, want non-nil")
+			}
+			if cfg.Version != tt.wantVersion {
+				t.Errorf("cfg.Version = %q, want %q", cfg.Version, tt.wantVersion)
+			}
+			if cfg.Memory != tt.wantMemory {
+				t.Errorf("cfg.Memory = %q, want %q", cfg.Memory, tt.wantMemory)
+			}
+		})
+	}
+}
+
+// TestGenerateGlobalServices_SharedSearchContainer verifies that projects on
+// different search versions collapse into a single shared container per engine.
+func TestGenerateGlobalServices_SharedSearchContainer(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	configs := []*config.Config{
+		{
+			Name: "project1",
+			Services: config.Services{
+				OpenSearch: &config.ServiceConfig{Enabled: true, Version: "2.19"},
+			},
+		},
+		{
+			Name: "project2",
+			Services: config.Services{
+				OpenSearch: &config.ServiceConfig{Enabled: true, Version: "3.0"},
+			},
+		},
+		{
+			Name: "project3",
+			Services: config.Services{
+				Elasticsearch: &config.ServiceConfig{Enabled: true, Version: "8.11"},
+			},
+		},
+	}
+
+	if err := g.GenerateGlobalServices(configs); err != nil {
+		t.Fatalf("GenerateGlobalServices failed: %v", err)
+	}
+
+	content, err := os.ReadFile(g.ComposeFilePath())
+	if err != nil {
+		t.Fatalf("Failed to read compose file: %v", err)
+	}
+	var compose ComposeConfig
+	if err := yaml.Unmarshal(content, &compose); err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	// Exactly one shared container per engine, keyed by unversioned service name.
+	searchServices := 0
+	for name := range compose.Services {
+		if strings.HasPrefix(name, "opensearch") || strings.HasPrefix(name, "elasticsearch") {
+			searchServices++
+		}
+	}
+	if searchServices != 2 {
+		t.Errorf("got %d search services, want 2 (one opensearch, one elasticsearch)", searchServices)
+	}
+	os, ok := compose.Services["opensearch"]
+	if !ok {
+		t.Fatal("compose should contain a single 'opensearch' service")
+	}
+	if len(os.Ports) != 1 || !strings.Contains(os.Ports[0], "9200:9200") {
+		t.Errorf("opensearch Ports = %v, want [9200:9200]", os.Ports)
+	}
+	// Highest requested version wins (no global default configured in test).
+	if !strings.Contains(os.Image, "opensearch:3") {
+		t.Errorf("opensearch Image = %v, want the highest requested (3.x) version", os.Image)
+	}
+	es, ok := compose.Services["elasticsearch"]
+	if !ok {
+		t.Fatal("compose should contain a single 'elasticsearch' service")
+	}
+	if len(es.Ports) != 1 || !strings.Contains(es.Ports[0], "9500:9200") {
+		t.Errorf("elasticsearch Ports = %v, want [9500:9200]", es.Ports)
 	}
 }

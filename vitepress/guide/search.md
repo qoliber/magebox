@@ -68,13 +68,17 @@ services:
 | Property | Value |
 |----------|-------|
 | Host | 127.0.0.1 |
-| Port | 9200 |
+| Port (OpenSearch) | 9200 |
+| Port (Elasticsearch) | 9500 |
 | Protocol | http |
+
+Each engine runs as a single shared container on a fixed port. OpenSearch and
+Elasticsearch use different ports so both can run at the same time.
 
 ## Magento Configuration
 
 ::: warning Use your project name as index prefix
-MageBox projects share a single OpenSearch/Elasticsearch Docker instance on port 9200. Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
+MageBox projects share a single OpenSearch/Elasticsearch Docker instance (OpenSearch on port 9200, Elasticsearch on port 9500). Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
 :::
 
 ### OpenSearch
@@ -116,7 +120,7 @@ Or in `app/etc/env.php`:
             'search' => [
                 'engine' => 'elasticsearch7',
                 'elasticsearch7_server_hostname' => '127.0.0.1',
-                'elasticsearch7_server_port' => '9200',
+                'elasticsearch7_server_port' => '9500',
                 'elasticsearch7_index_prefix' => 'myproject',
                 'elasticsearch7_enable_auth' => '0',
                 'elasticsearch7_server_timeout' => '15'
@@ -135,7 +139,7 @@ Or in `app/etc/env.php`:
             'search' => [
                 'engine' => 'elasticsearch8',
                 'elasticsearch8_server_hostname' => '127.0.0.1',
-                'elasticsearch8_server_port' => '9200',
+                'elasticsearch8_server_port' => '9500',
                 'elasticsearch8_index_prefix' => 'myproject',
                 'elasticsearch8_enable_auth' => '0',
                 'elasticsearch8_server_timeout' => '15'

@@ -807,7 +807,7 @@ commands:
 
 	// Add search engine config
 	if searchEngine == "opensearch" {
-		searchPort := docker.GetOpenSearchPort(searchVersion)
+		searchPort := docker.GetOpenSearchPort()
 		installCmd += fmt.Sprintf(` \
     --search-engine=opensearch \
     --opensearch-host=127.0.0.1 \
@@ -815,7 +815,7 @@ commands:
     --opensearch-index-prefix=%s \
     --opensearch-timeout=15`, searchPort, projectName)
 	} else if searchEngine == "elasticsearch" {
-		searchPort := docker.GetElasticsearchPort(searchVersion)
+		searchPort := docker.GetElasticsearchPort()
 		installCmd += fmt.Sprintf(` \
     --search-engine=elasticsearch7 \
     --elasticsearch-host=127.0.0.1 \
@@ -1125,7 +1125,7 @@ commands:
 	fmt.Println()
 	cli.PrintInfo("Waiting for OpenSearch to be ready...")
 	dbPort := "33080" // MySQL 8.0 default port
-	opensearchPort := docker.GetOpenSearchPort(searchVersion)
+	opensearchPort := docker.GetOpenSearchPort()
 	opensearchURL := fmt.Sprintf("http://127.0.0.1:%d", opensearchPort)
 	for i := 0; i < OpenSearchReadinessMaxRetries; i++ {
 		checkCmd := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", opensearchURL)

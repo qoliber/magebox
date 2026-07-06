@@ -15,11 +15,8 @@ Reference for all service ports used by MageBox.
 | MariaDB 10.6 | 33106 | TCP | Database |
 | MariaDB 11.4 | 33114 | TCP | Database |
 | Redis/Valkey | 6379 | TCP | Cache/Sessions |
-| OpenSearch 1.3 | 9223 | HTTP | Search |
-| OpenSearch 2.19 | 9259 | HTTP | Search |
-| OpenSearch 3.3 | 9263 | HTTP | Search |
-| Elasticsearch 7.17 | 9657 | HTTP | Search |
-| Elasticsearch 8.11 | 9671 | HTTP | Search |
+| OpenSearch | 9200 | HTTP | Search |
+| Elasticsearch | 9500 | HTTP | Search |
 | RabbitMQ AMQP | 5672 | AMQP | Message queue |
 | RabbitMQ Management | 15672 | HTTP | Management UI |
 | Mailpit SMTP | 1025 | SMTP | Email capture |
@@ -105,55 +102,32 @@ redis-cli -h 127.0.0.1 -p 6379
 
 ### OpenSearch
 
-Port convention: `9200 + major*20 + minor`
-
-| Version | Calculation | Port |
-|---------|-------------|------|
-| OpenSearch 1.3 | 9200 + 1×20 + 3 | 9223 |
-| OpenSearch 2.5 | 9200 + 2×20 + 5 | 9245 |
-| OpenSearch 2.11 | 9200 + 2×20 + 11 | 9251 |
-| OpenSearch 2.12 | 9200 + 2×20 + 12 | 9252 |
-| OpenSearch 2.19 | 9200 + 2×20 + 19 | 9259 |
-| OpenSearch 3.0 | 9200 + 3×20 + 0 | 9260 |
-| OpenSearch 3.3 | 9200 + 3×20 + 3 | 9263 |
+All projects share a single OpenSearch container on the fixed port **9200**,
+regardless of the version configured.
 
 ```bash
-# OpenSearch 2.19
-curl http://127.0.0.1:9259
-
-# OpenSearch 3.3
-curl http://127.0.0.1:9263
+curl http://127.0.0.1:9200
 ```
 
 ### Elasticsearch
 
-Port convention: `9500 + major*20 + minor`
-
-| Version | Calculation | Port |
-|---------|-------------|------|
-| Elasticsearch 7.6 | 9500 + 7×20 + 6 | 9646 |
-| Elasticsearch 7.17 | 9500 + 7×20 + 17 | 9657 |
-| Elasticsearch 8.0 | 9500 + 8×20 + 0 | 9660 |
-| Elasticsearch 8.11 | 9500 + 8×20 + 11 | 9671 |
-| Elasticsearch 8.17 | 9500 + 8×20 + 17 | 9677 |
+All projects share a single Elasticsearch container on the fixed port **9500**.
+It differs from OpenSearch's port so both engines can run at the same time.
 
 ```bash
-# Elasticsearch 7.17
-curl http://127.0.0.1:9657
-
-# Elasticsearch 8.11
-curl http://127.0.0.1:9671
+curl http://127.0.0.1:9500
 ```
 
-### Why Different Search Ports?
+### One Shared Search Container
 
-Using unique ports per version allows:
-- Running multiple search engine versions simultaneously
-- Different projects with different OpenSearch/Elasticsearch versions
-- No port conflicts
+MageBox runs at most one OpenSearch and one Elasticsearch container for the whole
+machine — not one per project or per version. When projects request different
+versions, the version from your global config wins (`magebox config`), otherwise the
+highest requested version is used. The container is provisioned with the largest
+`memory` any project requests.
 
-When only one search service is configured (or the version matches the global default),
-it also gets exposed on the standard port 9200 for backward compatibility.
+This keeps the search port stable and predictable, and avoids spinning up a separate
+search container for every project.
 
 ## Message Queue Ports
 
@@ -229,7 +203,7 @@ Access Web UI: http://localhost:8025
             'search' => [
                 'engine' => 'opensearch',
                 'opensearch_server_hostname' => '127.0.0.1',
-                'opensearch_server_port' => '9259' // Adjust for your OpenSearch version
+                'opensearch_server_port' => '9200'
             ]
         ]
     ]
@@ -268,10 +242,10 @@ Access Web UI: http://localhost:8025
 
 ```bash
 # All MageBox-related ports
-netstat -tlnp | grep -E "33(057|080|084|104|106|114)|6379|92[2-9][0-9]|94[4-8][0-9]|5672|15672|1025|8025|6081"
+netstat -tlnp | grep -E "33(057|080|084|104|106|114)|6379|9200|9500|5672|15672|1025|8025|6081"
 
 # Or with lsof
-lsof -i -P -n | grep LISTEN | grep -E "33|6379|92[2-9]|94[4-8]|5672|15672|1025|8025|6081"
+lsof -i -P -n | grep LISTEN | grep -E "33|6379|9200|9500|5672|15672|1025|8025|6081"
 ```
 
 ### Check Specific Port
@@ -304,7 +278,7 @@ sudo systemctl stop mysql
 sudo systemctl stop apache2
 ```
 
-2. MageBox uses version-specific ports to avoid conflicts between projects
+2. MageBox uses version-specific ports for databases to avoid conflicts between projects. Search engines instead use a single shared container per engine on a fixed port (OpenSearch 9200, Elasticsearch 9500).
 
 ## Docker Port Mapping
 
@@ -313,8 +287,8 @@ Services bind to localhost only:
 ```
 127.0.0.1:33080 → container:3306  (MySQL 8.0)
 127.0.0.1:6379  → container:6379  (Redis)
-127.0.0.1:9259  → container:9200  (OpenSearch 2.19)
-127.0.0.1:9657  → container:9200  (Elasticsearch 7.17)
+127.0.0.1:9200  → container:9200  (OpenSearch, shared)
+127.0.0.1:9500  → container:9200  (Elasticsearch, shared)
 ```
 
 This means services are only accessible from your machine, not from the network.

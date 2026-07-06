@@ -312,19 +312,17 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 			}
 		}
 		if cfg.Services.HasOpenSearch() {
-			// Service name in docker-compose removes dots from version (e.g., opensearch2194)
-			serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", ""))
+			// A single shared OpenSearch container serves all projects.
 			status.Services["opensearch"] = ServiceStatus{
 				Name:      fmt.Sprintf("OpenSearch %s", cfg.Services.OpenSearch.Version),
-				IsRunning: dockerController.IsServiceRunning(serviceName),
+				IsRunning: dockerController.IsServiceRunning("opensearch"),
 			}
 		}
 		if cfg.Services.HasElasticsearch() {
-			// Service name in docker-compose removes dots from version (e.g., elasticsearch8170)
-			serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", ""))
+			// A single shared Elasticsearch container serves all projects.
 			status.Services["elasticsearch"] = ServiceStatus{
 				Name:      fmt.Sprintf("Elasticsearch %s", cfg.Services.Elasticsearch.Version),
-				IsRunning: dockerController.IsServiceRunning(serviceName),
+				IsRunning: dockerController.IsServiceRunning("elasticsearch"),
 			}
 		}
 	} else {
@@ -450,10 +448,10 @@ func projectComposeServiceNames(cfg *config.Config) []string {
 		names = append(names, cfg.Services.GetCacheServiceName())
 	}
 	if cfg.Services.HasOpenSearch() {
-		names = append(names, fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", "")))
+		names = append(names, "opensearch")
 	}
 	if cfg.Services.HasElasticsearch() {
-		names = append(names, fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", "")))
+		names = append(names, "elasticsearch")
 	}
 	if cfg.Services.HasRabbitMQ() {
 		names = append(names, "rabbitmq")
