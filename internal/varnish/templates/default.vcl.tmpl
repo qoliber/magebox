@@ -14,14 +14,14 @@ backend {{.Name}} {
     .between_bytes_timeout = 600s;
     .probe = {
         .request =
-            "HEAD / HTTP/1.1"
+            "GET {{if .ProbeURL}}{{.ProbeURL}}{{else}}/health_check.php{{end}} HTTP/1.1"
             "Host: localhost"
             "Connection: close";
         .timeout = 2s;
         .interval = {{if .ProbeInterval}}{{.ProbeInterval}}{{else}}5s{{end}};
         .window = 5;
         .threshold = 2;
-        .expected_response = 301;
+        .expected_response = 200;
     }
 }
 {{end}}
@@ -38,10 +38,7 @@ sub vcl_init {
 }
 
 sub vcl_recv {
-    # Set backend based on Host header
-    {{range .Backends}}
-    # Backend: {{.Name}}
-    {{end}}
+    # Single shared backend; Nginx routes to the right project by Host header.
     set req.backend_hint = {{.DefaultBackend}};
 
     # Normalize the host header
