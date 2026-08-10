@@ -302,6 +302,13 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			cli.PrintError("Some dependencies failed to install")
 			return nil
 		}
+
+		// mysql-client is not fatal: on macOS the Homebrew formula is keg-only, so
+		// mysqldump only lands on PATH once the user updates their shell profile.
+		if !mysqlClientInstalled {
+			cli.PrintWarning("mysqldump is not on PATH - magerun2 database commands will not work until it is")
+			fmt.Println()
+		}
 	}
 
 	// Docker must be installed manually (too complex for auto-install)
