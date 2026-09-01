@@ -1391,3 +1391,50 @@ func TestGenerateGlobalServices_SharedSearchContainer(t *testing.T) {
 		t.Errorf("elasticsearch Ports = %v, want [9500:9200]", es.Ports)
 	}
 }
+
+func TestDBClientBin(t *testing.T) {
+	tests := []struct {
+		dbType  string
+		version string
+		want    string
+	}{
+		{"mysql", "8.0", "mysql"},
+		{"mysql", "8.4", "mysql"},
+		{"mysql", "5.7", "mysql"},
+		{"mariadb", "10.4", "mysql"},
+		{"mariadb", "10.6", "mysql"},
+		{"mariadb", "10.11", "mysql"},
+		{"mariadb", "11.0", "mariadb"},
+		{"mariadb", "11.4", "mariadb"},
+		{"mariadb", "12.0", "mariadb"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.dbType+"-"+tt.version, func(t *testing.T) {
+			got := DBClientBin(tt.dbType, tt.version)
+			if got != tt.want {
+				t.Errorf("DBClientBin(%q, %q) = %q, want %q", tt.dbType, tt.version, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDBDumpBin(t *testing.T) {
+	tests := []struct {
+		dbType  string
+		version string
+		want    string
+	}{
+		{"mysql", "8.0", "mysqldump"},
+		{"mariadb", "10.6", "mysqldump"},
+		{"mariadb", "11.0", "mariadb-dump"},
+		{"mariadb", "11.4", "mariadb-dump"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.dbType+"-"+tt.version, func(t *testing.T) {
+			got := DBDumpBin(tt.dbType, tt.version)
+			if got != tt.want {
+				t.Errorf("DBDumpBin(%q, %q) = %q, want %q", tt.dbType, tt.version, got, tt.want)
+			}
+		})
+	}
+}

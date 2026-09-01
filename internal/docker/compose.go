@@ -118,6 +118,29 @@ const (
 	DefaultRabbitMQPass = "guest"
 )
 
+// DBClientBin returns the SQL client binary name for the given database type and version.
+// MariaDB 11.0+ removed the mysql/mysqldump/mysqladmin symlinks; use the native binary names instead.
+func DBClientBin(dbType, version string) string {
+	if dbType == "mariadb" {
+		parts := strings.SplitN(version, ".", 2)
+		if major, err := strconv.Atoi(parts[0]); err == nil && major >= 11 {
+			return "mariadb"
+		}
+	}
+	return "mysql"
+}
+
+// DBDumpBin returns the dump binary name for the given database type and version.
+func DBDumpBin(dbType, version string) string {
+	if dbType == "mariadb" {
+		parts := strings.SplitN(version, ".", 2)
+		if major, err := strconv.Atoi(parts[0]); err == nil && major >= 11 {
+			return "mariadb-dump"
+		}
+	}
+	return "mysqldump"
+}
+
 // ComposeGenerator generates Docker Compose configurations for global services
 type ComposeGenerator struct {
 	platform   *platform.Platform
@@ -1011,16 +1034,16 @@ func (c *DockerController) ExecSilent(serviceName string, command ...string) err
 }
 
 // CreateDatabase creates a database in the MySQL/MariaDB service
-func (c *DockerController) CreateDatabase(serviceName, dbName string) error {
+func (c *DockerController) CreateDatabase(serviceName, dbName, clientBin string) error {
 	cmd := buildComposeCmd(c.composeFile, "exec", "-T", serviceName,
-		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
+		clientBin, "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
 	return cmd.Run()
 }
 
 // DatabaseExists checks if a database exists
-func (c *DockerController) DatabaseExists(serviceName, dbName string) bool {
+func (c *DockerController) DatabaseExists(serviceName, dbName, clientBin string) bool {
 	cmd := buildComposeCmd(c.composeFile, "exec", "-T", serviceName,
-		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
+		clientBin, "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
 	output, err := cmd.Output()
 	return err == nil && strings.Contains(string(output), dbName)
 }

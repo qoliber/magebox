@@ -518,11 +518,15 @@ func (m *Manager) ensureDatabase(cfg *config.Config) error {
 	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
 
 	// Determine service name (version dots are removed in docker-compose service names)
-	var serviceName string
+	var serviceName, dbType, dbVersion string
 	if cfg.Services.HasMySQL() {
-		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
+		dbType = "mysql"
+		dbVersion = cfg.Services.MySQL.Version
+		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(dbVersion, ".", ""))
 	} else if cfg.Services.HasMariaDB() {
-		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
+		dbType = "mariadb"
+		dbVersion = cfg.Services.MariaDB.Version
+		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(dbVersion, ".", ""))
 	}
 
 	if serviceName == "" {
@@ -535,7 +539,7 @@ func (m *Manager) ensureDatabase(cfg *config.Config) error {
 	}
 
 	// Create database (use sanitized name - hyphens replaced with underscores)
-	return dockerController.CreateDatabase(serviceName, cfg.DatabaseName())
+	return dockerController.CreateDatabase(serviceName, cfg.DatabaseName(), docker.DBClientBin(dbType, dbVersion))
 }
 
 // getStartedServices returns a list of started service names

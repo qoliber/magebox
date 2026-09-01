@@ -631,17 +631,22 @@ func checkDatabaseConnection(p *platform.Platform, cfg *config.Config) checkResu
 
 	var serviceName string
 	var port string
+	var dbType, dbVersion string
 
 	if cfg.Services.HasMySQL() {
-		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
-		switch cfg.Services.MySQL.Version {
+		dbType = "mysql"
+		dbVersion = cfg.Services.MySQL.Version
+		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(dbVersion, ".", ""))
+		switch dbVersion {
 		case "8.4":
 			port = "33084"
 		default:
 			port = "33080"
 		}
 	} else if cfg.Services.HasMariaDB() {
-		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
+		dbType = "mariadb"
+		dbVersion = cfg.Services.MariaDB.Version
+		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(dbVersion, ".", ""))
 		port = "33106"
 	}
 
@@ -658,7 +663,7 @@ func checkDatabaseConnection(p *platform.Platform, cfg *config.Config) checkResu
 
 	// Check if database exists
 	dockerCtrl := docker.NewDockerController(composeFile)
-	if dockerCtrl.DatabaseExists(serviceName, cfg.Name) {
+	if dockerCtrl.DatabaseExists(serviceName, cfg.Name, docker.DBClientBin(dbType, dbVersion)) {
 		return checkResult{
 			name:    "Database",
 			status:  "ok",
