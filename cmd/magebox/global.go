@@ -12,6 +12,7 @@ import (
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/portforward"
 )
 
 var globalCmd = &cobra.Command{
@@ -73,6 +74,18 @@ func runGlobalStart(cmd *cobra.Command, args []string) error {
 		fmt.Println(cli.Error("failed: " + err.Error()))
 	} else {
 		fmt.Println(cli.Success("started"))
+	}
+
+	// Restore port forwarding (macOS) — "magebox global stop" hands 80/443
+	// back to the system, so they have to be reclaimed here.
+	pfManager := portforward.NewManager()
+	if pfManager.IsSupported() {
+		fmt.Print("  Port forwarding... ")
+		if err := pfManager.Start(); err != nil {
+			fmt.Println(cli.Error("failed: " + err.Error()))
+		} else {
+			fmt.Println(cli.Success("active"))
+		}
 	}
 
 	// Start Docker services
@@ -143,6 +156,18 @@ func runGlobalStop(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Unload the port forwarding daemon (macOS) so ports 80 and 443 are
+	// released — otherwise other local tools cannot bind them.
+	pfManager := portforward.NewManager()
+	if pfManager.IsSupported() {
+		fmt.Print("  Port forwarding... ")
+		if err := pfManager.Stop(); err != nil {
+			fmt.Printf("failed: %v\n", err)
+		} else {
+			fmt.Println("stopped")
+		}
+	}
+
 	fmt.Println("\nGlobal services stopped!")
 	return nil
 }
@@ -171,6 +196,11 @@ func runGlobalStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %-20s %s\n", "Docker", cli.StatusInstalled(false))
 	} else {
 		fmt.Printf("  %-20s %s\n", "Docker", cli.Status(dockerRunning))
+	}
+
+	// Check port forwarding (macOS only)
+	if pfManager := portforward.NewManager(); pfManager.IsSupported() {
+		fmt.Printf("  %-20s %s\n", "Port forwarding", cli.Status(pfManager.AreRulesActive()))
 	}
 
 	// Check mkcert

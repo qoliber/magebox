@@ -22,6 +22,10 @@ const (
 	// Legacy pf files — cleaned up during upgrade
 	legacyPfRulesFile    = "/etc/pf.anchors/com.magebox"
 	legacyPfHelperScript = "/usr/local/bin/magebox-pf-restore"
+
+	// How long to wait for the daemon to start or stop listening
+	daemonWaitAttempts = 10
+	daemonWaitDelay    = 200 * time.Millisecond
 )
 
 // Manager handles port forwarding setup
@@ -122,21 +126,86 @@ func (m *Manager) EnsureRulesActive() (bool, error) {
 
 	default: // actionKickstart
 		verbose.Debug("Port forwarding daemon not active, restarting...")
-		if err := m.kickstartDaemon(); err != nil {
+		if err := m.startDaemon(); err != nil {
 			return false, fmt.Errorf("failed to restart port forwarding daemon: %w", err)
 		}
 	}
 
 	// Wait briefly for the daemon to start listening
-	for i := 0; i < 10; i++ {
-		time.Sleep(200 * time.Millisecond)
-		if m.AreRulesActive() {
-			verbose.Debug("Port forwarding daemon started successfully")
-			return false, nil
-		}
+	if waitFor(m.AreRulesActive, daemonWaitAttempts, daemonWaitDelay) {
+		verbose.Debug("Port forwarding daemon started successfully")
+		return false, nil
 	}
 
 	return false, fmt.Errorf("port forwarding daemon not responding — try: sudo launchctl kickstart -k system/%s, or run 'magebox bootstrap'", launchDaemonLabel)
+}
+
+// IsSupported reports whether port forwarding is managed on this platform.
+// Only macOS needs it — on Linux Nginx binds 80/443 directly.
+func (m *Manager) IsSupported() bool {
+	return m.platform == "darwin"
+}
+
+// Start loads the port forwarding daemon and waits until it accepts
+// connections. Used by "magebox global start" to hand the web ports back to
+// MageBox after a "magebox global stop".
+func (m *Manager) Start() error {
+	if !m.IsSupported() {
+		return nil
+	}
+	if !m.IsInstalled() {
+		return fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
+	}
+	if m.AreRulesActive() {
+		return nil
+	}
+
+	if err := m.startDaemon(); err != nil {
+		return fmt.Errorf("failed to start port forwarding daemon: %w", err)
+	}
+	if !waitFor(m.AreRulesActive, daemonWaitAttempts, daemonWaitDelay) {
+		return fmt.Errorf("port forwarding daemon not responding — run 'magebox bootstrap'")
+	}
+	return nil
+}
+
+// Stop unloads the port forwarding daemon so ports 80 and 443 are released
+// back to the system. The plist is left in place, so "magebox global start"
+// (and the next reboot) bring forwarding back without a bootstrap.
+func (m *Manager) Stop() error {
+	if !m.IsSupported() || !m.IsInstalled() {
+		return nil
+	}
+	if !m.AreRulesActive() && !m.isDaemonLoaded() {
+		return nil
+	}
+
+	if err := m.unloadLaunchDaemon(); err != nil {
+		return fmt.Errorf("failed to unload port forwarding daemon: %w", err)
+	}
+	if !waitFor(func() bool { return !m.AreRulesActive() }, daemonWaitAttempts, daemonWaitDelay) {
+		return fmt.Errorf("port 80 is still in use after unloading the daemon — another service may be listening")
+	}
+	return nil
+}
+
+// startDaemon loads the daemon, or restarts it when launchd already knows it.
+func (m *Manager) startDaemon() error {
+	if m.isDaemonLoaded() {
+		return m.kickstartDaemon()
+	}
+	return m.loadLaunchDaemon()
+}
+
+// waitFor polls cond until it reports true, giving up after attempts tries.
+func waitFor(cond func() bool, attempts int, delay time.Duration) bool {
+	for i := 0; i < attempts; i++ {
+		time.Sleep(delay)
+		if cond() {
+			return true
+		}
+	}
+	return false
 }
 
 // Setup installs the port forwarding LaunchDaemon
@@ -154,7 +223,7 @@ func (m *Manager) Setup() error {
 		verbose.Debug("Port forwarding daemon already installed and up to date")
 		// Make sure it's running
 		if !m.AreRulesActive() {
-			_ = m.kickstartDaemon()
+			_ = m.startDaemon()
 		}
 		return nil
 	}

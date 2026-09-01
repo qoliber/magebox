@@ -1286,6 +1286,8 @@ magebox global start
 
 Starts Nginx and Docker services.
 
+On macOS it also loads the port forwarding LaunchDaemon again, so ports 80 and 443 are forwarded to Nginx (8080/8443) after a previous `magebox global stop`.
+
 ---
 
 ### `magebox global stop`
@@ -1297,6 +1299,8 @@ magebox global stop
 ```
 
 Stops all Docker containers and Nginx.
+
+On macOS it additionally unloads the port forwarding LaunchDaemon (`com.magebox.portforward`), releasing ports 80 and 443 so other local tools can bind them. The daemon itself stays installed — `magebox global start` (or a reboot) brings forwarding back without running `magebox bootstrap` again.
 
 ---
 

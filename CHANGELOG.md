@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`magebox global stop` Did Not Free Ports 80/443 on macOS** - `global stop` stopped Nginx and the Docker services but left the port forwarding LaunchDaemon (`com.magebox.portforward`) loaded, so ports 80 and 443 stayed occupied and other local dev tools failed to bind them. `magebox global stop` now unloads the daemon and waits until port 80 is actually released; `magebox global start` loads it again. The plist stays installed, so no `magebox bootstrap` is needed to get forwarding back, and `magebox global status` now reports the port forwarding state on macOS. ([#108](https://github.com/qoliber/magebox/issues/108))
+
 ## [2.0.1] - 2026-09-01
 
 ### Added
