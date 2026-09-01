@@ -1779,7 +1779,7 @@ func (s *Server) Start() error {
 	if s.config.TLS.Enabled {
 		// Configure TLS
 		tlsConfig := &tls.Config{
-			MinVersion:   tls.VersionTLS12,
+			MinVersion: tls.VersionTLS12,
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
