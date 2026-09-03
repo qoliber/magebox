@@ -185,10 +185,14 @@ func runCheck(cmd *cobra.Command, args []string) error {
 			message: "Running",
 		})
 	} else {
+		nginxStartHint := "magebox global start"
+		if runtime.GOOS == "darwin" {
+			nginxStartHint = "magebox global start (or: nginx)"
+		}
 		results = append(results, checkResult{
 			name:    "Nginx",
 			status:  "warning",
-			message: "Not running - run 'brew services start nginx'",
+			message: "Not running - run '" + nginxStartHint + "'",
 		})
 	}
 	printCheckResult(results[len(results)-1])
@@ -209,20 +213,40 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	}
 	printCheckResult(results[len(results)-1])
 
-	// Check vhost exists (check for upstream file which is unique per project)
+	// Check domain vhost exists (upstream alone is not enough for HTTPS / SNI)
 	if cfg != nil {
-		upstreamPath := filepath.Join(p.MageBoxDir(), "nginx", "vhosts", cfg.Name+"-upstream.conf")
-		if _, err := os.Stat(upstreamPath); err == nil {
+		vhostsDir := filepath.Join(p.MageBoxDir(), "nginx", "vhosts")
+		hasDomainVhost := false
+		if entries, err := os.ReadDir(vhostsDir); err == nil {
+			prefix := cfg.Name + "-"
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if !strings.HasSuffix(name, ".conf") {
+					continue
+				}
+				if strings.HasSuffix(name, "-upstream.conf") || strings.HasPrefix(name, "000-magebox-default-ssl") {
+					continue
+				}
+				if strings.HasPrefix(name, prefix) {
+					hasDomainVhost = true
+					break
+				}
+			}
+		}
+		if hasDomainVhost {
 			results = append(results, checkResult{
 				name:    "Project Vhost",
 				status:  "ok",
-				message: filepath.Join(p.MageBoxDir(), "nginx", "vhosts", cfg.Name+"-*.conf"),
+				message: filepath.Join(vhostsDir, cfg.Name+"-<domain>.conf"),
 			})
 		} else {
 			results = append(results, checkResult{
 				name:    "Project Vhost",
 				status:  "warning",
-				message: "Not found - run 'magebox start'",
+				message: "No HTTPS vhost — run 'magebox start' (wrong certificate in browser until then)",
 			})
 		}
 		printCheckResult(results[len(results)-1])
