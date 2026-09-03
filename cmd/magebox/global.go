@@ -12,6 +12,7 @@ import (
 	"qoliber/magebox/internal/nginx"
 	"qoliber/magebox/internal/php"
 	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/portforward"
 )
 
 var globalCmd = &cobra.Command{
@@ -105,6 +106,17 @@ func runGlobalStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Load port forwarding daemon on macOS so that ports 80/443 are forwarded
+	pfMgr := portforward.NewManager()
+	if pfMgr.IsInstalled() {
+		fmt.Print("  Port forwarding... ")
+		if err := pfMgr.StartDaemon(); err != nil {
+			fmt.Println(cli.Error("failed: " + err.Error()))
+		} else {
+			fmt.Println(cli.Success("started"))
+		}
+	}
+
 	fmt.Println()
 	cli.PrintSuccess("Global services started!")
 	fmt.Println()
@@ -137,6 +149,17 @@ func runGlobalStop(cmd *cobra.Command, args []string) error {
 		fmt.Print("  Docker services... ")
 		dockerCtrl := docker.NewDockerController(composeFile)
 		if err := dockerCtrl.Down(); err != nil {
+			fmt.Printf("failed: %v\n", err)
+		} else {
+			fmt.Println("stopped")
+		}
+	}
+
+	// Unload port forwarding daemon on macOS to free ports 80/443
+	pfMgr := portforward.NewManager()
+	if pfMgr.IsInstalled() {
+		fmt.Print("  Port forwarding... ")
+		if err := pfMgr.StopDaemon(); err != nil {
 			fmt.Printf("failed: %v\n", err)
 		} else {
 			fmt.Println("stopped")
