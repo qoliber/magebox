@@ -22,6 +22,12 @@ type GlobalConfig struct {
 	// DefaultServices are the default services for new projects
 	DefaultServices DefaultServices `yaml:"default_services,omitempty"`
 
+	// DefaultPM is the machine-wide PHP-FPM process manager baseline, applied
+	// to every project that does not set its own `pm` block. Useful when many
+	// projects share one machine and the per-pool defaults would collectively
+	// oversubscribe it.
+	DefaultPM *PMConfig `yaml:"default_pm,omitempty"`
+
 	// Portainer enables/disables Portainer Docker UI
 	Portainer bool `yaml:"portainer,omitempty"`
 

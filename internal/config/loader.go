@@ -196,6 +196,9 @@ func (l *Loader) merge(main, local *Config) *Config {
 	if local.Isolated {
 		result.Isolated = local.Isolated
 	}
+	// Merge process manager settings field by field so a local override can
+	// tune a single value without restating the whole block.
+	result.PM = mergePM(main.PM, local.PM)
 	if local.Testing != nil {
 		result.Testing = local.Testing
 	}

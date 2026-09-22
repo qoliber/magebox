@@ -149,10 +149,25 @@ Combine `--quick --hyva` for the fastest way to get a Hyvä-powered store runnin
 Open the project in the default browser.
 
 ```bash
-magebox open
+magebox open [worktree]
 ```
 
 Opens the first domain from `.magebox.yaml` using `https://` when SSL is enabled, otherwise `http://`. If the project is not fully running, `magebox open` starts it first (skipping optional Xdebug and Blackfire). If everything is already up, the browser opens immediately.
+
+#### Opening a worktree
+
+Pass a single argument to target a git worktree under `.claude/worktrees/<worktree>`:
+
+```bash
+magebox open b2b-case
+```
+
+MageBox derives a `.magebox.local.yaml` inside that worktree from its `.magebox.yaml`, then starts and opens the worktree as its own isolated project:
+
+- `.<worktree>` is appended to the project `name` — e.g. `mystore` becomes `mystore.b2b-case`, so the worktree runs as a separate MageBox project.
+- `.<worktree>` is inserted before the TLD of every domain `host` — e.g. `mystore.localhost` becomes `mystore.b2b-case.localhost`.
+
+Comments and layout from `.magebox.yaml` are preserved, and the override is rewritten on every run, so the command is safe to repeat.
 
 ---
 
@@ -1028,6 +1043,8 @@ magebox elasticvue enable
 
 Starts the Elasticvue container on port 8090. Access at http://localhost:8090.
 
+This command is idempotent and self-healing: if Elasticvue is already enabled but its container is stopped (for example after a Docker or machine restart), it starts the container again instead of doing nothing.
+
 ---
 
 ### `magebox elasticvue disable`
@@ -1050,7 +1067,19 @@ Show Elasticvue status.
 magebox elasticvue status
 ```
 
-Shows whether Elasticvue is enabled, running, and the web UI URL.
+Shows whether Elasticvue is enabled, running, and the web UI URL. When enabled but stopped, it points you to `magebox elasticvue open`, which starts it for you.
+
+---
+
+### `magebox elasticvue open`
+
+Open Elasticvue in the default browser.
+
+```bash
+magebox elasticvue open
+```
+
+Requires Elasticvue to be enabled (otherwise it tells you to run `magebox elasticvue enable`). If it is enabled but the container is stopped, it starts the container first and then opens the browser. Returns a clear message if Docker itself is not running.
 
 ## Mailpit Commands
 
@@ -1062,7 +1091,7 @@ Open the Mailpit email testing UI in the default browser.
 magebox mailpit open
 ```
 
-Reads the actual port from the running container via `docker port`. Falls back to port 8025 if the container is not running.
+Reads the actual port from the running container via `docker port`. Falls back to port 8025 if the container is not running. If the Mailpit container is stopped, it is started automatically before the browser opens (Mailpit is always enabled). Returns a clear message if Docker itself is not running.
 
 ---
 
@@ -1092,6 +1121,8 @@ magebox phpmyadmin enable
 
 Sets `phpmyadmin: true` in the global config, starts the container, and prints the URL (default port 8036). Uses arbitrary server mode — connect to any database container by name (e.g. `magebox-mysql-8.0`).
 
+This command is idempotent and self-healing: if phpMyAdmin is already enabled but its container is stopped (for example after a Docker or machine restart), it starts the container again instead of doing nothing.
+
 ---
 
 ### `magebox phpmyadmin disable`
@@ -1114,6 +1145,8 @@ Show phpMyAdmin status.
 magebox phpmyadmin status
 ```
 
+Shows whether phpMyAdmin is enabled, running, and the web UI URL. When enabled but stopped, it points you to `magebox phpmyadmin open`, which starts it for you.
+
 ---
 
 ### `magebox phpmyadmin open`
@@ -1124,7 +1157,7 @@ Open phpMyAdmin in the default browser.
 magebox phpmyadmin open
 ```
 
-Reads the actual port from the running container. Errors if phpMyAdmin is not running.
+Requires phpMyAdmin to be enabled (otherwise it tells you to run `magebox phpmyadmin enable`). If it is enabled but the container is stopped, it starts the container first and then opens the browser. Returns a clear message if Docker itself is not running.
 
 ## Expose Commands
 
@@ -1234,7 +1267,7 @@ magebox bootstrap
 ```
 
 Performs:
-- Dependency checking
+- Dependency checking (Docker, Nginx, mkcert, mysql-client)
 - Global configuration creation
 - SSL CA setup
 - Nginx configuration
@@ -1762,6 +1795,63 @@ The per-project API key is found on each project's **Installation** page in
 the Tideways dashboard. The access token is generated at
 [app.tideways.io/user/cli-import-settings](https://app.tideways.io/user/cli-import-settings).
 See [Tideways](/services/tideways#credential-storage) for details.
+
+## STOP Protocol Commands
+
+STOP (Static Precompilation & OPcache Protocol) enables OPcache and configures
+`app/preload.php` as the preload script for the current project. See the
+[STOP guide](/guide/stop-protocol) for the full picture.
+
+### `magebox stop-protocol enable`
+
+Enable STOP for the current project.
+
+```bash
+magebox stop-protocol enable
+```
+
+Writes the following keys to `.magebox.local.yaml` under `php_ini` and
+restarts PHP-FPM:
+
+- `opcache.enable = 1`
+- `opcache.preload = <project>/app/preload.php`
+- `opcache.preload_user = <current OS user>`
+- `opcache.memory_consumption = 512`
+- `opcache.jit = tracing`
+- `opcache.jit_buffer_size = 100M`
+
+A full PHP-FPM restart (not a reload) is performed, because `opcache.preload`
+is only evaluated at master start. If `app/preload.php` is missing, the
+command warns and continues — OPcache will skip preloading until the file
+exists.
+
+---
+
+### `magebox stop-protocol disable`
+
+Disable STOP.
+
+```bash
+magebox stop-protocol disable
+```
+
+Sets `opcache.enable = 0` in `.magebox.local.yaml`, removes the other
+STOP-managed keys, and restarts PHP-FPM.
+
+---
+
+### `magebox stop-protocol status`
+
+Show whether STOP is currently active.
+
+```bash
+magebox stop-protocol status
+```
+
+Reports the merged `opcache.enable`, `opcache.preload`, and
+`opcache.preload_user` values, and warns if the preload script doesn't
+exist on disk. Running `magebox stop-protocol` with no subcommand is
+equivalent to `status`.
 
 ## Team Commands
 
@@ -2378,6 +2468,7 @@ Verifies:
 - SSL certificates
 - Nginx vhost configuration
 - File permissions
+- magerun2 wrapper and mysql-client availability
 
 ---
 

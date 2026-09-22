@@ -16,10 +16,16 @@ defaults:
 magento:
   package: "magento/project-community-edition"
   versions:
-    - version: "2.4.8-p4"
-      name: "Magento 2.4.8-p4 (Latest)"
+    - version: "2.4.9"
+      name: "Magento 2.4.9 (Latest)"
       php: ["8.4", "8.3", "8.2"]
       default: true
+    - version: "2.4.8-p5"
+      name: "Magento 2.4.8-p5"
+      php: ["8.4", "8.3", "8.2"]
+    - version: "2.4.8-p4"
+      name: "Magento 2.4.8-p4"
+      php: ["8.4", "8.3", "8.2"]
     - version: "2.4.8-p3"
       name: "Magento 2.4.8-p3"
       php: ["8.4", "8.3", "8.2"]
@@ -32,6 +38,9 @@ magento:
     - version: "2.4.8"
       name: "Magento 2.4.8"
       php: ["8.4", "8.3", "8.2"]
+    - version: "2.4.7-p10"
+      name: "Magento 2.4.7-p10"
+      php: ["8.3", "8.2"]
     - version: "2.4.7-p9"
       name: "Magento 2.4.7-p9"
       php: ["8.3", "8.2"]
@@ -92,10 +101,26 @@ magento:
 mageos:
   package: "mage-os/project-community-edition"
   versions:
-    - version: "2.2.2"
-      name: "MageOS 2.2.2 (Latest)"
+    - version: "3.5.0"
+      name: "MageOS 3.5.0 (Latest)"
       php: ["8.4", "8.3", "8.2"]
       default: true
+      base: "2.4.9"
+    - version: "3.4.0"
+      name: "MageOS 3.4.0"
+      php: ["8.4", "8.3", "8.2"]
+      base: "2.4.9"
+    - version: "3.3.0"
+      name: "MageOS 3.3.0"
+      php: ["8.4", "8.3", "8.2"]
+      base: "2.4.9"
+    - version: "3.2.0"
+      name: "MageOS 3.2.0"
+      php: ["8.4", "8.3", "8.2"]
+      base: "2.4.9"
+    - version: "2.2.2"
+      name: "MageOS 2.2.2"
+      php: ["8.4", "8.3", "8.2"]
       base: "2.4.8"
     - version: "2.2.1"
       name: "MageOS 2.2.1"

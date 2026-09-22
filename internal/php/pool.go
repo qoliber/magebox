@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/template"
 
+	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/lib"
 	"qoliber/magebox/internal/platform"
 )
@@ -47,11 +48,13 @@ const (
 // - LogPath: Path to PHP-FPM error log (e.g., "~/.magebox/logs/php-fpm/mystore-error.log")
 // - User: System user running PHP-FPM (e.g., "jakub")
 // - Group: System group running PHP-FPM (e.g., "staff")
+// - PMMode: Process manager mode ("static", "dynamic" or "ondemand")
 // - MaxChildren: Maximum number of child processes
-// - StartServers: Number of child processes created on startup
-// - MinSpareServers: Minimum number of idle server processes
-// - MaxSpareServers: Maximum number of idle server processes
+// - StartServers: Number of child processes created on startup (dynamic only)
+// - MinSpareServers: Minimum number of idle server processes (dynamic only)
+// - MaxSpareServers: Maximum number of idle server processes (dynamic only)
 // - MaxRequests: Number of requests each child process should execute before respawning
+// - ProcessIdleTimeout: Idle worker lifetime before termination (ondemand only)
 // - Env: Map of environment variables to set (e.g., {"MAGE_MODE": "developer"})
 // - PHPINI: Map of PHP INI overrides (e.g., {"opcache.enable": "0"})
 
@@ -82,15 +85,18 @@ type PoolConfig struct {
 	LogPath         string
 	User            string
 	Group           string
+	PMMode          string
 	MaxChildren     int
 	StartServers    int
 	MinSpareServers int
 	MaxSpareServers int
 	MaxRequests     int
-	Env             map[string]string
-	PHPINI          map[string]string
-	HasMailpit      bool
-	SendmailPath    string
+	// ProcessIdleTimeout is rendered only when PMMode is "ondemand".
+	ProcessIdleTimeout string
+	Env                map[string]string
+	PHPINI             map[string]string
+	HasMailpit         bool
+	SendmailPath       string
 }
 
 // defaultPHPINI returns the default PHP INI settings for Magento
@@ -150,14 +156,18 @@ func (g *PoolGenerator) getVersionPoolsDir(phpVersion string) string {
 
 // Generate generates a PHP-FPM pool configuration for a project
 // This is a convenience wrapper around GenerateWithResult that discards the detailed result
-func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool) error {
-	_, err := g.GenerateWithResult(projectName, projectPath, phpVersion, env, phpIni, hasMailpit)
+//
+// pm may be nil, in which case the built-in process manager defaults are used.
+func (g *PoolGenerator) Generate(projectName, projectPath, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool, pm *config.ResolvedPM) error {
+	_, err := g.GenerateWithResult(projectName, projectPath, phpVersion, env, phpIni, hasMailpit, pm)
 	return err
 }
 
 // GenerateWithResult generates a PHP-FPM pool configuration and returns detailed results
 // including information about system INI settings and ownership changes
-func (g *PoolGenerator) GenerateWithResult(projectName, projectPath, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool) (*GenerateResult, error) {
+//
+// pm may be nil, in which case the built-in process manager defaults are used.
+func (g *PoolGenerator) GenerateWithResult(projectName, projectPath, phpVersion string, env map[string]string, phpIni map[string]string, hasMailpit bool, pm *config.ResolvedPM) (*GenerateResult, error) {
 	result := &GenerateResult{}
 
 	// Ensure version-specific pools directory exists
@@ -209,23 +219,30 @@ func (g *PoolGenerator) GenerateWithResult(projectName, projectPath, phpVersion 
 		result.SystemINIChanged = previousOwner != nil
 	}
 
+	pmSettings := config.DefaultResolvedPM()
+	if pm != nil {
+		pmSettings = *pm
+	}
+
 	cfg := PoolConfig{
-		ProjectName:     projectName,
-		ProjectPath:     projectPath,
-		PHPVersion:      phpVersion,
-		SocketPath:      g.GetSocketPath(projectName, phpVersion),
-		LogPath:         filepath.Join(logsDir, projectName+"-error.log"),
-		User:            getCurrentUser(),
-		Group:           getCurrentGroup(),
-		MaxChildren:     50,
-		StartServers:    8,
-		MinSpareServers: 4,
-		MaxSpareServers: 12,
-		MaxRequests:     1000,
-		Env:             env,
-		PHPINI:          poolSettings, // Only pool-level settings go in pool config
-		HasMailpit:      hasMailpit,
-		SendmailPath:    sendmailPath,
+		ProjectName:        projectName,
+		ProjectPath:        projectPath,
+		PHPVersion:         phpVersion,
+		SocketPath:         g.GetSocketPath(projectName, phpVersion),
+		LogPath:            filepath.Join(logsDir, projectName+"-error.log"),
+		User:               getCurrentUser(),
+		Group:              getCurrentGroup(),
+		PMMode:             pmSettings.Mode,
+		MaxChildren:        pmSettings.MaxChildren,
+		StartServers:       pmSettings.StartServers,
+		MinSpareServers:    pmSettings.MinSpareServers,
+		MaxSpareServers:    pmSettings.MaxSpareServers,
+		MaxRequests:        pmSettings.MaxRequests,
+		ProcessIdleTimeout: pmSettings.ProcessIdleTimeout,
+		Env:                env,
+		PHPINI:             poolSettings, // Only pool-level settings go in pool config
+		HasMailpit:         hasMailpit,
+		SendmailPath:       sendmailPath,
 	}
 
 	content, err := g.renderPool(cfg)
@@ -616,6 +633,29 @@ func (c *FPMController) Reload() error {
 		return fmt.Errorf("failed to reload php-fpm: %w", err)
 	}
 	return nil
+}
+
+// Restart performs a full restart of PHP-FPM (not just a reload).
+//
+// A reload (SIGUSR2) recycles workers but keeps the master process — so master-level
+// state such as the loaded zend_extension config, opcache initialization, and
+// opcache.preload are NOT re-evaluated. When something that only takes effect at
+// master startup changes (notably opcache.preload), callers need this Restart instead.
+func (c *FPMController) Restart() error {
+	if c.useSystemd() {
+		serviceName := c.getSystemdServiceName()
+		cmd := exec.Command("sudo", "systemctl", "restart", serviceName)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to restart php-fpm: %w\nOutput: %s", err, output)
+		}
+		return nil
+	}
+
+	// macOS / non-systemd: stop then start so the master is re-execed.
+	if err := c.Stop(); err != nil {
+		return fmt.Errorf("failed to stop php-fpm: %w", err)
+	}
+	return c.Start()
 }
 
 // Start starts PHP-FPM service

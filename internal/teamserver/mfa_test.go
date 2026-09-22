@@ -15,9 +15,6 @@ import (
 
 func TestNewMFAManager(t *testing.T) {
 	m := NewMFAManager("TestIssuer")
-	if m == nil {
-		t.Fatal("NewMFAManager returned nil")
-	}
 	if m.issuer != "TestIssuer" {
 		t.Errorf("issuer = %s, want TestIssuer", m.issuer)
 	}

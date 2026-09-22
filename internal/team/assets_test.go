@@ -130,9 +130,6 @@ func TestNewAssetClient(t *testing.T) {
 	}
 
 	client := NewAssetClient(team, progressFn)
-	if client == nil {
-		t.Fatal("NewAssetClient returned nil")
-	}
 	if client.team != team {
 		t.Error("AssetClient team reference mismatch")
 	}

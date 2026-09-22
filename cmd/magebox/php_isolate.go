@@ -123,8 +123,19 @@ func runPhpIsolateEnable(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Enabling isolation for %s (PHP %s)...\n", cli.Highlight(cfg.Name), cfg.PHP)
 	fmt.Println()
 
+	// Resolve process manager settings (project `pm` over global `default_pm`)
+	var globalPM *config.PMConfig
+	if globalCfg, gErr := config.LoadGlobalConfig(p.HomeDir); gErr == nil && globalCfg != nil {
+		globalPM = globalCfg.DefaultPM
+	}
+	pmSettings, err := config.ResolvePM(globalPM, cfg.PM)
+	if err != nil {
+		cli.PrintError("Invalid PHP-FPM process manager config: %v", err)
+		return nil
+	}
+
 	// Enable isolation
-	isolatedProject, err := controller.Enable(cfg.Name, cwd, cfg.PHP, settings)
+	isolatedProject, err := controller.Enable(cfg.Name, cwd, cfg.PHP, settings, &pmSettings)
 	if err != nil {
 		cli.PrintError("Failed to enable isolation: %v", err)
 		return nil

@@ -103,7 +103,8 @@ jobs:
   comment-artifacts:
     name: Comment PR with artifact links
     needs: build
-    if: github.event_name == 'pull_request'
+    # Skip on fork PRs: GITHUB_TOKEN is read-only there, so commenting always 403s.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

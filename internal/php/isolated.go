@@ -12,6 +12,7 @@ import (
 	"text/template"
 	"time"
 
+	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/lib"
 	"qoliber/magebox/internal/platform"
 )
@@ -32,7 +33,12 @@ type IsolatedProject struct {
 	PIDPath     string            `json:"pid_path"`
 	ConfigPath  string            `json:"config_path"`
 	Settings    map[string]string `json:"settings"`
-	CreatedAt   time.Time         `json:"created_at"`
+	// PM holds the resolved process manager settings. Stored in the registry so
+	// StartAllIsolated regenerates the config identically without re-reading
+	// the project's .magebox.yaml. Nil entries (written by older versions) fall
+	// back to the built-in defaults.
+	PM        *config.ResolvedPM `json:"pm,omitempty"`
+	CreatedAt time.Time          `json:"created_at"`
 }
 
 // IsolatedRegistry manages the registry of isolated PHP-FPM projects
@@ -159,14 +165,17 @@ type IsolatedFPMConfig struct {
 	SocketPath      string
 	User            string
 	Group           string
+	PMMode          string
 	MaxChildren     int
 	StartServers    int
 	MinSpareServers int
 	MaxSpareServers int
 	MaxRequests     int
-	SystemSettings  map[string]string // PHP_INI_SYSTEM settings (opcache, preload, etc.)
-	PoolSettings    map[string]string // PHP_INI_PERDIR settings
-	Env             map[string]string
+	// ProcessIdleTimeout is rendered only when PMMode is "ondemand".
+	ProcessIdleTimeout string
+	SystemSettings     map[string]string // PHP_INI_SYSTEM settings (opcache, preload, etc.)
+	PoolSettings       map[string]string // PHP_INI_PERDIR settings
+	Env                map[string]string
 }
 
 // getIsolatedSocketPath returns the socket path for an isolated project
@@ -190,7 +199,9 @@ func (c *IsolatedFPMController) getIsolatedLogPath(projectName, phpVersion strin
 }
 
 // Enable enables isolation for a project
-func (c *IsolatedFPMController) Enable(projectName, projectPath, phpVersion string, systemSettings map[string]string) (*IsolatedProject, error) {
+//
+// pm may be nil, in which case the built-in process manager defaults are used.
+func (c *IsolatedFPMController) Enable(projectName, projectPath, phpVersion string, systemSettings map[string]string, pm *config.ResolvedPM) (*IsolatedProject, error) {
 	// Check if already isolated
 	existing, err := c.registry.Get(projectName)
 	if err != nil {
@@ -200,6 +211,7 @@ func (c *IsolatedFPMController) Enable(projectName, projectPath, phpVersion stri
 		// Update settings and restart
 		existing.Settings = systemSettings
 		existing.PHPVersion = phpVersion
+		existing.PM = pm
 		if err := c.Stop(projectName); err != nil {
 			return nil, fmt.Errorf("failed to stop existing isolated master: %w", err)
 		}
@@ -214,6 +226,7 @@ func (c *IsolatedFPMController) Enable(projectName, projectPath, phpVersion stri
 		PIDPath:     c.getIsolatedPIDPath(projectName, phpVersion),
 		ConfigPath:  c.getIsolatedConfigPath(projectName, phpVersion),
 		Settings:    systemSettings,
+		PM:          pm,
 		CreatedAt:   time.Now(),
 	}
 
@@ -283,23 +296,30 @@ func (c *IsolatedFPMController) generateConfig(project *IsolatedProject) error {
 	// Separate system vs pool settings
 	systemSettings, poolSettings := SeparateSettings(project.Settings)
 
+	pmSettings := config.DefaultResolvedPM()
+	if project.PM != nil {
+		pmSettings = *project.PM
+	}
+
 	cfg := IsolatedFPMConfig{
-		ProjectName:     project.ProjectName,
-		ProjectPath:     project.ProjectPath,
-		PHPVersion:      project.PHPVersion,
-		PIDPath:         project.PIDPath,
-		ErrorLogPath:    c.getIsolatedLogPath(project.ProjectName, project.PHPVersion),
-		SocketPath:      project.SocketPath,
-		User:            getCurrentUser(),
-		Group:           getCurrentGroup(),
-		MaxChildren:     50,
-		StartServers:    8,
-		MinSpareServers: 4,
-		MaxSpareServers: 12,
-		MaxRequests:     1000,
-		SystemSettings:  systemSettings,
-		PoolSettings:    poolSettings,
-		Env:             make(map[string]string),
+		ProjectName:        project.ProjectName,
+		ProjectPath:        project.ProjectPath,
+		PHPVersion:         project.PHPVersion,
+		PIDPath:            project.PIDPath,
+		ErrorLogPath:       c.getIsolatedLogPath(project.ProjectName, project.PHPVersion),
+		SocketPath:         project.SocketPath,
+		User:               getCurrentUser(),
+		Group:              getCurrentGroup(),
+		PMMode:             pmSettings.Mode,
+		MaxChildren:        pmSettings.MaxChildren,
+		StartServers:       pmSettings.StartServers,
+		MinSpareServers:    pmSettings.MinSpareServers,
+		MaxSpareServers:    pmSettings.MaxSpareServers,
+		MaxRequests:        pmSettings.MaxRequests,
+		ProcessIdleTimeout: pmSettings.ProcessIdleTimeout,
+		SystemSettings:     systemSettings,
+		PoolSettings:       poolSettings,
+		Env:                make(map[string]string),
 	}
 
 	// Load template

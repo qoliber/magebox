@@ -116,9 +116,6 @@ func TestNewRepositoryClient(t *testing.T) {
 	}
 
 	client := NewRepositoryClient(team)
-	if client == nil {
-		t.Fatal("NewRepositoryClient returned nil")
-	}
 	if client.team != team {
 		t.Error("RepositoryClient team reference mismatch")
 	}

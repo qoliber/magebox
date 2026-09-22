@@ -19,10 +19,6 @@ func TestNewReader(t *testing.T) {
 		_ = p // consume progress
 	})
 
-	if pr == nil {
-		t.Fatal("NewReader should not return nil")
-	}
-
 	if pr.total != int64(len(data)) {
 		t.Errorf("total = %d, want %d", pr.total, len(data))
 	}
@@ -226,10 +222,6 @@ func TestFormatDuration(t *testing.T) {
 
 func TestBar_Update(t *testing.T) {
 	bar := NewBar("Testing:")
-
-	if bar == nil {
-		t.Fatal("NewBar should not return nil")
-	}
 
 	if bar.width != 40 {
 		t.Errorf("bar.width = %d, want 40", bar.width)

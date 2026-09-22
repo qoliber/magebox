@@ -220,11 +220,17 @@ On macOS, only root can bind to ports below 1024 (like 80 and 443). Port forward
 
 ### Port forwarding stops working after sleep/restart
 
-This was fixed in v1.0.2! Run `magebox bootstrap` to upgrade your LaunchDaemon with the new sleep/wake recovery mechanism.
+`magebox start` checks on every run whether port forwarding actually works and repairs it automatically — it restarts the daemon if it's not responding, and reinstalls it if it's outdated (for example after a MageBox upgrade). If it still fails, run:
+
+```bash
+sudo launchctl kickstart -k system/com.magebox.portforward
+```
+
+or run `magebox bootstrap` to reinstall the daemon from scratch.
 
 ### I'm using Little Snitch/firewall software
 
-Some firewalls reset pf rules. MageBox's LaunchDaemon automatically restores rules every 30 seconds. If issues persist, whitelist `/etc/pf.anchors/com.magebox`.
+Port forwarding runs as a small TCP proxy (`magebox _portforward`) managed by a LaunchDaemon — it does not use pf firewall rules. If your firewall blocks local connections to ports 80/443, allow the `magebox` binary.
 
 ### Composer patches hang during `composer install`
 

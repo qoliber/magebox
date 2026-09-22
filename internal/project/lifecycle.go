@@ -91,6 +91,12 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Warnings = append(result.Warnings, fmt.Sprintf("SSL: %v", err))
 	}
 
+	// Resolve PHP-FPM process manager settings (project overrides global default)
+	pmSettings, err := m.resolvePM(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("PHP-FPM process manager: %w", err)
+	}
+
 	// Check if project uses isolated PHP-FPM master
 	isolatedController := php.NewIsolatedFPMController(m.platform)
 
@@ -105,7 +111,7 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 			settings["opcache.enable"] = "0"
 		}
 
-		_, err := isolatedController.Enable(cfg.Name, projectPath, cfg.PHP, settings)
+		_, err := isolatedController.Enable(cfg.Name, projectPath, cfg.PHP, settings, &pmSettings)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("isolated PHP-FPM: %w", err))
 		}
@@ -120,7 +126,7 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 
 		// Generate PHP-FPM pool (Mailpit always enabled for local dev safety)
 		// This prevents accidental emails to real addresses during development
-		poolResult, err := m.poolGenerator.GenerateWithResult(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true)
+		poolResult, err := m.poolGenerator.GenerateWithResult(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true, &pmSettings)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("PHP-FPM pool: %w", err))
 		} else if poolResult != nil {
@@ -312,19 +318,17 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 			}
 		}
 		if cfg.Services.HasOpenSearch() {
-			// Service name in docker-compose removes dots from version (e.g., opensearch2194)
-			serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", ""))
+			// A single shared OpenSearch container serves all projects.
 			status.Services["opensearch"] = ServiceStatus{
 				Name:      fmt.Sprintf("OpenSearch %s", cfg.Services.OpenSearch.Version),
-				IsRunning: dockerController.IsServiceRunning(serviceName),
+				IsRunning: dockerController.IsServiceRunning("opensearch"),
 			}
 		}
 		if cfg.Services.HasElasticsearch() {
-			// Service name in docker-compose removes dots from version (e.g., elasticsearch8170)
-			serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", ""))
+			// A single shared Elasticsearch container serves all projects.
 			status.Services["elasticsearch"] = ServiceStatus{
 				Name:      fmt.Sprintf("Elasticsearch %s", cfg.Services.Elasticsearch.Version),
-				IsRunning: dockerController.IsServiceRunning(serviceName),
+				IsRunning: dockerController.IsServiceRunning("elasticsearch"),
 			}
 		}
 	} else {
@@ -387,16 +391,28 @@ func (m *Manager) Status(projectPath string) (*ProjectStatus, error) {
 	return status, nil
 }
 
-// generateSSLCerts generates SSL certificates for all domains
+// generateSSLCerts generates SSL certificates for all domains. Hosts are grouped
+// by base domain so a single wildcard certificate covers a project's subdomains,
+// while each exact host is also added as a SAN — a wildcard only matches one
+// label, so a nested host like "shop.nl.b2b-case.localhost" would otherwise not
+// be covered by "*.b2b-case.localhost".
 func (m *Manager) generateSSLCerts(cfg *config.Config) error {
+	hostsByBase := make(map[string][]string)
+	var bases []string
 	for _, domain := range cfg.Domains {
-		if domain.IsSSLEnabled() {
-			baseDomain := ssl.ExtractBaseDomain(domain.Host)
-			if !m.sslManager.CertExists(baseDomain) {
-				if _, err := m.sslManager.GenerateCert(baseDomain); err != nil {
-					return err
-				}
-			}
+		if !domain.IsSSLEnabled() {
+			continue
+		}
+		base := ssl.ExtractBaseDomain(domain.Host)
+		if _, seen := hostsByBase[base]; !seen {
+			bases = append(bases, base)
+		}
+		hostsByBase[base] = append(hostsByBase[base], domain.Host)
+	}
+
+	for _, base := range bases {
+		if _, err := m.sslManager.EnsureCert(base, hostsByBase[base]...); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -438,10 +454,10 @@ func projectComposeServiceNames(cfg *config.Config) []string {
 		names = append(names, cfg.Services.GetCacheServiceName())
 	}
 	if cfg.Services.HasOpenSearch() {
-		names = append(names, fmt.Sprintf("opensearch%s", strings.ReplaceAll(cfg.Services.OpenSearch.Version, ".", "")))
+		names = append(names, "opensearch")
 	}
 	if cfg.Services.HasElasticsearch() {
-		names = append(names, fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(cfg.Services.Elasticsearch.Version, ".", "")))
+		names = append(names, "elasticsearch")
 	}
 	if cfg.Services.HasRabbitMQ() {
 		names = append(names, "rabbitmq")
@@ -502,11 +518,15 @@ func (m *Manager) ensureDatabase(cfg *config.Config) error {
 	dockerController := docker.NewDockerController(m.composeGen.ComposeFilePath())
 
 	// Determine service name (version dots are removed in docker-compose service names)
-	var serviceName string
+	var serviceName, dbType, dbVersion string
 	if cfg.Services.HasMySQL() {
-		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(cfg.Services.MySQL.Version, ".", ""))
+		dbType = "mysql"
+		dbVersion = cfg.Services.MySQL.Version
+		serviceName = fmt.Sprintf("mysql%s", strings.ReplaceAll(dbVersion, ".", ""))
 	} else if cfg.Services.HasMariaDB() {
-		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(cfg.Services.MariaDB.Version, ".", ""))
+		dbType = "mariadb"
+		dbVersion = cfg.Services.MariaDB.Version
+		serviceName = fmt.Sprintf("mariadb%s", strings.ReplaceAll(dbVersion, ".", ""))
 	}
 
 	if serviceName == "" {
@@ -519,7 +539,7 @@ func (m *Manager) ensureDatabase(cfg *config.Config) error {
 	}
 
 	// Create database (use sanitized name - hyphens replaced with underscores)
-	return dockerController.CreateDatabase(serviceName, cfg.DatabaseName())
+	return dockerController.CreateDatabase(serviceName, cfg.DatabaseName(), docker.DBClientBin(dbType, dbVersion))
 }
 
 // getStartedServices returns a list of started service names
@@ -648,6 +668,17 @@ php: "%s"
 	return os.WriteFile(configPath, []byte(content), 0644)
 }
 
+// resolvePM combines the machine-wide default process manager settings with
+// the project's own `pm` block. A missing or unreadable global config is not
+// fatal: the project config alone still resolves against the built-in defaults.
+func (m *Manager) resolvePM(cfg *config.Config) (config.ResolvedPM, error) {
+	var globalPM *config.PMConfig
+	if globalCfg, err := config.LoadGlobalConfig(m.platform.HomeDir); err == nil && globalCfg != nil {
+		globalPM = globalCfg.DefaultPM
+	}
+	return config.ResolvePM(globalPM, cfg.PM)
+}
+
 // RegenerateConfigs regenerates PHP-FPM pool and Nginx vhost configs
 // without restarting services (useful for applying config changes)
 func (m *Manager) RegenerateConfigs(projectPath string) error {
@@ -656,8 +687,13 @@ func (m *Manager) RegenerateConfigs(projectPath string) error {
 		return err
 	}
 
+	pmSettings, err := m.resolvePM(cfg)
+	if err != nil {
+		return fmt.Errorf("PHP-FPM process manager: %w", err)
+	}
+
 	// Regenerate PHP-FPM pool
-	if err := m.poolGenerator.Generate(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true); err != nil {
+	if err := m.poolGenerator.Generate(cfg.Name, projectPath, cfg.PHP, cfg.Env, cfg.PHPINI, true, &pmSettings); err != nil {
 		return fmt.Errorf("failed to regenerate PHP-FPM pool: %w", err)
 	}
 

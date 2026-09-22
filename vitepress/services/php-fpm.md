@@ -60,10 +60,10 @@ listen.mode = 0666
 
 pm = dynamic
 pm.max_children = 50
-pm.start_servers = 5
-pm.min_spare_servers = 2
-pm.max_spare_servers = 10
-pm.max_requests = 500
+pm.start_servers = 8
+pm.min_spare_servers = 4
+pm.max_spare_servers = 12
+pm.max_requests = 1000
 
 ; Error logging
 php_admin_value[error_log] = ~/.magebox/logs/php-fpm/mystore.log
@@ -83,6 +83,45 @@ php_admin_value[opcache.max_accelerated_files] = 130986
 ; Environment variables
 env[MAGE_MODE] = developer
 ```
+
+### Process Manager
+
+The `pm.*` directives above are the defaults. Override them per project with a `pm` block in `.magebox.yaml` or `.magebox.local.yaml`:
+
+```yaml
+pm:
+  mode: dynamic          # static | dynamic | ondemand
+  max_children: 12
+  start_servers: 4
+  min_spare_servers: 2
+  max_spare_servers: 6
+  max_requests: 1000
+```
+
+Only the keys relevant to the chosen mode are written to the pool file — `ondemand` emits `pm.process_idle_timeout` instead of the spare-server directives, and `static` emits neither.
+
+#### Running many projects on one machine
+
+Each pool defaults to `pm.max_children = 50`, sized as if it were the only project on the host. With a handful of projects started at once, their peaks can collectively demand far more memory and CPU than the machine has — PHP-FPM starts workers well past the core count, and each active Magento worker can hold hundreds of megabytes.
+
+Idle pools are cheap (a waiting worker holds very little), so the cost shows up during bursts rather than at rest. Two ways to bound it:
+
+```yaml
+# ~/.magebox/config.yaml — applies to every project
+default_pm:
+  mode: ondemand
+  max_children: 12
+```
+
+`ondemand` starts no workers until a request arrives and reaps them after `process_idle_timeout`, so dormant projects cost nothing. Alternatively keep `dynamic` and simply lower `max_children` — throughput is bounded by CPU cores, so a value near your core count loses nothing while keeping bursts from swapping the machine.
+
+A project's own `pm` block overrides the global default key by key, so the project you are actively working on can stay `dynamic` while the rest run `ondemand`.
+
+::: warning
+A malformed pool prevents the PHP-FPM master from starting, which affects every project on that PHP version. MageBox validates the values before writing the pool file and reports the problem instead.
+:::
+
+See [Configuration Options](/reference/config-options#pm) for the full list of keys.
 
 ## PHP Version Management
 

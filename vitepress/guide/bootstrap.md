@@ -41,6 +41,7 @@ Running `magebox bootstrap` will:
    - Check for Nginx installation
    - Detect installed PHP versions
    - Verify mkcert is available
+   - Verify `mysqldump` is available (required by magerun2 database commands)
 
 2. **Create Global Configuration**
    - Initialize `~/.magebox/config.yaml`
@@ -129,6 +130,7 @@ Checking dependencies...
   ✓ Nginx installed
   ✓ PHP 8.1, 8.2, 8.3, 8.4 detected
   ✓ mkcert installed
+  ✓ mysql-client installed
 
 Creating configuration...
   ✓ Created ~/.magebox/config.yaml

@@ -76,6 +76,10 @@ type Installer interface {
 	// InstallMultitail installs multitail for log viewing
 	InstallMultitail() error
 
+	// InstallMysqlClient installs the MySQL client tools (mysql, mysqldump)
+	// required by magerun2 for database-related commands
+	InstallMysqlClient() error
+
 	// InstallXdebug installs Xdebug for a specific PHP version
 	InstallXdebug(version string) error
 

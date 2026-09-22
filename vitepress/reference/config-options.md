@@ -125,7 +125,7 @@ Use either `mysql` OR `mariadb`, not both.
 | `redis` | boolean | 6379 | In-memory cache/session |
 | `valkey` | boolean | 6379 | In-memory cache/session (Redis alternative) |
 | `opensearch` | string/boolean | 9200 | Catalog search |
-| `elasticsearch` | string/boolean | 9200 | Catalog search (alternative) |
+| `elasticsearch` | string/boolean | 9500 | Catalog search (alternative) |
 | `rabbitmq` | boolean | 5672, 15672 | Message queue |
 | `mailpit` | boolean | 1025, 8025 | Email testing |
 | `varnish` | boolean | 6081 | HTTP cache |
@@ -198,6 +198,49 @@ php_ini:
 
 ::: tip
 Most settings can also be managed through `magebox php ini set <key> <value>`, which writes to this section automatically.
+:::
+
+---
+
+### pm
+
+`object`
+
+PHP-FPM process manager tuning for this project's pool. Every key is optional; anything you leave out falls back to the global `default_pm` and then to the built-in default.
+
+```yaml
+pm:
+  mode: ondemand           # static | dynamic | ondemand
+  max_children: 12
+  process_idle_timeout: 30s
+```
+
+| Option | Type | Default | Applies to | Description |
+|--------|------|---------|------------|-------------|
+| `mode` | string | `dynamic` | all | Process manager: `static`, `dynamic` or `ondemand` |
+| `max_children` | int | `50` | all | Maximum number of worker processes |
+| `max_requests` | int | `1000` | all | Requests a worker handles before respawning (`0` disables) |
+| `start_servers` | int | `8` | `dynamic` | Workers created at startup |
+| `min_spare_servers` | int | `4` | `dynamic` | Minimum idle workers |
+| `max_spare_servers` | int | `12` | `dynamic` | Maximum idle workers |
+| `process_idle_timeout` | string | `10s` | `ondemand` | Idle worker lifetime before termination |
+
+#### Choosing a mode
+
+* **`dynamic`** (default) keeps a pool of idle workers warm and scales up under load. Good for the project you are actively working on.
+* **`ondemand`** starts no workers until a request arrives and reaps them after `process_idle_timeout`. Useful when a machine hosts many projects: the ones you are not using cost nothing.
+* **`static`** keeps exactly `max_children` workers alive at all times. Predictable, but reserves the memory whether you use it or not.
+
+#### Sizing max_children
+
+The default of `50` assumes a pool has the machine to itself. When several projects run side by side, their peaks can collectively oversubscribe the host: PHP-FPM will happily start more workers than there are CPU cores, and each active Magento worker can hold hundreds of megabytes.
+
+Since throughput is bounded by cores rather than workers, a value close to your core count is usually enough for local development. Requests beyond that queue on the socket instead of competing for memory.
+
+::: warning
+PHP-FPM refuses to start the entire master process when one pool is malformed, which would take down every project sharing that PHP version. MageBox therefore validates these values before writing the pool file — `min_spare_servers` must not exceed `max_spare_servers`, `max_spare_servers` must not exceed `max_children`, and `start_servers` must fall between the two.
+
+If you only lower `max_children`, MageBox scales the untouched spare-server defaults down to fit rather than erroring.
 :::
 
 ---
@@ -315,6 +358,22 @@ Default PHP version for new projects.
 ```yaml
 default_php: "8.3"
 ```
+
+---
+
+### default_pm
+
+`object`
+
+Machine-wide PHP-FPM process manager baseline, applied to every project that does not set its own [`pm`](#pm) block. Accepts the same keys.
+
+```yaml
+default_pm:
+  mode: ondemand
+  max_children: 12
+```
+
+This is the place to size PHP-FPM for the host rather than per project. A project's own `pm` block overrides it key by key, so a single project can still run `dynamic` while the rest stay `ondemand`.
 
 ---
 
@@ -507,4 +566,8 @@ tld: test
 portainer: false
 editor: code
 auto_start: true
+
+default_pm:
+  mode: ondemand
+  max_children: 12
 ```

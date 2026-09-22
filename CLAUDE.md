@@ -78,23 +78,27 @@ PHP-FPM and Nginx run natively — no virtualization overhead, no bind mount iss
 
 MageBox manages complexity so the developer doesn't have to. PHP versions, SSL certificates, DNS, port forwarding — everything is configured automatically. The same applies to tooling MageBox integrates with: the correct version is automatically selected based on the project configuration.
 
-**3. Don't duplicate what already exists**
+**3. Self-healing by default**
 
-MageBox doesn't build its own version of functionality that existing tools already handle well. If magerun2 already supports database operations, MageBox integrates with it rather than rebuilding it. Features in core must provide real added value over what's already available — such as a progress bar for imports, or automatic version detection.
+Every part of the environment MageBox manages is expected to detect and repair its own broken or outdated state — a stopped service container, an inactive port forwarding daemon, a stale system component after an upgrade. Repair happens at the next natural moment (such as `magebox start` or first use), without the user having to know a fix exists. Error messages that instruct the user are a fallback for when automatic repair is impossible (e.g. no TTY for sudo), never the design. Detection must check actual behaviour (does the port accept connections?), not configuration presence (does the file exist?). When adding or changing a feature, ask: what happens when this breaks — and can it fix itself?
 
-**4. Core is for everyone, specific is for you**
-
-Functionality in MageBox core must be valuable to the broad Magento community. Workflow-specific tooling — things that fit how your team works but aren't universal — belongs in custom commands (`.magebox.yaml`) or is shared via the team server. The custom commands system and `.magebox.local.yaml` override mechanism are deliberately designed to enable this without bloating core.
-
-**5. Pragmatic, not speculative**
-
-MageBox adds support for tools and technologies when there is actual adoption in the Magento ecosystem. Potentially interesting but not yet widely adopted technologies are not preemptively supported.
-
-**6. One config, the whole team**
+**4. One config, the whole team**
 
 Project configuration lives in `.magebox.yaml` in the repository. Personal preferences in `.magebox.local.yaml`. Team-wide settings, repositories, and assets via the team server. This means a new developer can get started with `magebox clone` + `magebox start` — no manual setup required.
 
-**7. Magento-first, framework-open**
+**5. Don't duplicate what already exists**
+
+MageBox doesn't build its own version of functionality that existing tools already handle well. If magerun2 already supports database operations, MageBox integrates with it rather than rebuilding it. Features in core must provide real added value over what's already available — such as a progress bar for imports, or automatic version detection.
+
+**6. Core is for everyone, specific is for you**
+
+Functionality in MageBox core must be valuable to the broad Magento community. Workflow-specific tooling — things that fit how your team works but aren't universal — belongs in custom commands (`.magebox.yaml`) or is shared via the team server. The custom commands system and `.magebox.local.yaml` override mechanism are deliberately designed to enable this without bloating core.
+
+**7. Pragmatic, not speculative**
+
+MageBox adds support for tools and technologies when there is actual adoption in the Magento ecosystem. Potentially interesting but not yet widely adopted technologies are not preemptively supported.
+
+**8. Magento-first, framework-open**
 
 MageBox is built for Magento 2 and MageOS, but the architecture is open to other PHP frameworks in the future. The Magento-specific experience is not sacrificed for generality.
 

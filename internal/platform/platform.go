@@ -440,6 +440,25 @@ func (p *Platform) MkcertInstallCommand() string {
 	}
 }
 
+// MysqlClientInstallCommand returns the command to install mysql-client
+func (p *Platform) MysqlClientInstallCommand() string {
+	switch p.Type {
+	case Darwin:
+		return "brew install mysql-client"
+	case Linux:
+		switch p.LinuxDistro {
+		case DistroFedora:
+			return "sudo dnf install -y community-mysql"
+		case DistroArch:
+			return "sudo pacman -S --noconfirm mariadb-clients"
+		default:
+			return "sudo apt install -y default-mysql-client"
+		}
+	default:
+		return ""
+	}
+}
+
 // DockerInstallCommand returns the command to install Docker
 func (p *Platform) DockerInstallCommand() string {
 	switch p.Type {

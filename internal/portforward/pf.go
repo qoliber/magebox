@@ -40,6 +40,40 @@ func NewManager() *Manager {
 // This ensures existing users get updates when they run bootstrap
 const launchDaemonVersion = "7"
 
+// daemonAction describes what EnsureRulesActive must do to get port
+// forwarding into a working, up-to-date state.
+type daemonAction int
+
+const (
+	actionNone daemonAction = iota
+	actionBootstrapRequired
+	actionUpgrade
+	actionKickstart
+)
+
+// nextAction decides how to reconcile the daemon state. An outdated daemon is
+// upgraded even when it is active, so binary upgrades take effect without the
+// user having to run bootstrap manually.
+func nextAction(installed, outdated, active bool) daemonAction {
+	switch {
+	case !installed:
+		return actionBootstrapRequired
+	case outdated:
+		return actionUpgrade
+	case !active:
+		return actionKickstart
+	default:
+		return actionNone
+	}
+}
+
+// plistOutdated reports whether the installed plist content is missing the
+// current version marker.
+func plistOutdated(content []byte) bool {
+	marker := fmt.Sprintf("MageBox-Version-%s", launchDaemonVersion)
+	return !strings.Contains(string(content), marker)
+}
+
 // findMageboxBinary returns the path to the magebox binary for use in the LaunchDaemon
 func findMageboxBinary() string {
 	// Check common installation paths
@@ -61,28 +95,36 @@ func findMageboxBinary() string {
 	return "/usr/local/bin/magebox"
 }
 
-// EnsureRulesActive checks if port forwarding is active and starts the daemon
-// if needed. This is a lightweight operation safe to call on every
-// "magebox start" so that reboots and sleep/wake cycles are self-healing.
-// Returns true if forwarding was already active, false if it had to be restored.
+// EnsureRulesActive checks if port forwarding is active and up to date, and
+// self-heals when it is not: an outdated daemon (left behind by a binary
+// upgrade) is reinstalled, an inactive one is kickstarted. This is a
+// lightweight operation safe to call on every "magebox start" so that
+// reboots, sleep/wake cycles, and upgrades are self-healing.
+// Returns true if forwarding was already active and current, false if it had
+// to be restored.
 func (m *Manager) EnsureRulesActive() (bool, error) {
 	if m.platform != "darwin" {
 		return true, nil // Not applicable on Linux
 	}
 
-	if !m.IsInstalled() {
-		return false, fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
-	}
-
-	if m.AreRulesActive() {
+	switch nextAction(m.IsInstalled(), m.needsUpgrade(), m.AreRulesActive()) {
+	case actionNone:
 		return true, nil
-	}
 
-	verbose.Debug("Port forwarding daemon not active, restarting...")
+	case actionBootstrapRequired:
+		return false, fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
 
-	// Try to kickstart the daemon
-	if err := m.kickstartDaemon(); err != nil {
-		return false, fmt.Errorf("failed to restart port forwarding daemon: %w", err)
+	case actionUpgrade:
+		verbose.Debug("Port forwarding daemon outdated, upgrading...")
+		if err := m.Setup(); err != nil {
+			return false, fmt.Errorf("failed to upgrade port forwarding daemon — run 'magebox bootstrap': %w", err)
+		}
+
+	default: // actionKickstart
+		verbose.Debug("Port forwarding daemon not active, restarting...")
+		if err := m.kickstartDaemon(); err != nil {
+			return false, fmt.Errorf("failed to restart port forwarding daemon: %w", err)
+		}
 	}
 
 	// Wait briefly for the daemon to start listening
@@ -94,7 +136,7 @@ func (m *Manager) EnsureRulesActive() (bool, error) {
 		}
 	}
 
-	return false, fmt.Errorf("port forwarding daemon not responding — check: sudo launchctl list %s", launchDaemonLabel)
+	return false, fmt.Errorf("port forwarding daemon not responding — try: sudo launchctl kickstart -k system/%s, or run 'magebox bootstrap'", launchDaemonLabel)
 }
 
 // Setup installs the port forwarding LaunchDaemon
@@ -152,8 +194,7 @@ func (m *Manager) needsUpgrade() bool {
 		return true
 	}
 
-	versionMarker := fmt.Sprintf("MageBox-Version-%s", launchDaemonVersion)
-	if !strings.Contains(string(content), versionMarker) {
+	if plistOutdated(content) {
 		verbose.Debug("LaunchDaemon missing version %s marker", launchDaemonVersion)
 		return true
 	}

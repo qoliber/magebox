@@ -20,7 +20,7 @@ var dockerHubAPIBase = "https://registry.hub.docker.com"
 var dockerRegistryHTTPClient = &http.Client{Timeout: 5 * time.Second}
 
 // resolvedTags caches Docker Hub tag resolutions for the lifetime of the process,
-// so each major.minor version is queried at most once.
+// so each version prefix is queried at most once.
 var resolvedTags sync.Map
 
 // hubTagsResponse mirrors the Docker Hub tags API response.
@@ -38,10 +38,11 @@ func isFullVersion(version string) bool {
 }
 
 // resolveDockerTagVersion returns the latest full major.minor.patch image tag for the
-// given namespace/image and version. If the version already contains a patch component
-// (three dot-separated parts) it is returned unchanged. On any network or parse error
-// the input version is returned unchanged so the caller – and ultimately Docker – can
-// produce an actionable error message.
+// given namespace/image and version prefix. Prefixes may be major-only (for example
+// "7") or major.minor (for example "7.17"). If the version already contains a patch
+// component (three dot-separated parts) it is returned unchanged. On any network or
+// parse error the input version is returned unchanged so the caller – and ultimately
+// Docker – can produce an actionable error message.
 func resolveDockerTagVersion(namespace, image, version string) string {
 	if isFullVersion(version) {
 		return version
@@ -60,39 +61,39 @@ func resolveDockerTagVersion(namespace, image, version string) string {
 }
 
 // queryDockerHubLatestTag calls the Docker Hub tags API and returns the highest
-// major.minor.patch tag that exactly matches the given major.minor prefix.
-// Returns majorMinor unchanged on any error.
-func queryDockerHubLatestTag(namespace, image, majorMinor string) string {
+// major.minor.patch tag that exactly matches the given version prefix. Returns
+// versionPrefix unchanged on any error.
+func queryDockerHubLatestTag(namespace, image, versionPrefix string) string {
 	url := fmt.Sprintf(
 		"%s/v2/repositories/%s/%s/tags?name=%s.&page_size=50&ordering=-last_updated",
-		dockerHubAPIBase, namespace, image, majorMinor,
+		dockerHubAPIBase, namespace, image, versionPrefix,
 	)
 
 	resp, err := dockerRegistryHTTPClient.Get(url)
 	if err != nil {
-		return majorMinor
+		return versionPrefix
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return majorMinor
+		return versionPrefix
 	}
 
 	var result hubTagsResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {
-		return majorMinor
+		return versionPrefix
 	}
 
-	prefix := majorMinor + "."
+	prefix := versionPrefix + "."
+	prefixParts := strings.Split(versionPrefix, ".")
 	best := ""
 	for _, tag := range result.Results {
 		if !strings.HasPrefix(tag.Name, prefix) {
 			continue
 		}
-		// Only accept tags of the form major.minor.patch with no extra suffix
-		// (e.g. reject "8.11.4-alpine" or "8.11.4.1").
-		patch := tag.Name[len(prefix):]
-		if _, err := strconv.Atoi(patch); err != nil {
+		// Only accept numeric tags of the form major.minor.patch that match the
+		// requested version prefix exactly.
+		if !matchesVersionPrefix(tag.Name, prefixParts) {
 			continue
 		}
 		if best == "" || compareVersionStrings(tag.Name, best) > 0 {
@@ -103,7 +104,32 @@ func queryDockerHubLatestTag(namespace, image, majorMinor string) string {
 	if best != "" {
 		return best
 	}
-	return majorMinor
+	return versionPrefix
+}
+
+func matchesVersionPrefix(tagName string, prefixParts []string) bool {
+	tagParts := strings.Split(tagName, ".")
+	if len(tagParts) != 3 {
+		return false
+	}
+
+	for _, part := range tagParts {
+		if _, err := strconv.Atoi(part); err != nil {
+			return false
+		}
+	}
+
+	if len(prefixParts) >= len(tagParts) {
+		return false
+	}
+
+	for i, part := range prefixParts {
+		if tagParts[i] != part {
+			return false
+		}
+	}
+
+	return true
 }
 
 // compareVersionStrings compares two dot-separated version strings numerically,

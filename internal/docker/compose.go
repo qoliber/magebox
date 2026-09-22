@@ -103,9 +103,13 @@ const (
 	// StandardDBPort is the standard MySQL/MariaDB port (3306) that is additionally
 	// exposed for the default database service, alongside its version-specific port.
 	StandardDBPort = 3306
-	// StandardSearchPort is the standard OpenSearch/Elasticsearch port (9200) that is
-	// additionally exposed for the default search service, alongside its version-specific port.
+	// StandardSearchPort is the fixed host port for the single shared OpenSearch
+	// container (also the container-internal port for both search engines).
 	StandardSearchPort = 9200
+	// StandardElasticsearchPort is the fixed host port for the single shared
+	// Elasticsearch container. It differs from StandardSearchPort so that an
+	// OpenSearch and an Elasticsearch container can run simultaneously.
+	StandardElasticsearchPort = 9500
 )
 
 // Default RabbitMQ credentials
@@ -113,6 +117,29 @@ const (
 	DefaultRabbitMQUser = "guest"
 	DefaultRabbitMQPass = "guest"
 )
+
+// DBClientBin returns the SQL client binary name for the given database type and version.
+// MariaDB 11.0+ removed the mysql/mysqldump/mysqladmin symlinks; use the native binary names instead.
+func DBClientBin(dbType, version string) string {
+	if dbType == "mariadb" {
+		parts := strings.SplitN(version, ".", 2)
+		if major, err := strconv.Atoi(parts[0]); err == nil && major >= 11 {
+			return "mariadb"
+		}
+	}
+	return "mysql"
+}
+
+// DBDumpBin returns the dump binary name for the given database type and version.
+func DBDumpBin(dbType, version string) string {
+	if dbType == "mariadb" {
+		parts := strings.SplitN(version, ".", 2)
+		if major, err := strconv.Atoi(parts[0]); err == nil && major >= 11 {
+			return "mariadb-dump"
+		}
+	}
+	return "mysqldump"
+}
 
 // ComposeGenerator generates Docker Compose configurations for global services
 type ComposeGenerator struct {
@@ -219,7 +246,6 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 
 	// Only the global default DB version gets the standard port 3306.
 	// MySQL default takes precedence over MariaDB default if both are configured.
-	totalSearchServices := len(requiredServices.opensearch) + len(requiredServices.elasticsearch)
 
 	// Add MySQL services
 	for version, svcCfg := range requiredServices.mysql {
@@ -244,22 +270,19 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		compose.Services["redis"] = g.getRedisService()
 	}
 
-	// Add OpenSearch services
-	for version, svcCfg := range requiredServices.opensearch {
-		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(version, ".", ""))
-		addStdPort := (totalSearchServices == 1) || (version == defaultOpenSearch)
-		compose.Services[serviceName] = g.getOpenSearchService(svcCfg, addStdPort)
-		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
-		compose.Volumes[fmt.Sprintf("opensearch%s_plugins", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+	// Add a single shared OpenSearch container for all projects. When projects
+	// request different versions, the global default wins, else the highest.
+	if _, osCfg := selectSearchService(requiredServices.opensearch, defaultOpenSearch); osCfg != nil {
+		compose.Services["opensearch"] = g.getOpenSearchService(osCfg)
+		compose.Volumes["opensearch_data"] = ComposeVolume{}
+		compose.Volumes["opensearch_plugins"] = ComposeVolume{}
 	}
 
-	// Add Elasticsearch services
-	for version, svcCfg := range requiredServices.elasticsearch {
-		serviceName := fmt.Sprintf("elasticsearch%s", strings.ReplaceAll(version, ".", ""))
-		addStdPort := len(requiredServices.opensearch) == 0 && ((totalSearchServices == 1) || (version == defaultElasticsearch))
-		compose.Services[serviceName] = g.getElasticsearchService(svcCfg, addStdPort)
-		compose.Volumes[fmt.Sprintf("elasticsearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
-		compose.Volumes[fmt.Sprintf("elasticsearch%s_plugins", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+	// Add a single shared Elasticsearch container for all projects.
+	if _, esCfg := selectSearchService(requiredServices.elasticsearch, defaultElasticsearch); esCfg != nil {
+		compose.Services["elasticsearch"] = g.getElasticsearchService(esCfg)
+		compose.Volumes["elasticsearch_data"] = ComposeVolume{}
+		compose.Volumes["elasticsearch_plugins"] = ComposeVolume{}
 	}
 
 	// Add RabbitMQ if needed
@@ -393,6 +416,60 @@ func (g *ComposeGenerator) collectRequiredServices(configs []*config.Config) req
 	return rs
 }
 
+// selectSearchService picks the single version/config to run for one search engine
+// (OpenSearch or Elasticsearch) when different projects request different versions.
+// The global default version wins if set; otherwise the highest requested version is
+// used. The container is provisioned with the largest memory any project requests, so
+// the shared container satisfies the most demanding project. Returns ("", nil) when no
+// project needs the engine.
+func selectSearchService(requested map[string]*config.ServiceConfig, defaultVersion string) (string, *config.ServiceConfig) {
+	if len(requested) == 0 {
+		return "", nil
+	}
+
+	version := defaultVersion
+	if version == "" {
+		for v := range requested {
+			if version == "" || compareVersionStrings(v, version) > 0 {
+				version = v
+			}
+		}
+	}
+
+	// Provision for the most demanding project across all requested configs.
+	memory := ""
+	for _, c := range requested {
+		if c != nil && parseMemoryToBytes(c.Memory) > parseMemoryToBytes(memory) {
+			memory = c.Memory
+		}
+	}
+
+	return version, &config.ServiceConfig{Enabled: true, Version: version, Memory: memory}
+}
+
+// parseMemoryToBytes converts a memory string like "2g", "1024m" or "512k" to bytes.
+// An empty or unparseable string returns 0.
+func parseMemoryToBytes(s string) int64 {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0
+	}
+	mult := int64(1)
+	switch {
+	case strings.HasSuffix(s, "g"):
+		mult, s = 1<<30, strings.TrimSuffix(s, "g")
+	case strings.HasSuffix(s, "m"):
+		mult, s = 1<<20, strings.TrimSuffix(s, "m")
+	case strings.HasSuffix(s, "k"):
+		mult, s = 1<<10, strings.TrimSuffix(s, "k")
+	}
+	n, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0
+	}
+	return int64(n * float64(mult))
+}
+
 // getMySQLService returns a MySQL service configuration
 func (g *ComposeGenerator) getMySQLService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
 	version := svcCfg.Version
@@ -520,11 +597,10 @@ func (g *ComposeGenerator) getValkeyService() ComposeService {
 	}
 }
 
-// getOpenSearchService returns an OpenSearch service configuration
-func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
-	version := svcCfg.Version
-	imageVersion := ResolveOpenSearchVersion(version)
-	port := GetOpenSearchPort(version)
+// getOpenSearchService returns the configuration for the single shared OpenSearch
+// container used by all projects. The host port is fixed at StandardSearchPort.
+func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig) ComposeService {
+	imageVersion := ResolveOpenSearchVersion(svcCfg.Version)
 
 	// Default to 1GB if not specified
 	memory := "1g"
@@ -534,15 +610,10 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, ad
 
 	heapSize := fmt.Sprintf("-Xms%s -Xmx%s", memory, memory)
 
-	ports := []string{fmt.Sprintf("%d:9200", port)}
-	if addStandardPort && port != StandardSearchPort {
-		ports = append(ports, fmt.Sprintf("%d:9200", StandardSearchPort))
-	}
-
 	return ComposeService{
-		ContainerName: fmt.Sprintf("magebox-opensearch-%s", version),
+		ContainerName: "magebox-opensearch",
 		Image:         fmt.Sprintf("opensearchproject/opensearch:%s", imageVersion),
-		Ports:         ports,
+		Ports:         []string{fmt.Sprintf("%d:9200", StandardSearchPort)},
 		Environment: map[string]string{
 			"discovery.type":                                    "single-node",
 			"DISABLE_SECURITY_PLUGIN":                           "true",
@@ -550,8 +621,8 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, ad
 			"cluster.routing.allocation.disk.threshold_enabled": "false",
 		},
 		Volumes: []string{
-			fmt.Sprintf("opensearch%s_data:/usr/share/opensearch/data", strings.ReplaceAll(version, ".", "")),
-			fmt.Sprintf("opensearch%s_plugins:/usr/share/opensearch/plugins", strings.ReplaceAll(version, ".", "")),
+			"opensearch_data:/usr/share/opensearch/data",
+			"opensearch_plugins:/usr/share/opensearch/plugins",
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
@@ -559,11 +630,11 @@ func (g *ComposeGenerator) getOpenSearchService(svcCfg *config.ServiceConfig, ad
 	}
 }
 
-// getElasticsearchService returns an Elasticsearch service configuration
-func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig, addStandardPort bool) ComposeService {
-	version := svcCfg.Version
-	imageVersion := ResolveElasticsearchVersion(version)
-	port := GetElasticsearchPort(version)
+// getElasticsearchService returns the configuration for the single shared
+// Elasticsearch container used by all projects. The host port is fixed at
+// StandardElasticsearchPort.
+func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig) ComposeService {
+	imageVersion := ResolveElasticsearchVersion(svcCfg.Version)
 
 	// Default to 1GB if not specified
 	memory := "1g"
@@ -573,23 +644,18 @@ func (g *ComposeGenerator) getElasticsearchService(svcCfg *config.ServiceConfig,
 
 	heapSize := fmt.Sprintf("-Xms%s -Xmx%s", memory, memory)
 
-	ports := []string{fmt.Sprintf("%d:9200", port)}
-	if addStandardPort && port != StandardSearchPort {
-		ports = append(ports, fmt.Sprintf("%d:9200", StandardSearchPort))
-	}
-
 	return ComposeService{
-		ContainerName: fmt.Sprintf("magebox-elasticsearch-%s", version),
+		ContainerName: "magebox-elasticsearch",
 		Image:         fmt.Sprintf("elasticsearch:%s", imageVersion),
-		Ports:         ports,
+		Ports:         []string{fmt.Sprintf("%d:9200", StandardElasticsearchPort)},
 		Environment: map[string]string{
 			"discovery.type":         "single-node",
 			"xpack.security.enabled": "false",
 			"ES_JAVA_OPTS":           heapSize,
 		},
 		Volumes: []string{
-			fmt.Sprintf("elasticsearch%s_data:/usr/share/elasticsearch/data", strings.ReplaceAll(version, ".", "")),
-			fmt.Sprintf("elasticsearch%s_plugins:/usr/share/elasticsearch/plugins", strings.ReplaceAll(version, ".", "")),
+			"elasticsearch_data:/usr/share/elasticsearch/data",
+			"elasticsearch_plugins:/usr/share/elasticsearch/plugins",
 		},
 		Networks: []string{"magebox"},
 		Restart:  "unless-stopped",
@@ -753,76 +819,17 @@ func (g *ComposeGenerator) getMariaDBPort(version string) int {
 	return 33106 // default
 }
 
-// normalizeSearchVersion extracts major.minor from a version string like "2.19.4"
-func normalizeSearchVersion(version string) string {
-	parts := strings.SplitN(version, ".", 3)
-	if len(parts) >= 2 {
-		return parts[0] + "." + parts[1]
-	}
-	return version
+// GetOpenSearchPort returns the fixed host port for the single shared OpenSearch
+// container. All projects that use OpenSearch share this container and port.
+func GetOpenSearchPort() int {
+	return StandardSearchPort
 }
 
-// computeSearchPort calculates a port from base + major*20 + minor.
-// This guarantees unique ports for versions where minor < 20.
-// OpenSearch uses base 9200, Elasticsearch uses base 9500 to avoid range overlap.
-func computeSearchPort(basePort int, version string) int {
-	normalized := normalizeSearchVersion(version)
-	parts := strings.SplitN(normalized, ".", 2)
-	if len(parts) == 2 {
-		major, err1 := strconv.Atoi(parts[0])
-		minor, err2 := strconv.Atoi(parts[1])
-		if err1 == nil && err2 == nil {
-			return basePort + major*20 + minor
-		}
-	}
-	return basePort
-}
-
-// GetOpenSearchPort returns the host port for an OpenSearch version.
-// Port convention: 9200 + major*20 + minor (e.g., OS 2.19 → 9259, OS 3.3 → 9263).
-func GetOpenSearchPort(version string) int {
-	normalized := normalizeSearchVersion(version)
-	ports := map[string]int{
-		"1.3":  9223,
-		"2.5":  9245,
-		"2.10": 9250,
-		"2.11": 9251,
-		"2.12": 9252,
-		"2.13": 9253,
-		"2.15": 9255,
-		"2.17": 9257,
-		"2.19": 9259,
-		"3.0":  9260,
-		"3.3":  9263,
-	}
-	if port, ok := ports[normalized]; ok {
-		return port
-	}
-	return computeSearchPort(9200, normalized)
-}
-
-// GetElasticsearchPort returns the host port for an Elasticsearch version.
-// Port convention: 9500 + major*20 + minor (e.g., ES 7.17 → 9657, ES 8.11 → 9671).
-func GetElasticsearchPort(version string) int {
-	normalized := normalizeSearchVersion(version)
-	ports := map[string]int{
-		"7.6":  9646,
-		"7.9":  9649,
-		"7.10": 9650,
-		"7.16": 9656,
-		"7.17": 9657,
-		"8.0":  9660,
-		"8.4":  9664,
-		"8.7":  9667,
-		"8.11": 9671,
-		"8.14": 9674,
-		"8.15": 9675,
-		"8.17": 9677,
-	}
-	if port, ok := ports[normalized]; ok {
-		return port
-	}
-	return computeSearchPort(9500, normalized)
+// GetElasticsearchPort returns the fixed host port for the single shared
+// Elasticsearch container. All projects that use Elasticsearch share this
+// container and port.
+func GetElasticsearchPort() int {
+	return StandardElasticsearchPort
 }
 
 // ResolveElasticsearchVersion resolves a major.minor version string to the latest available full
@@ -830,12 +837,18 @@ func GetElasticsearchPort(version string) int {
 // component it is returned unchanged. On any network or parse error the input is also returned
 // unchanged so that Docker can produce an actionable error message.
 func ResolveElasticsearchVersion(version string) string {
+	if isFullVersion(version) {
+		return version
+	}
 	return resolveDockerTagVersion("library", "elasticsearch", version)
 }
 
 // ResolveOpenSearchVersion resolves a major.minor version string to the latest available full
 // (major.minor.patch) version by querying Docker Hub. See ResolveElasticsearchVersion for rules.
 func ResolveOpenSearchVersion(version string) string {
+	if isFullVersion(version) {
+		return version
+	}
 	return resolveDockerTagVersion("opensearchproject", "opensearch", version)
 }
 
@@ -861,7 +874,7 @@ func NewDockerController(composeFile string) *DockerController {
 
 // Up starts all services
 func (c *DockerController) Up() error {
-	cmd := buildComposeCmd(c.composeFile, "up", "-d")
+	cmd := buildComposeCmd(c.composeFile, "up", "-d", "--remove-orphans")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -1021,16 +1034,16 @@ func (c *DockerController) ExecSilent(serviceName string, command ...string) err
 }
 
 // CreateDatabase creates a database in the MySQL/MariaDB service
-func (c *DockerController) CreateDatabase(serviceName, dbName string) error {
+func (c *DockerController) CreateDatabase(serviceName, dbName, clientBin string) error {
 	cmd := buildComposeCmd(c.composeFile, "exec", "-T", serviceName,
-		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
+		clientBin, "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", dbName))
 	return cmd.Run()
 }
 
 // DatabaseExists checks if a database exists
-func (c *DockerController) DatabaseExists(serviceName, dbName string) bool {
+func (c *DockerController) DatabaseExists(serviceName, dbName, clientBin string) bool {
 	cmd := buildComposeCmd(c.composeFile, "exec", "-T", serviceName,
-		"mysql", "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
+		clientBin, "-uroot", "-p"+DefaultDBRootPassword, "-e", fmt.Sprintf("SHOW DATABASES LIKE '%s'", dbName))
 	output, err := cmd.Output()
 	return err == nil && strings.Contains(string(output), dbName)
 }
@@ -1071,25 +1084,22 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 		compose.Volumes["mysql80_data"] = ComposeVolume{}
 	}
 
-	// Add cache service (Valkey or Redis)
+	// Add cache service (Valkey or Redis) only if configured
 	if globalCfg.DefaultServices.Valkey {
 		compose.Services["valkey"] = g.getValkeyService()
-	} else {
-		// Default to Redis
+	} else if globalCfg.DefaultServices.Redis {
 		compose.Services["redis"] = g.getRedisService()
 	}
 
-	// Add OpenSearch if configured
+	// Add the shared OpenSearch container if configured
 	if globalCfg.DefaultServices.OpenSearch != "" {
-		version := globalCfg.DefaultServices.OpenSearch
-		serviceName := fmt.Sprintf("opensearch%s", strings.ReplaceAll(version, ".", ""))
 		svcCfg := &config.ServiceConfig{
 			Enabled: true,
-			Version: version,
+			Version: globalCfg.DefaultServices.OpenSearch,
 		}
-		compose.Services[serviceName] = g.getOpenSearchService(svcCfg, true)
-		compose.Volumes[fmt.Sprintf("opensearch%s_data", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
-		compose.Volumes[fmt.Sprintf("opensearch%s_plugins", strings.ReplaceAll(version, ".", ""))] = ComposeVolume{}
+		compose.Services["opensearch"] = g.getOpenSearchService(svcCfg)
+		compose.Volumes["opensearch_data"] = ComposeVolume{}
+		compose.Volumes["opensearch_plugins"] = ComposeVolume{}
 	}
 
 	// Add Mailpit (useful for all projects)

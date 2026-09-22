@@ -411,6 +411,12 @@ func GenerateMageOSComposerJSON(projectName, version string) ([]byte, error) {
 				"Magento\\Framework\\": "lib/internal/Magento/Framework/",
 				"Magento\\Setup\\":     "setup/src/Magento/Setup/",
 				"Magento\\":            "app/code/Magento/",
+				// Since MageOS 3.2.0 the shipped setup/ code references
+				// MageOS\Installer\Console\Command\InstallCommand from a class-constant
+				// array in Magento\Setup\Console\CommandLoader, so without this root
+				// every bin/magento call fatals. Composer ignores the path silently on
+				// older releases that do not ship setup/src/MageOS/.
+				"MageOS\\Installer\\": "setup/src/MageOS/Installer/",
 			},
 			PSR0: map[string][]string{
 				"": {"app/code/", "generated/code/"},

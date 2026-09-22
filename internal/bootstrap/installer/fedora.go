@@ -149,6 +149,11 @@ func (f *FedoraInstaller) InstallDnsmasq() error {
 	return f.RunSudo("dnf", "install", "-y", "dnsmasq")
 }
 
+// InstallMysqlClient installs the MySQL client tools
+func (f *FedoraInstaller) InstallMysqlClient() error {
+	return f.RunSudo("dnf", "install", "-y", "community-mysql")
+}
+
 // InstallMultitail installs multitail
 func (f *FedoraInstaller) InstallMultitail() error {
 	return f.RunSudo("dnf", "install", "-y", "multitail")

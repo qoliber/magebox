@@ -254,6 +254,12 @@ func (g *GenericInstaller) InstallMultitail() error {
 	return g.RunCommand(strings.Join(args, " "))
 }
 
+// InstallMysqlClient is a no-op for the generic installer;
+// mysql-client installation is handled by the platform-specific installers.
+func (g *GenericInstaller) InstallMysqlClient() error {
+	return nil
+}
+
 // InstallXdebug installs Xdebug for a specific PHP version
 func (g *GenericInstaller) InstallXdebug(version string) error {
 	g.loader.SetupPHPVariables(g.config, version)

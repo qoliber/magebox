@@ -5,6 +5,83 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-09-01
+
+### Added
+
+- **Magento 2.4.8-p5 and MageOS 3.4.0** - Added to the version registry; MageOS 3.4.0 is now the default MageOS version. ([#137](https://github.com/qoliber/magebox/pull/137))
+
+### Fixed
+
+- **`magebox db` Commands Failed with Exit 127 on MariaDB 11.x** - Every `db` subcommand shelled out to a hardcoded `mysql`, `mysqldump` or `mysqladmin` inside the database container, but MariaDB 11.0 removed those compatibility symlinks in favour of `mariadb`, `mariadb-dump` and `mariadb-admin`. On a project configured with MariaDB 11.x, `db import`, `db export`, `db shell`, `db create`, `db drop`, `db reset`, `db top` and both `db snapshot` commands therefore failed with exit 127 and no useful message. New `docker.DBClientBin`/`docker.DBDumpBin` helpers resolve the right binary from the configured database type and version, and every call site — including the `magebox check` database probe and `internal/project/lifecycle.go` — now goes through them. MySQL and MariaDB 10.x are unaffected and keep using the `mysql*` binaries. ([#142](https://github.com/qoliber/magebox/pull/142))
+- **Outdated Port Forwarding Daemon After a Binary Upgrade** - Upgrading via Homebrew or `magebox selfupdate` replaces only the binary; the installed LaunchDaemon was upgraded exclusively by `magebox bootstrap`, so users silently kept running an old daemon generation — including the removed pf-based approach — until they happened to run bootstrap again. `EnsureRulesActive` now reconciles daemon state on every `magebox start`: a daemon missing the current plist version marker is reinstalled, an inactive one is kickstarted, and an installed, current, responding daemon is left alone. The decision logic lives in a pure `nextAction()` function with table-driven tests. The misleading `sudo launchctl list` hint — which shows the job even when it does nothing useful — was replaced with the kickstart command that actually restarts it, and the FAQ entries that still described the removed pf anchor mechanism were updated. ([#138](https://github.com/qoliber/magebox/pull/138))
+- **Team Server TLS Config Failed Lint and gofmt** - `internal/teamserver/server.go` set the deprecated `PreferServerCipherSuites` field (a no-op since Go 1.17, flagged by staticcheck) and was not gofmt-clean, breaking `make lint` on main. ([#140](https://github.com/qoliber/magebox/pull/140), [#141](https://github.com/qoliber/magebox/pull/141))
+
+## [2.0.0] - 2026-08-10
+
+### Added
+
+- **`mysql-client` as a Managed Dependency** - magerun2's database commands (`db:info`, `db:dump`, …) shell out to `mysql`/`mysqldump`, but MageBox never checked for them, so those commands failed with no useful explanation. `magebox bootstrap` now detects `mysqldump` alongside Docker, Nginx and mkcert, includes `mysql-client` in the missing-dependency prompt, and installs it per platform (`mysql-client` on Homebrew, `default-mysql-client` on Ubuntu/Debian, `community-mysql` on Fedora, `mariadb-clients` on Arch). On macOS the formula is keg-only, so bootstrap prints the shell-specific line needed to put it on `PATH` and warns — without failing — when `mysqldump` is still missing afterwards. `magebox check` reports `mysql-client` status in its magerun2 section and surfaces the install command. ([#114](https://github.com/qoliber/magebox/pull/114))
+- **Magento 2.4.9 and MageOS 3.3.0** - Added to the version registry. ([#135](https://github.com/qoliber/magebox/pull/135))
+
+### Changed
+
+- **BREAKING: One Shared Search Container Per Engine** - The global compose file was generated per search version, so each requested version got its own container, container name, volumes, and version-derived host port (OpenSearch 2.19 → `9259`, Elasticsearch 7.17 → `9657`). A machine running several projects on different versions therefore ran several search containers, each holding its own JVM heap. MageBox now runs at most one OpenSearch and one Elasticsearch container for the whole machine, shared across every project, on fixed host ports: OpenSearch `9200`, Elasticsearch `9500` (distinct so both engines can run simultaneously). Service names (`opensearch`/`elasticsearch`), container names (`magebox-opensearch`/`magebox-elasticsearch`) and volumes (`opensearch_data`, `opensearch_plugins`, …) lost their version suffix. When projects request different versions, the version from global config wins, otherwise the highest requested version is used; the container is provisioned with the largest `memory` any project asks for. `GetOpenSearchPort`/`GetElasticsearchPort` return the fixed ports and no longer take a version argument, and the version→port helpers were removed. `status`, service-name matching, `magebox new` and `magebox check` follow the fixed names and ports. ([#129](https://github.com/qoliber/magebox/pull/129))
+
+  **Upgrading:** projects configured against a version-derived port must be repointed to `9200`/`9500`, and the new container starts on a fresh volume, so `catalogsearch_fulltext` needs a reindex. The old per-version containers and volumes are orphaned and can be removed. See [Upgrading from MageBox 1.x](https://magebox.dev/guide/search#upgrading-from-1x) for the full procedure. Only rebuildable search indices are affected — no persistent data is lost.
+
+### Fixed
+
+- **Varnish Crash-Looped with Multiple Projects** - `buildVCLConfig` emitted one backend per registered project, but the template only ever references `DefaultBackend`. Varnish 7.x treats a defined-but-unused backend as a fatal compile error, so with two or more projects the shared `magebox-varnish` container failed to compile its VCL and crash-looped, returning 502 on every request and recurring on each `magebox start`. Every generated backend was identical anyway, since Nginx already routes to the right project by `Host` header, so the VCL now emits a single `magento` backend. The health probe also used `HEAD /` expecting `301` while Magento returns `302`, which marked the backend sick and returned 503; it now probes `GET /health_check.php` expecting `200`. Both the embedded template and the `lib/templates` copy are fixed — the previous attempt patched only the latter, which is not the one rendered at runtime. ([#131](https://github.com/qoliber/magebox/pull/131))
+- **Stale Container Names in OpenSearch Service Docs** - The troubleshooting and container-logs examples still referenced `magebox-opensearch-2.19` instead of the shared `magebox-opensearch` container.
+- **Order-Dependent Search Version Test** - `TestComposeService_Elasticsearch_FixedPortAndVolumes` resolved a `major.minor` version without the Docker Hub mock installed, so it queried the real API and cached the unresolved fallback in the package-level tag cache, intermittently failing `TestResolveElasticsearchVersion` on CI depending on test order.
+
+## [1.19.1] - 2026-08-07
+
+### Fixed
+
+- **Self-Healing Web-UI Commands** - `phpmyadmin`, `elasticvue`, and `mailpit` now start their container on demand instead of dead-ending when it is stopped (which happens routinely after a Docker Desktop or machine restart). `phpmyadmin open` and `elasticvue open` start the container when the service is enabled but stopped, then open the browser; `mailpit open` always starts it (Mailpit is always on). `phpmyadmin enable` and `elasticvue enable` are now idempotent — when already enabled but stopped, they restart the container instead of printing "already enabled" and doing nothing. Only the requested UI container is started (no full `global start`, no databases dragged in), and a clear message is shown when Docker itself is not running. `status` now points to the relevant `open` command. Shared helpers (`isContainerRunning`, `openInBrowser`, `ensureGlobalServiceRunning`, `decideServiceUI`) de-duplicate the logic across the three commands. ([#128](https://github.com/qoliber/magebox/pull/128))
+
+## [1.19.0] - 2026-08-07
+
+### Added
+
+- **Configurable PHP-FPM Process Manager** - Pool configs previously hardcoded `pm = dynamic` with `pm.max_children = 50`, sized as if each pool had the machine to itself; on a host running several projects those defaults collectively oversubscribe it, and hand-edited pool files were overwritten on the next `magebox start`. A `pm` block can now be set in `.magebox.yaml` / `.magebox.local.yaml`, with a machine-wide `default_pm` baseline in `~/.magebox/config.yaml`. Precedence is project > global > built-in, merged key by key so a local override can tune a single value. `ondemand` is the notable addition for multi-project machines: dormant projects start no workers at all. Only the directives valid for the selected mode are written, and values are validated before the pool file is written — a single malformed pool prevents the FPM master from starting, taking down every project on that PHP version. Lowering only `max_children` scales the untouched spare-server defaults down to fit rather than erroring. Defaults are unchanged, so existing installs render byte-identical pool files. ([#133](https://github.com/qoliber/magebox/pull/133))
+
+### Fixed
+
+- **PHP-FPM Service Docs Showed Stale `pm` Values** - The service documentation still listed 5/2/10/500 for `start_servers`/`min_spare_servers`/`max_spare_servers`/`max_requests` rather than the 8/4/12/1000 the code has been generating. ([#133](https://github.com/qoliber/magebox/pull/133))
+- **CI Failed on Fork Pull Requests** - The `comment-artifacts` job requests `pull-requests: write`, but GitHub caps `GITHUB_TOKEN` to read-only for `pull_request` runs originating from a fork, so posting the artifact comment failed with a 403 and marked the whole run as failed even when every build, test and lint job passed. This had broken every fork PR since the job was added. The job is now gated on the PR originating from this repository; PRs from branches in this repository keep their artifact comment. ([#134](https://github.com/qoliber/magebox/pull/134))
+
+## [1.18.2] - 2026-06-23
+
+### Fixed
+
+- **`magebox open <worktree>` Served the Wrong Project** - The worktree branch skipped `start` when the shared global services (MySQL, Redis, …) were already running for the base project, so the worktree's Nginx vhost was never generated and requests fell through to Nginx's default server (a different project). The worktree is now started unconditionally.
+- **SSL for Nested Worktree Hosts** - Certificates were generated only for the two-label base domain with a `*.base` wildcard, which matches a single label, so a nested host such as `shop.nl.b2b-case.localhost` was not covered and HTTPS failed. Certificate generation now adds each exact host as a SAN — regenerating only when the existing certificate does not already cover every host — fixing SSL for deeply nested domains.
+
+## [1.18.1] - 2026-06-23
+
+### Added
+
+- **Worktree Argument for `magebox open`** - `magebox open <name>` now targets the git worktree at `.claude/worktrees/<name>`. MageBox derives a `.magebox.local.yaml` from the worktree's `.magebox.yaml` — appending `.<name>` to the project name and inserting `.<name>` before the TLD of each domain host (e.g. `mystore.localhost` → `mystore.<name>.localhost`) — then starts and opens the worktree as its own isolated project. Comments and layout from `.magebox.yaml` are preserved, and the override is rewritten on every run.
+
+## [1.18.0] - 2026-05-28
+
+### Added
+
+- **STOP Protocol Support** - New `magebox stop-protocol` command group (`enable`, `disable`, `status`) that toggles the Static Precompilation & OPcache Protocol for the current project. Enabling writes the required `opcache.*` keys (including `opcache.preload = <project>/app/preload.php`, `opcache.preload_user`, JIT settings, and 512 MB memory) to `.magebox.local.yaml` and performs a full PHP-FPM restart (not a reload), because `opcache.preload` is only evaluated at master start. A new `FPMController.Restart()` was added for this purpose. See the [STOP guide](https://magebox.dev/guide/stop-protocol). ([#121](https://github.com/qoliber/magebox/pull/121))
+- **PR Build Artifacts** - CI now uploads binaries built from pull request branches as GitHub Actions artifacts and posts a comment on the PR with download links, so reviewers can test changes without building locally.
+
+### Changed
+
+- **Search Service Version Resolution** - `opensearch:2` or `elasticsearch:7` (major-only shorthands) are now resolved to a concrete image tag that actually exists in the registry, instead of failing with a missing-image error. Hardcoded version defaults were removed in favour of registry lookups, and the docs for OpenSearch and Elasticsearch were updated. ([#118](https://github.com/qoliber/magebox/pull/118))
+
+### Fixed
+
+- **Redis No Longer Starts Unconditionally** - `GenerateDefaultServices` previously emitted a Redis service in the generated compose file even when `globalCfg.DefaultServices.Redis` was `false`, so `magebox start` would spin up Redis for every project. Redis is now only added when explicitly enabled, and `docker compose up` runs with `--remove-orphans` so previously-started Redis containers are cleaned up on the next start. ([#115](https://github.com/qoliber/magebox/pull/115))
+- **Mailpit Sendmail Compatibility with Symfony Mailer** - The generated PHP-FPM pool now sets `sendmail_path` to `mailpit sendmail -t`. Without `-t`, Symfony Mailer (used by recent Magento versions) fails to deliver mail through Mailpit because recipients aren't passed on the command line. ([#125](https://github.com/qoliber/magebox/pull/125))
+
 ## [1.17.0] - 2026-05-13
 
 ### Added

@@ -89,46 +89,28 @@ func (g *VCLGenerator) Generate(configs []*config.Config) error {
 	return nil
 }
 
-// buildVCLConfig builds the VCL configuration from project configs
-func (g *VCLGenerator) buildVCLConfig(configs []*config.Config) VCLConfig {
-	vclCfg := VCLConfig{
-		Backends:    make([]BackendConfig, 0),
-		GracePeriod: "300s",
-		PurgeACL:    []string{"localhost", "127.0.0.1", "::1", "host.docker.internal"},
+// buildVCLConfig builds the VCL configuration.
+//
+// All MageBox projects share one Varnish container and one Nginx backend on :8080; Nginx
+// already routes to the right project by Host header. Earlier this emitted one backend per
+// registered project, but every backend was identical and the template only ever references
+// DefaultBackend — so with 2+ projects Varnish 7.x aborted compilation on the first unused
+// backend ("Unused backend …") and crash-looped. We therefore emit a single backend.
+func (g *VCLGenerator) buildVCLConfig(_ []*config.Config) VCLConfig {
+	backend := BackendConfig{
+		Name:          "magento",
+		Host:          getHostIP(),
+		Port:          8080, // Nginx backend listens on 8080 (Varnish connects here)
+		ProbeURL:      "/health_check.php",
+		ProbeInterval: "5s",
 	}
 
-	// Backend host - detect host IP for Docker to reach nginx
-	backendHost := getHostIP()
-	backendPort := 8080 // Nginx backend listens on 8080 (Varnish connects here)
-
-	for _, cfg := range configs {
-		// Each project gets a backend pointing to Nginx
-		backend := BackendConfig{
-			Name:          sanitizeName(cfg.Name),
-			Host:          backendHost,
-			Port:          backendPort,
-			ProbeURL:      "/health_check.php",
-			ProbeInterval: "5s",
-		}
-		vclCfg.Backends = append(vclCfg.Backends, backend)
-
-		// First project is default backend
-		if vclCfg.DefaultBackend == "" {
-			vclCfg.DefaultBackend = backend.Name
-		}
+	return VCLConfig{
+		Backends:       []BackendConfig{backend},
+		DefaultBackend: backend.Name,
+		GracePeriod:    "300s",
+		PurgeACL:       []string{"localhost", "127.0.0.1", "::1", "host.docker.internal"},
 	}
-
-	// If no projects, create a default backend
-	if len(vclCfg.Backends) == 0 {
-		vclCfg.Backends = append(vclCfg.Backends, BackendConfig{
-			Name: "default",
-			Host: backendHost,
-			Port: backendPort,
-		})
-		vclCfg.DefaultBackend = "default"
-	}
-
-	return vclCfg
 }
 
 // renderVCL renders the VCL template
@@ -160,20 +142,6 @@ func (g *VCLGenerator) VCLDir() string {
 // VCLFilePath returns the path to the main VCL file
 func (g *VCLGenerator) VCLFilePath() string {
 	return filepath.Join(g.vclDir, "default.vcl")
-}
-
-// sanitizeName converts a project name to a valid VCL identifier
-func sanitizeName(name string) string {
-	// Replace non-alphanumeric characters with underscores
-	result := make([]byte, 0, len(name))
-	for _, c := range []byte(name) {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-			result = append(result, c)
-		} else {
-			result = append(result, '_')
-		}
-	}
-	return string(result)
 }
 
 // Controller manages Varnish service

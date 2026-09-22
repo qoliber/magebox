@@ -249,6 +249,11 @@ func (u *UbuntuInstaller) InstallDnsmasq() error {
 	return u.RunSudo("apt", "install", "-y", "dnsmasq")
 }
 
+// InstallMysqlClient installs the MySQL client tools
+func (u *UbuntuInstaller) InstallMysqlClient() error {
+	return u.RunSudo("apt", "install", "-y", "default-mysql-client")
+}
+
 // InstallMultitail installs multitail
 func (u *UbuntuInstaller) InstallMultitail() error {
 	return u.RunSudo("apt", "install", "-y", "multitail")

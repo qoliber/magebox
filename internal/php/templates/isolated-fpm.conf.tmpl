@@ -24,11 +24,16 @@ listen.owner = {{.User}}
 listen.group = {{.Group}}
 listen.mode = 0660
 
-pm = dynamic
+pm = {{.PMMode}}
 pm.max_children = {{.MaxChildren}}
+{{- if eq .PMMode "dynamic"}}
 pm.start_servers = {{.StartServers}}
 pm.min_spare_servers = {{.MinSpareServers}}
 pm.max_spare_servers = {{.MaxSpareServers}}
+{{- end}}
+{{- if eq .PMMode "ondemand"}}
+pm.process_idle_timeout = {{.ProcessIdleTimeout}}
+{{- end}}
 pm.max_requests = {{.MaxRequests}}
 
 catch_workers_output = yes

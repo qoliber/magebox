@@ -23,9 +23,6 @@ func setupTestManager(t *testing.T) (*Manager, string) {
 func TestNewManager(t *testing.T) {
 	m, _ := setupTestManager(t)
 
-	if m == nil {
-		t.Fatal("NewManager should not return nil")
-	}
 	if m.platform == nil {
 		t.Error("platform should not be nil")
 	}
@@ -197,9 +194,6 @@ services:
 		t.Fatalf("ValidateConfig failed: %v", err)
 	}
 
-	if cfg == nil {
-		t.Fatal("Config should not be nil")
-	}
 	if cfg.Name != "mystore" {
 		t.Errorf("Name = %v, want mystore", cfg.Name)
 	}

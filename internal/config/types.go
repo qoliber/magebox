@@ -20,6 +20,7 @@ type Config struct {
 	Domains       []Domain           `yaml:"domains"`
 	PHP           string             `yaml:"php"`
 	PHPINI        map[string]string  `yaml:"php_ini,omitempty"`
+	PM            *PMConfig          `yaml:"pm,omitempty"`       // PHP-FPM process manager tuning
 	Isolated      bool               `yaml:"isolated,omitempty"` // Use dedicated PHP-FPM master for this project
 	Services      Services           `yaml:"services"`
 	Env           map[string]string  `yaml:"env,omitempty"`

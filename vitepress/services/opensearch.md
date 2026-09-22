@@ -24,8 +24,8 @@ Search engines power Magento's catalog search, providing:
 
 | Version | Port | Magento Compatibility |
 |---------|------|----------------------|
-| Elasticsearch 7.17 | 9200 | Magento 2.4.4 - 2.4.5 |
-| Elasticsearch 8.x | 9200 | Magento 2.4.6+ |
+| Elasticsearch 7.17 | 9500 | Magento 2.4.4 - 2.4.5 |
+| Elasticsearch 8.x | 9500 | Magento 2.4.6+ |
 
 ::: tip
 OpenSearch is recommended for new projects. It's a community-driven fork of Elasticsearch with full Magento compatibility.
@@ -47,6 +47,8 @@ Or for Elasticsearch:
 services:
   elasticsearch: "8.11"
 ```
+
+Supported major-version shorthands are also accepted. For example, `elasticsearch: "7"` resolves to the latest available `7.x` image, `elasticsearch: "8"` resolves to the latest available `8.x` image, and `opensearch: "2"` resolves to the latest available `2.x` image. If you specify an exact supported minor such as `8.11`, MageBox keeps that minor and only resolves the patch release.
 
 ### With Memory Allocation
 
@@ -78,15 +80,19 @@ These plugins enable:
 | Setting | Value |
 |---------|-------|
 | Host | `127.0.0.1` |
-| Port | `9200` |
+| Port (OpenSearch) | `9200` |
+| Port (Elasticsearch) | `9500` |
 | Protocol | HTTP |
+
+MageBox runs a single shared container per engine, on a fixed port. OpenSearch and
+Elasticsearch use different ports so both can run simultaneously.
 
 ## Magento Configuration
 
 ### Via Install Command
 
 ::: warning Use your project name as index prefix
-MageBox projects share a single OpenSearch/Elasticsearch Docker instance on port 9200. Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
+MageBox projects share a single OpenSearch/Elasticsearch Docker instance (OpenSearch on port 9200, Elasticsearch on port 9500). Using the same prefix (e.g. `magento2`) across projects causes index collisions — one project's reindex will overwrite another's data. Always set the prefix to your project name.
 :::
 
 ```bash
@@ -105,7 +111,7 @@ For Elasticsearch:
 php bin/magento setup:install \
     --search-engine=elasticsearch8 \
     --elasticsearch-host=127.0.0.1 \
-    --elasticsearch-port=9200 \
+    --elasticsearch-port=9500 \
     --elasticsearch-index-prefix=myproject \
     --elasticsearch-timeout=15 \
     # ... other options
@@ -190,16 +196,16 @@ docker ps | grep elasticsearch
 ### Container Logs
 
 ```bash
-docker logs magebox-opensearch-2.19
+docker logs magebox-opensearch
 
 # Follow logs
-docker logs -f magebox-opensearch-2.19
+docker logs -f magebox-opensearch
 ```
 
 ### Restart Container
 
 ```bash
-docker restart magebox-opensearch-2.19
+docker restart magebox-opensearch
 ```
 
 ## Memory Configuration
@@ -328,7 +334,7 @@ If Magento reports missing ICU or phonetic plugin:
 curl http://127.0.0.1:9200/_cat/plugins?v
 
 # If missing, restart container (MageBox installs them automatically)
-docker restart magebox-opensearch-2.19
+docker restart magebox-opensearch
 ```
 
 ## Elasticvue Web UI
