@@ -462,8 +462,8 @@ This section lists all MageBox commands and their compatibility with test mode.
 
 | Command | Subcommands | Test Mode | Notes |
 |---------|-------------|-----------|-------|
-| `magebox global start` | - | ❌ No | Starts Docker services |
-| `magebox global stop` | - | ❌ No | Stops Docker services |
+| `magebox global start` | - | ❌ No | Starts Docker services; loads port forwarding on macOS (sudo) |
+| `magebox global stop` | - | ❌ No | Stops Docker services; unloads port forwarding on macOS (sudo) |
 | `magebox global status` | - | ⚠️ Partial | Can check, Docker services skipped |
 
 ### Team Collaboration

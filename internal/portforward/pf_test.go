@@ -152,13 +152,43 @@ func TestIsSupported(t *testing.T) {
 }
 
 // Start and Stop must be no-ops on Linux, where Nginx binds 80/443 directly.
-func TestStartStopNoOpOnLinux(t *testing.T) {
-	m := &Manager{platform: "linux"}
+func TestStartStopNoOpOnUnsupportedPlatform(t *testing.T) {
+	for _, platform := range []string{"linux", "windows"} {
+		t.Run(platform, func(t *testing.T) {
+			m := &Manager{platform: platform}
 
-	if err := m.Start(); err != nil {
-		t.Errorf("Start() on linux = %v, want nil", err)
+			if err := m.Start(); err != nil {
+				t.Errorf("Start() on %s = %v, want nil", platform, err)
+			}
+			if err := m.Stop(); err != nil {
+				t.Errorf("Stop() on %s = %v, want nil", platform, err)
+			}
+		})
 	}
-	if err := m.Stop(); err != nil {
-		t.Errorf("Stop() on linux = %v, want nil", err)
+}
+
+// After the daemon is unloaded, port 80 may still be taken by an unrelated
+// local service. That is not a MageBox failure: the ports were handed back,
+// which is all "magebox global stop" promises.
+func TestStopVerdict(t *testing.T) {
+	tests := []struct {
+		name         string
+		portFree     bool
+		daemonLoaded bool
+		wantErr      bool
+	}{
+		{name: "ports released", portFree: true, daemonLoaded: false, wantErr: false},
+		{name: "ports released while launchd still lists the job", portFree: true, daemonLoaded: true, wantErr: false},
+		{name: "another service owns port 80", portFree: false, daemonLoaded: false, wantErr: false},
+		{name: "our daemon is still loaded and serving", portFree: false, daemonLoaded: true, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := stopVerdict(tt.portFree, tt.daemonLoaded)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("stopVerdict(%v, %v) = %v, wantErr %v", tt.portFree, tt.daemonLoaded, err, tt.wantErr)
+			}
+		})
 	}
 }

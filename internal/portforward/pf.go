@@ -156,17 +156,11 @@ func (m *Manager) Start() error {
 	if !m.IsInstalled() {
 		return fmt.Errorf("port forwarding not configured — run 'magebox bootstrap' first")
 	}
-	if m.AreRulesActive() {
-		return nil
-	}
 
-	if err := m.startDaemon(); err != nil {
-		return fmt.Errorf("failed to start port forwarding daemon: %w", err)
-	}
-	if !waitFor(m.AreRulesActive, daemonWaitAttempts, daemonWaitDelay) {
-		return fmt.Errorf("port forwarding daemon not responding — run 'magebox bootstrap'")
-	}
-	return nil
+	// Reuse the reconciler rather than adding a second path that starts the
+	// daemon: it also upgrades an outdated plist instead of loading it as is.
+	_, err := m.EnsureRulesActive()
+	return err
 }
 
 // Stop unloads the port forwarding daemon so ports 80 and 443 are released
@@ -176,17 +170,31 @@ func (m *Manager) Stop() error {
 	if !m.IsSupported() || !m.IsInstalled() {
 		return nil
 	}
-	if !m.AreRulesActive() && !m.isDaemonLoaded() {
+	// Nothing is listening, so the ports are already free. Asking launchd
+	// instead would prompt for a sudo password on every "global stop".
+	if !m.AreRulesActive() {
 		return nil
 	}
 
 	if err := m.unloadLaunchDaemon(); err != nil {
 		return fmt.Errorf("failed to unload port forwarding daemon: %w", err)
 	}
-	if !waitFor(func() bool { return !m.AreRulesActive() }, daemonWaitAttempts, daemonWaitDelay) {
-		return fmt.Errorf("port 80 is still in use after unloading the daemon — another service may be listening")
+	if waitFor(func() bool { return !m.AreRulesActive() }, daemonWaitAttempts, daemonWaitDelay) {
+		return nil
 	}
-	return nil
+	// Port 80 still accepts connections. That is only a fault if the daemon
+	// serving it is still ours.
+	return stopVerdict(false, m.isDaemonLoaded())
+}
+
+// stopVerdict reports whether a stop delivered what it promises: the web ports
+// handed back to the system. A busy port matters only while MageBox's own
+// daemon is still loaded — any other local service may legitimately own it.
+func stopVerdict(portFree, daemonLoaded bool) error {
+	if portFree || !daemonLoaded {
+		return nil
+	}
+	return fmt.Errorf("port forwarding daemon is still loaded — try: sudo launchctl bootout system/%s", launchDaemonLabel)
 }
 
 // startDaemon loads the daemon, or restarts it when launchd already knows it.
@@ -416,9 +424,13 @@ func (m *Manager) loadLaunchDaemon() error {
 // unloadLaunchDaemon unloads the LaunchDaemon
 func (m *Manager) unloadLaunchDaemon() error {
 	cmd := exec.Command("sudo", "launchctl", "bootout", "system/"+launchDaemonLabel)
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		verbose.Debug("launchctl bootout failed (trying legacy unload): %v", err)
 		cmd = exec.Command("sudo", "launchctl", "unload", launchDaemonPlist)
+		cmd.Stdin = os.Stdin
+		cmd.Stderr = os.Stderr
 		return cmd.Run()
 	}
 	return nil

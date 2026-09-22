@@ -51,7 +51,7 @@ Bootstrap needs elevated permissions (one time only) to:
 - Trust SSL certificates
 - Modify nginx configuration
 
-After bootstrap, daily operations don't require sudo.
+After bootstrap, daily operations don't require sudo. The exception is macOS, where `magebox global stop` unloads the port forwarding daemon to release ports 80 and 443, and `magebox global start` loads it again. Both ask for your password.
 
 ### Can I install without Homebrew on macOS?
 
