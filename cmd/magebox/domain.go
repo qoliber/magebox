@@ -53,12 +53,14 @@ var domainListCmd = &cobra.Command{
 
 var (
 	domainStoreCode string
+	domainStoreType string
 	domainRoot      string
 	domainSSL       bool
 )
 
 func init() {
-	domainAddCmd.Flags().StringVar(&domainStoreCode, "store-code", "", "Magento store code (default: \"default\")")
+	domainAddCmd.Flags().StringVar(&domainStoreCode, "store-code", "", "Magento store/website code for multi-store setup")
+	domainAddCmd.Flags().StringVar(&domainStoreType, "store-type", "", "Magento run type: \"store\" or \"website\" (default: \"store\")")
 	domainAddCmd.Flags().StringVar(&domainRoot, "root", "", "Document root relative to project (default: \"pub\" for Magento, \"public\" for Laravel)")
 	domainAddCmd.Flags().BoolVar(&domainSSL, "ssl", true, "Enable SSL for the domain")
 
@@ -92,9 +94,10 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 
 	// Create new domain
 	newDomain := config.Domain{
-		Host:        host,
-		Root:        domainRoot,
-		MageRunCode: domainStoreCode,
+		Host:      host,
+		Root:      domainRoot,
+		StoreCode: domainStoreCode,
+		StoreType: domainStoreType,
 	}
 
 	// Only set SSL if explicitly changed from default (true)
@@ -163,7 +166,9 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	cli.PrintInfo("Domain %s configured with store code: %s", host, newDomain.GetStoreCode())
+	if newDomain.StoreCode != "" {
+		cli.PrintInfo("Domain %s configured with store code: %s (%s)", host, newDomain.StoreCode, newDomain.GetStoreType())
+	}
 
 	return nil
 }
@@ -284,7 +289,9 @@ func runDomainList(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s\n", cli.Highlight(d.Host))
 		fmt.Printf("    URL:        %s://%s\n", protocol, d.Host)
 		fmt.Printf("    Root:       %s\n", d.GetRoot())
-		fmt.Printf("    Store Code: %s\n", d.GetStoreCode())
+		if d.StoreCode != "" {
+			fmt.Printf("    Store Code: %s (%s)\n", d.StoreCode, d.GetStoreType())
+		}
 		fmt.Printf("    SSL:        %s\n", sslStatus)
 		fmt.Println()
 	}
