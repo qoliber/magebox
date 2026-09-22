@@ -402,6 +402,12 @@ func (g *VhostGenerator) ensureDefaultSSLCatchAll(httpsPort int, enableIPv6 bool
 		return fmt.Errorf("render default ssl template: %w", err)
 	}
 
+	// The catch-all is written before any project vhost, so this may be the
+	// first thing ever placed in the directory.
+	if err := os.MkdirAll(g.vhostsDir, 0755); err != nil {
+		return fmt.Errorf("create vhosts directory: %w", err)
+	}
+
 	vhostFile := filepath.Join(g.vhostsDir, defaultSSLVhostFile)
 	if existing, err := os.ReadFile(vhostFile); err == nil && bytes.Equal(existing, buf.Bytes()) {
 		return nil
