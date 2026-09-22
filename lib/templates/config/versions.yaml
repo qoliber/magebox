@@ -103,20 +103,20 @@ mageos:
   versions:
     - version: "3.5.0"
       name: "MageOS 3.5.0 (Latest)"
-      php: ["8.4", "8.3", "8.2"]
+      php: ["8.5", "8.4", "8.3"]
       default: true
       base: "2.4.9"
     - version: "3.4.0"
       name: "MageOS 3.4.0"
-      php: ["8.4", "8.3", "8.2"]
+      php: ["8.5", "8.4", "8.3"]
       base: "2.4.9"
     - version: "3.3.0"
       name: "MageOS 3.3.0"
-      php: ["8.4", "8.3", "8.2"]
+      php: ["8.5", "8.4", "8.3"]
       base: "2.4.9"
     - version: "3.2.0"
       name: "MageOS 3.2.0"
-      php: ["8.4", "8.3", "8.2"]
+      php: ["8.5", "8.4", "8.3"]
       base: "2.4.9"
     - version: "2.2.2"
       name: "MageOS 2.2.2"
