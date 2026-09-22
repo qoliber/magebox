@@ -5,11 +5,17 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] - 2026-09-22
+
+### Added
+
+- **Magento 2.4.7-p10, MageOS 3.5.0 and MageOS 3.2.0** - Added to the version registry. MageOS 3.5.0 is now the default MageOS version offered by `magebox new`. ([#148](https://github.com/qoliber/magebox/pull/148), [#145](https://github.com/qoliber/magebox/pull/145))
 
 ### Fixed
 
-- **`magebox global stop` Did Not Free Ports 80/443 on macOS** - `global stop` stopped Nginx and the Docker services but left the port forwarding LaunchDaemon (`com.magebox.portforward`) loaded, so ports 80 and 443 stayed occupied and other local dev tools failed to bind them. `magebox global stop` now unloads the daemon and waits until port 80 is actually released; `magebox global start` loads it again. The plist stays installed, so no `magebox bootstrap` is needed to get forwarding back, and `magebox global status` now reports the port forwarding state on macOS. ([#108](https://github.com/qoliber/magebox/issues/108))
+- **`magebox global stop` Did Not Free Ports 80/443 on macOS** - `global stop` stopped Nginx and the Docker services but left the port forwarding LaunchDaemon (`com.magebox.portforward`) loaded, so ports 80 and 443 stayed occupied and other local dev tools failed to bind them. `magebox global stop` now unloads the daemon and waits until port 80 is actually released, and `magebox global start` loads it again. The plist stays installed, so no `magebox bootstrap` is needed to get forwarding back, and `magebox global status` reports the port forwarding state on macOS. Both commands prompt for sudo on macOS, which is now documented in the command reference, the FAQ and the testing matrix. A stop is reported as successful once the daemon is gone, even if an unrelated local service has meanwhile taken port 80 — handing the ports back is all the command promises — and `magebox global start` goes through the same reconciler as `magebox start`, so an outdated daemon is upgraded instead of loaded as is. ([#143](https://github.com/qoliber/magebox/pull/143), [#108](https://github.com/qoliber/magebox/issues/108))
+- **`bin/magento` Fatals on MageOS 3.2.0 and Newer** - Since MageOS 3.2.0 the shipped `setup/` code references `MageOS\Installer\Console\Command\InstallCommand` from a class-constant array in Magento's command loader, so every `bin/magento` call fatally errored without the matching psr-4 autoload root in the generated `composer.json`. The root is now added, and a test guards the autoload roots against drift from the upstream MageOS project template. Thanks to Peter Jaap Blaakmeer.
+- **Wrong PHP Versions Offered for MageOS 3.x** - Every MageOS 3.x entry in the version registry advertised PHP 8.2 and omitted PHP 8.5, while upstream requires PHP 8.3, 8.4 or 8.5 for 3.2.0 through 3.5.0. `magebox new` offers that list, so it steered people onto a PHP version the install cannot run on and hid a supported one. Tests now guard the advertised versions against upstream drift, and the embedded and shipped copies of the registry against diverging.
 
 ## [2.0.1] - 2026-09-01
 
