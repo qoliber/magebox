@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -494,6 +495,13 @@ func (m *DnsmasqManager) setupSystemdResolved() error {
 		return fmt.Errorf("failed to write resolved config: %w", err)
 	}
 
+	// systemd-resolved reads its configuration after dropping privileges, so a
+	// root-only file (the mode a temp file is copied with) is refused with
+	// "Permission denied" and silently ignored.
+	if err := exec.Command("sudo", "chmod", "0644", confPath).Run(); err != nil {
+		return fmt.Errorf("failed to set permissions on resolved config: %w", err)
+	}
+
 	// Restart systemd-resolved
 	cmd = exec.Command("sudo", "systemctl", "restart", "systemd-resolved")
 	return cmd.Run()
@@ -532,4 +540,20 @@ func (m *DnsmasqManager) RemoveSystemdResolvedConfig() error {
 		return fmt.Errorf("failed to restart systemd-resolved: %w", err)
 	}
 	return nil
+}
+
+// SystemResolves reports whether the machine's own resolver answers for a
+// domain.
+//
+// Querying dnsmasq directly proves only that dnsmasq works. Everything else on
+// the machine goes through the system resolver, so bootstrap reported DNS as
+// working while browsers and curl still failed.
+func SystemResolves(domain string) bool {
+	if platform.CommandExists("getent") {
+		// getent goes through NSS, the same path ordinary programs take.
+		output, err := exec.Command("getent", "hosts", domain).Output()
+		return err == nil && len(strings.TrimSpace(string(output))) > 0
+	}
+	addrs, err := net.LookupHost(domain)
+	return err == nil && len(addrs) > 0
 }

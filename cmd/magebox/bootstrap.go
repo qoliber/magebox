@@ -874,6 +874,17 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	// Test DNS resolution if dnsmasq was configured
 	if dnsmasqConfigured {
 		testDomain := fmt.Sprintf("test.%s", tld)
+
+		// dnsmasq answering says nothing about the rest of the machine: the
+		// systemd-resolved drop-in may not have been read, in which case
+		// browsers and curl still fail.
+		if dns.SystemResolves(testDomain) {
+			fmt.Printf("  System resolver answers for %s %s\n", testDomain, cli.Success("✓"))
+		} else if dnsManager.TestResolution(testDomain) {
+			cli.PrintWarning("dnsmasq answers for %s but the system resolver does not.", testDomain)
+			cli.PrintInfo("Check that systemd-resolved can read %s, then restart it: sudo systemctl restart systemd-resolved", dns.ResolvedDropInPath)
+		}
+
 		fmt.Printf("  Testing DNS resolution for %s... ", testDomain)
 		if dnsManager.TestResolution(testDomain) {
 			fmt.Println(cli.Success("✓ resolves to 127.0.0.1"))

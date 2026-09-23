@@ -71,7 +71,15 @@ func (b *BaseInstaller) WriteFile(path, content string) error {
 	tmpFile.Close()
 
 	// Copy to destination with sudo (use RunSudo to allow password prompt)
-	return b.RunSudo("cp", tmpPath, path)
+	if err := b.RunSudo("cp", tmpPath, path); err != nil {
+		return err
+	}
+
+	// os.CreateTemp makes the file 0600, and cp keeps that mode. Daemons that
+	// read their configuration after dropping privileges (systemd-resolved,
+	// for one) then cannot open it and silently ignore the file. Callers that
+	// need something stricter, such as sudoers, set it afterwards.
+	return b.RunSudo("chmod", "0644", path)
 }
 
 // CommandExists checks if a command is available
