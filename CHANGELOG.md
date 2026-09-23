@@ -5,6 +5,18 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-09-23
+
+### Fixed
+
+- **Passwordless Sudo Broken on Ubuntu 26.04** - Ubuntu 26.04 ships sudo-rs, which refuses to parse wildcards in command arguments. MageBox wrote rules such as `systemctl start php*-fpm`, `cp /tmp/magebox-* /etc/nginx/nginx.conf` and `apt install -y blackfire*`, so `/etc/sudoers.d/magebox` failed to parse entirely and every MageBox operation, including `sudo -s`, printed parse errors and asked for a password. Rules are now generated as complete commands, one line per PHP version and action, and are identical whether they come from the Go installers or the YAML installer definitions. Bootstrap validates the file with `visudo` before installing it and replaces an existing file that the local sudo rejects, so upgrading and re-running `magebox bootstrap` repairs a broken system.
+- **PHP 8.1 to 8.4 Could Not Be Installed on Ubuntu 26.04** - Ondrej Sury's PPA publishes nothing for Ubuntu releases it has not caught up with, so on 26.04 apt had no `php8.1` … `php8.4` packages and only Ubuntu's own PHP 8.5 could be installed. Bootstrap now checks which suites the PPA publishes, pins the newest one available, and says so. Packages built for the previous release normally install cleanly; a version that fails is reported and bootstrap continues.
+
+### Changed
+
+- **Ubuntu 26.04 is recognised as a supported release** - It no longer triggers the "not officially tested" warning.
+- **Passwordless sudo is limited to service control** - Only starting, stopping, reloading and restarting nginx, PHP-FPM and the Blackfire agent, plus `nginx -t` and `nginx -s reload`, run without a password. Commands that run during bootstrap or an explicit install ask for one, as do Xdebug and Blackfire configuration edits. This also removes the previous `sed -i *` and `ln -s *` rules, which allowed arbitrary arguments and amounted to unrestricted root for the MageBox user.
+
 ## [2.1.0] - 2026-09-22
 
 ### Added
