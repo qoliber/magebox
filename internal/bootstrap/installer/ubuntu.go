@@ -126,9 +126,15 @@ func (u *UbuntuInstaller) InstallPrerequisites() error {
 		verbose.Debug("apt update reported errors before the PHP repository was configured: %v", err)
 	}
 
-	// Install basic tools
+	// A package left half-configured by an earlier failure makes every apt
+	// install exit 100, whatever it is asked for.
+	u.repairBrokenPackages()
+
+	// Install basic tools. A failure here must not end bootstrap: it is usually
+	// a broken package elsewhere on the system, and stopping would skip the
+	// repository configuration below, which is what makes PHP installable.
 	if err := u.RunSudo("apt", "install", "-y", "curl", "git", "unzip", "software-properties-common"); err != nil {
-		return err
+		cli.PrintWarning("Could not install base tools: %v", err)
 	}
 
 	// Add Ondrej PPA for PHP, pinned to a suite it actually publishes

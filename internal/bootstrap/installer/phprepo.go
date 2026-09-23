@@ -100,6 +100,12 @@ func (u *UbuntuInstaller) configureSuryRepository(codename string) error {
 		return fmt.Errorf("failed to write %s: %w", surySourceFile, err)
 	}
 
+	// apt run as the user must be able to read this, or every package in the
+	// repository looks unavailable. An older MageBox left it root-only.
+	if err := u.RunSudo("chmod", "0644", surySourceFile); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", surySourceFile, err)
+	}
+
 	// A PPA source for a release it does not publish only produces 404s, and a
 	// PPA pinned to an older suite offers packages that cannot be installed.
 	for _, file := range ppaSourceFiles(codename) {
