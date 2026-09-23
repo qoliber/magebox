@@ -76,9 +76,35 @@ func (m *DnsmasqManager) getTLD() string {
 	return globalCfg.GetTLD()
 }
 
-// IsInstalled checks if dnsmasq is installed
+// IsInstalled checks if dnsmasq is installed and usable by MageBox.
+//
+// On Linux the binary alone is not enough: Ubuntu's dnsmasq-base package ships
+// it without a service unit, and MageBox starts dnsmasq through systemd.
+// Treating that as installed makes bootstrap skip the install and then fail to
+// start the service.
 func (m *DnsmasqManager) IsInstalled() bool {
-	return platform.CommandExists("dnsmasq")
+	if !platform.CommandExists("dnsmasq") {
+		return false
+	}
+	if m.platform.Type != platform.Linux || !platform.CommandExists("systemctl") {
+		return true
+	}
+
+	output, err := exec.Command("systemctl", "list-unit-files", "dnsmasq.service").Output()
+	if err != nil {
+		return false
+	}
+	return systemdUnitListed(string(output), "dnsmasq.service")
+}
+
+// systemdUnitListed reports whether systemctl listed the unit.
+func systemdUnitListed(output, unit string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), unit) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsConfigured checks if dnsmasq is configured for MageBox
@@ -471,4 +497,39 @@ func (m *DnsmasqManager) setupSystemdResolved() error {
 	// Restart systemd-resolved
 	cmd = exec.Command("sudo", "systemctl", "restart", "systemd-resolved")
 	return cmd.Run()
+}
+
+// ResolvedDropInPath is the systemd-resolved drop-in MageBox installs to send
+// .test lookups to its dnsmasq.
+const ResolvedDropInPath = "/etc/systemd/resolved.conf.d/magebox.conf"
+
+// NeedsResolvedCleanup reports whether the systemd-resolved drop-in has to go.
+//
+// The drop-in is written before dnsmasq is known to work. If dnsmasq then
+// cannot be started, leaving it behind points every .test lookup at a resolver
+// that is not there, so names fail outright instead of falling through to
+// /etc/hosts.
+func NeedsResolvedCleanup(dnsmasqWorking, dropInPresent bool) bool {
+	return !dnsmasqWorking && dropInPresent
+}
+
+// ResolvedDropInPresent reports whether the drop-in is installed.
+func ResolvedDropInPresent() bool {
+	_, err := os.Stat(ResolvedDropInPath)
+	return err == nil
+}
+
+// RemoveSystemdResolvedConfig deletes the drop-in and restarts
+// systemd-resolved, handing .test lookups back to the system defaults.
+func (m *DnsmasqManager) RemoveSystemdResolvedConfig() error {
+	if !ResolvedDropInPresent() {
+		return nil
+	}
+	if err := exec.Command("sudo", "rm", "-f", ResolvedDropInPath).Run(); err != nil {
+		return fmt.Errorf("failed to remove %s: %w", ResolvedDropInPath, err)
+	}
+	if err := exec.Command("sudo", "systemctl", "restart", "systemd-resolved").Run(); err != nil {
+		return fmt.Errorf("failed to restart systemd-resolved: %w", err)
+	}
+	return nil
 }

@@ -165,12 +165,22 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		errors = append(errors, "Docker is not installed. Install: "+bootstrapper.DockerInstallInstructions())
 	} else {
 		verbose.Debug("Docker binary found, checking daemon...")
-		// Check if Docker daemon is running
-		if !bootstrapper.CheckDockerRunning() {
+		// Check whether Docker answers, and why it does not
+		switch issue := bootstrapper.CheckDocker(); issue {
+		case bootstrap.DockerPermissionDenied:
+			verbose.Debug("Docker socket is not accessible for this user")
+			cli.PrintWarning("Docker is running but this user cannot reach its socket.")
+			cli.PrintInfo("Fix: %s", issue.Advice())
+			errors = append(errors, "Docker socket is not accessible for this user")
+		case bootstrap.DockerNotRunning:
 			verbose.Debug("Docker daemon is not running")
 			cli.PrintWarning("Docker is installed but not running. Please start Docker.")
 			errors = append(errors, "Docker daemon is not running")
-		} else {
+		case bootstrap.DockerUnknownFailure:
+			verbose.Debug("Docker did not answer")
+			cli.PrintWarning("Docker did not answer. %s", issue.Advice())
+			errors = append(errors, "Docker is not answering")
+		default:
 			verbose.Debug("Docker daemon is running")
 		}
 	}
@@ -674,6 +684,38 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Repair certificates referenced by vhosts but missing on disk. nginx
+	// refuses to start over a single one, taking every project offline.
+	fmt.Print("  Checking vhost certificates... ")
+	if missing, err := nginx.MissingCertificates(vhostsDir); err != nil {
+		fmt.Println(cli.Warning("skipped"))
+	} else if len(missing) == 0 {
+		fmt.Println(cli.Success("ok"))
+	} else {
+		fmt.Println(cli.Warning(fmt.Sprintf("%d vhost(s) reference missing certificates", len(missing))))
+		for vhost, certs := range missing {
+			domain := ""
+			for _, cert := range certs {
+				if d := nginx.DomainFromCertPath(cert); d != "" {
+					domain = d
+					break
+				}
+			}
+			if domain == "" {
+				cli.PrintWarning("%s references a certificate MageBox does not manage: %s", filepath.Base(vhost), certs[0])
+				continue
+			}
+			fmt.Printf("    Regenerating certificate for %s... ", domain)
+			if _, err := sslMgr.EnsureCert(domain, domain); err != nil {
+				fmt.Println(cli.Error("failed"))
+				cli.PrintWarning("Could not regenerate %s: %v", domain, err)
+				cli.PrintInfo("Remove %s or run 'magebox start' in that project to fix it.", vhost)
+			} else {
+				fmt.Println(cli.Success("done"))
+			}
+		}
+	}
+
 	// Test and reload nginx
 	fmt.Print("  Testing nginx config... ")
 	if err := nginxCtrl.Test(); err != nil {
@@ -800,6 +842,20 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Falling back to /etc/hosts mode")
 		globalCfg.DNSMode = "hosts"
 		_ = config.SaveGlobalConfig(homeDir, globalCfg)
+
+		// The systemd-resolved drop-in is written before dnsmasq is known to
+		// work. Left behind, it sends every .test lookup to a resolver that is
+		// not running, so names fail instead of falling through to /etc/hosts.
+		if dns.NeedsResolvedCleanup(false, dns.ResolvedDropInPresent()) {
+			fmt.Print("  Removing the systemd-resolved override... ")
+			if err := dnsManager.RemoveSystemdResolvedConfig(); err != nil {
+				fmt.Println(cli.Error("failed"))
+				cli.PrintWarning("Remove %s by hand, or .test names will not resolve: %v", dns.ResolvedDropInPath, err)
+			} else {
+				fmt.Println(cli.Success("done"))
+			}
+		}
+
 		cli.PrintInfo("Domains will be added to /etc/hosts when you run %s", cli.Command("magebox start"))
 	}
 
@@ -916,17 +972,15 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	if p.Type == platform.Linux {
 		fmt.Println(cli.Header("Step 10: Sudoers Configuration"))
 
-		sudoersFile := "/etc/sudoers.d/magebox"
-		if _, err := os.Stat(sudoersFile); err == nil {
-			fmt.Println("  Sudoers already configured " + cli.Success("✓"))
+		// Never skip because the file exists: a file written by an older
+		// MageBox contains wildcards that today's sudo rejects, which
+		// disables every rule in it.
+		fmt.Print("  Setting up passwordless nginx/php-fpm control... ")
+		if err := bootstrapper.ConfigureSudoers(); err != nil {
+			fmt.Println(cli.Error("failed"))
+			cli.PrintWarning("Failed to setup sudoers: %v", err)
 		} else {
-			fmt.Print("  Setting up passwordless nginx/php-fpm control... ")
-			if err := bootstrapper.ConfigureSudoers(); err != nil {
-				fmt.Println(cli.Error("failed"))
-				cli.PrintWarning("Failed to setup sudoers: %v", err)
-			} else {
-				fmt.Println(cli.Success("done"))
-			}
+			fmt.Println(cli.Success("done"))
 		}
 		fmt.Println()
 	}

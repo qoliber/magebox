@@ -217,6 +217,16 @@ curl -I https://mystore.test
 
 On Linux, MageBox uses a different approach than macOS for privileged ports and service management.
 
+### Repairs on Every Run
+
+`magebox bootstrap` is safe to re-run and repairs state it finds broken:
+
+- **Sudoers rules** are regenerated whenever the installed file is missing, rejected by the local sudo, or out of date. An existing file is never taken as proof of a working one.
+- **Vhost certificates** are checked against disk. nginx refuses to start when a single certificate is missing, which takes every project offline, so bootstrap regenerates the ones MageBox manages and names the file to remove for any it does not.
+- **The PHP repository** is pinned to a suite that actually publishes packages, as described below.
+
+Errors from `apt update` are reported as warnings rather than ending the run, because a repository that fails is usually the one the next step repairs.
+
 ### PHP Packages on Ubuntu and Debian
 
 PHP comes from Ondrej Sury's PPA, which lags new Ubuntu releases by months. On a release it does not cover yet, such as 26.04, that PPA holds no packages at all, so PHP 8.1 through 8.4 cannot be installed and only the PHP version shipped by Ubuntu itself is available.

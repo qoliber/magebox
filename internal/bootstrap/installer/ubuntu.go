@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/platform"
+	"qoliber/magebox/internal/verbose"
 )
 
 // UbuntuInstaller handles installation on Ubuntu/Debian
@@ -98,9 +100,11 @@ func (u *UbuntuInstaller) ValidateOSVersion() (OSVersionInfo, error) {
 
 // InstallPrerequisites installs system prerequisites
 func (u *UbuntuInstaller) InstallPrerequisites() error {
-	// Update package lists
+	// A repository with nothing for this release makes apt update exit
+	// non-zero. That must not end bootstrap, because the repository it would
+	// abort over is usually the one the next step repairs.
 	if err := u.RunSudo("apt", "update"); err != nil {
-		return fmt.Errorf("failed to update apt: %w", err)
+		verbose.Debug("apt update reported errors before the PHP repository was configured: %v", err)
 	}
 
 	// Install basic tools
@@ -113,8 +117,12 @@ func (u *UbuntuInstaller) InstallPrerequisites() error {
 		return err
 	}
 
-	// Update after adding PPA
-	return u.RunSudo("apt", "update")
+	// Update again so the repaired repository is read. Other broken sources on
+	// the machine are the user's to fix; they must not fail bootstrap.
+	if err := u.RunSudo("apt", "update"); err != nil {
+		cli.PrintWarning("apt update reported errors; packages from a failing repository may be unavailable")
+	}
+	return nil
 }
 
 // InstallPHP installs a specific PHP version via Ondrej PPA

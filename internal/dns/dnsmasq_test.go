@@ -152,3 +152,75 @@ func TestDnsmasqStatus(t *testing.T) {
 		t.Errorf("TestDomain = %v, want test.test", status.TestDomain)
 	}
 }
+
+// Ubuntu's dnsmasq-base package ships the binary without a service unit.
+// MageBox starts dnsmasq through systemd, so the binary alone is not enough:
+// without this check bootstrap reports dnsmasq as installed and then fails to
+// start it with a bare exit code.
+func TestSystemdUnitListed(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		unit   string
+		want   bool
+	}{
+		{
+			name:   "unit present",
+			output: "UNIT FILE         STATE    PRESET\ndnsmasq.service   enabled  enabled\n\n1 unit files listed.",
+			unit:   "dnsmasq.service",
+			want:   true,
+		},
+		{
+			name:   "no unit files",
+			output: "UNIT FILE   STATE   PRESET\n\n0 unit files listed.",
+			unit:   "dnsmasq.service",
+			want:   false,
+		},
+		{
+			name:   "different unit listed",
+			output: "UNIT FILE        STATE    PRESET\nnginx.service    enabled  enabled\n\n1 unit files listed.",
+			unit:   "dnsmasq.service",
+			want:   false,
+		},
+		{
+			name:   "empty output",
+			output: "",
+			unit:   "dnsmasq.service",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := systemdUnitListed(tt.output, tt.unit); got != tt.want {
+				t.Errorf("systemdUnitListed(%q) = %v, want %v", tt.unit, got, tt.want)
+			}
+		})
+	}
+}
+
+// When dnsmasq cannot be started, MageBox falls back to /etc/hosts. Leaving the
+// systemd-resolved drop-in in place then points every .test lookup at a
+// resolver that does not exist, so names fail outright instead of falling
+// through to the hosts file.
+func TestNeedsResolvedCleanup(t *testing.T) {
+	tests := []struct {
+		name        string
+		dnsmasqOK   bool
+		dropInFound bool
+		want        bool
+	}{
+		{name: "dnsmasq works, drop-in belongs there", dnsmasqOK: true, dropInFound: true, want: false},
+		{name: "fell back with a stale drop-in", dnsmasqOK: false, dropInFound: true, want: true},
+		{name: "fell back with nothing to clean", dnsmasqOK: false, dropInFound: false, want: false},
+		{name: "dnsmasq works, no drop-in yet", dnsmasqOK: true, dropInFound: false, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NeedsResolvedCleanup(tt.dnsmasqOK, tt.dropInFound); got != tt.want {
+				t.Errorf("NeedsResolvedCleanup(%v, %v) = %v, want %v", tt.dnsmasqOK, tt.dropInFound, got, tt.want)
+			}
+		})
+	}
+}

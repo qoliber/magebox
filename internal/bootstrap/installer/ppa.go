@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"qoliber/magebox/internal/verbose"
 	"strings"
 	"time"
 )
@@ -113,8 +114,11 @@ func (u *UbuntuInstaller) pinPPASuite(from, to string) error {
 // configurePHPRepository adds Ondrej's PHP PPA, falling back to the newest
 // suite it publishes when the running release is not covered yet.
 func (u *UbuntuInstaller) configurePHPRepository() error {
+	// add-apt-repository runs apt update itself, which fails while the PPA has
+	// no packages for this release — exactly the state this function repairs.
+	// Its exit code therefore says nothing useful here.
 	if err := u.RunCommand("sudo add-apt-repository -y ppa:ondrej/php"); err != nil {
-		return fmt.Errorf("failed to add Ondrej PPA: %w", err)
+		verbose.Debug("add-apt-repository reported an error: %v", err)
 	}
 
 	codename := currentUbuntuCodename()
