@@ -108,9 +108,9 @@ func (u *UbuntuInstaller) InstallPrerequisites() error {
 		return err
 	}
 
-	// Add Ondrej PPA for PHP
-	if err := u.RunCommand("sudo add-apt-repository -y ppa:ondrej/php"); err != nil {
-		return fmt.Errorf("failed to add Ondrej PPA: %w", err)
+	// Add Ondrej PPA for PHP, pinned to a suite it actually publishes
+	if err := u.configurePHPRepository(); err != nil {
+		return err
 	}
 
 	// Update after adding PPA
@@ -410,55 +410,7 @@ d /var/lib/nginx/uwsgi 0755 %s %s -
 
 // ConfigureSudoers sets up passwordless sudo for services
 func (u *UbuntuInstaller) ConfigureSudoers() error {
-	currentUser := os.Getenv("USER")
-	if currentUser == "" {
-		currentUser = os.Getenv("LOGNAME")
-	}
-	if currentUser == "" {
-		return fmt.Errorf("could not determine current user")
-	}
-
-	sudoersFile := "/etc/sudoers.d/magebox"
-	if u.FileExists(sudoersFile) {
-		return nil // Already configured
-	}
-
-	sudoersContent := fmt.Sprintf(`# MageBox - Allow %[1]s to control nginx and php-fpm without password
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
-%[1]s ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
-# Blackfire profiler
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/apt install -y blackfire*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/apt install -y tideways*
-`, currentUser)
-
-	// Write sudoers file
-	if err := u.WriteFile(sudoersFile, sudoersContent); err != nil {
-		return fmt.Errorf("failed to write sudoers file: %w", err)
-	}
-
-	// Set correct permissions
-	if err := u.RunSudo("chmod", "0440", sudoersFile); err != nil {
-		return fmt.Errorf("failed to set sudoers permissions: %w", err)
-	}
-
-	return nil
+	return ConfigureSudoersFor(&u.BaseInstaller, UbuntuSudoersSpec())
 }
 
 // ConfigureSELinux is a no-op on Ubuntu (SELinux typically not used)

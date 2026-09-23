@@ -233,55 +233,7 @@ func (a *ArchInstaller) ConfigureNginx() error {
 
 // ConfigureSudoers sets up passwordless sudo for services
 func (a *ArchInstaller) ConfigureSudoers() error {
-	currentUser := os.Getenv("USER")
-	if currentUser == "" {
-		currentUser = os.Getenv("LOGNAME")
-	}
-	if currentUser == "" {
-		return fmt.Errorf("could not determine current user")
-	}
-
-	sudoersFile := "/etc/sudoers.d/magebox"
-	if a.FileExists(sudoersFile) {
-		return nil // Already configured
-	}
-
-	sudoersContent := fmt.Sprintf(`# MageBox - Allow %[1]s to control nginx and php-fpm without password
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx -s reload
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx -t
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
-# Blackfire profiler
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *blackfire*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *tideways*
-`, currentUser)
-
-	// Write sudoers file
-	if err := a.WriteFile(sudoersFile, sudoersContent); err != nil {
-		return fmt.Errorf("failed to write sudoers file: %w", err)
-	}
-
-	// Set correct permissions
-	if err := a.RunSudo("chmod", "0440", sudoersFile); err != nil {
-		return fmt.Errorf("failed to set sudoers permissions: %w", err)
-	}
-
-	return nil
+	return ConfigureSudoersFor(&a.BaseInstaller, ArchSudoersSpec())
 }
 
 // ConfigureSELinux is a no-op on Arch (SELinux typically not used)

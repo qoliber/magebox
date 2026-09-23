@@ -124,7 +124,7 @@ var SupportedVersions = map[platform.Type]map[string][]string{
     },
     platform.Linux: {
         "fedora": {"38", "39", "40", "41", "42"},
-        "ubuntu": {"20.04", "22.04", "24.04"},    // LTS versions
+        "ubuntu": {"20.04", "22.04", "24.04", "26.04"}, // LTS versions
         "debian": {"11", "12"},                   // Bullseye, Bookworm
         "arch":   {"rolling"},
     },
@@ -334,8 +334,10 @@ sudoers:
   file: "/etc/sudoers.d/magebox"
   rules:
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-php-fpm"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php83-php-fpm"
 ```
+
+Rules must name complete commands. Wildcards in arguments are rejected by sudo-rs, the default sudo on Ubuntu 26.04, and one rejected rule invalidates the entire file. A test keeps these lists identical to the rules the Go installers generate.
 
 ### Available Variables
 

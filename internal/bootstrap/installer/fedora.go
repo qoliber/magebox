@@ -354,62 +354,7 @@ func (f *FedoraInstaller) ConfigureSELinux() error {
 
 // ConfigureSudoers sets up passwordless sudo for services
 func (f *FedoraInstaller) ConfigureSudoers() error {
-	currentUser := os.Getenv("USER")
-	if currentUser == "" {
-		currentUser = os.Getenv("LOGNAME")
-	}
-	if currentUser == "" {
-		return fmt.Errorf("could not determine current user")
-	}
-
-	sudoersFile := "/etc/sudoers.d/magebox"
-	if f.FileExists(sudoersFile) {
-		return nil // Already configured
-	}
-
-	sudoersContent := fmt.Sprintf(`# MageBox - Allow %[1]s to control nginx and php-fpm without password
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
-%[1]s ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx -s reload
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx -t
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/nginx
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-php-fpm
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/ln -s *
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i *
-# Allow editing /etc/hosts for DNS entries
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/tee -a /etc/hosts
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/sed -i * /etc/hosts
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-hosts-* /etc/hosts
-# Blackfire profiler
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/dnf install -y blackfire*
-%[1]s ALL=(ALL) NOPASSWD: /usr/bin/dnf install -y tideways*
-`, currentUser)
-
-	// Write sudoers file
-	if err := f.WriteFile(sudoersFile, sudoersContent); err != nil {
-		return fmt.Errorf("failed to write sudoers file: %w", err)
-	}
-
-	// Set correct permissions
-	if err := f.RunSudo("chmod", "0440", sudoersFile); err != nil {
-		return fmt.Errorf("failed to set sudoers permissions: %w", err)
-	}
-
-	return nil
+	return ConfigureSudoersFor(&f.BaseInstaller, FedoraSudoersSpec())
 }
 
 // SetupDNS configures DNS resolution for local domains

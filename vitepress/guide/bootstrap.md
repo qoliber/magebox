@@ -22,7 +22,7 @@ MageBox validates your OS version during bootstrap:
 
 **Linux:**
 - Fedora: 38, 39, 40, 41, 42
-- Ubuntu: 20.04, 22.04, 24.04 (LTS versions)
+- Ubuntu: 20.04, 22.04, 24.04, 26.04 (LTS versions)
 - Debian: 11 (Bullseye), 12 (Bookworm)
 - Arch: Rolling release
 
@@ -217,6 +217,18 @@ curl -I https://mystore.test
 
 On Linux, MageBox uses a different approach than macOS for privileged ports and service management.
 
+### PHP Packages on Ubuntu and Debian
+
+PHP comes from Ondrej Sury's PPA, which lags new Ubuntu releases by months. On a release it does not cover yet, such as 26.04, that PPA holds no packages at all, so PHP 8.1 through 8.4 cannot be installed and only the PHP version shipped by Ubuntu itself is available.
+
+Bootstrap checks which suites the PPA publishes and pins the newest one it has, reporting what it did:
+
+```
+The PHP PPA does not publish packages for resolute yet; using its noble packages instead.
+```
+
+Those packages are built for the previous release. They normally install and run fine, but if a dependency has moved on, bootstrap reports the failure for that PHP version and continues with the rest.
+
 ### Nginx User Configuration
 
 MageBox configures nginx to run as your user so it can access SSL certificates in `~/.magebox/certs`:
@@ -262,17 +274,25 @@ MageBox uses the default PHP-FPM logging paths provided by each distribution's r
 
 ### Sudoers Configuration
 
-Bootstrap configures passwordless sudo for specific commands:
+Bootstrap configures passwordless sudo for the exact commands MageBox runs while you work:
 
 ```bash
 # /etc/sudoers.d/magebox
 YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
-YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-fpm
 YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx
-YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php*-fpm
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/sbin/nginx -s reload
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php8.3-fpm
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php8.3-fpm
+# ... one line per PHP version and action
 ```
 
 This allows MageBox to manage services without password prompts during daily operations.
+
+::: warning No wildcards
+Every rule names a complete command. Earlier releases used wildcards such as `systemctl reload php*-fpm`, which [sudo-rs](https://github.com/trifectatechfoundation/sudo-rs) — the default sudo on Ubuntu 26.04 — refuses to parse. A single rejected rule invalidates the whole file, so MageBox then asked for a password on every operation. Bootstrap detects such a file and replaces it, and validates the new one with `visudo` before installing it.
+
+Commands that only run during bootstrap or an explicit install, such as editing `/etc/nginx/nginx.conf` or toggling Xdebug, are deliberately not passwordless. Granting those without a wildcard would mean allowing any argument, which is equivalent to unrestricted root.
+:::
 
 ### DNS with systemd-resolved
 

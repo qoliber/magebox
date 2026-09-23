@@ -132,32 +132,21 @@ sudoers:
   file: "/etc/sudoers.d/magebox"
   mode: "0440"
   rules:
-    # Nginx control
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx -s reload"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/nginx -t"
-    # PHP-FPM control
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start php-fpm"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop php-fpm"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php-fpm"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart php-fpm"
-    # Nginx config management
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/magebox-* /etc/nginx/nginx.conf"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/*"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/rm /etc/nginx/*"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/ln -s *"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/sed -i *"
-    # Blackfire profiler
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start blackfire-agent"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop blackfire-agent"
+    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload blackfire-agent"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart blackfire-agent"
     - "${user} ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable blackfire-agent"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *blackfire*"
-    - "${user} ALL=(ALL) NOPASSWD: /usr/bin/pacman -S --noconfirm *tideways*"
-
 selinux:
   enabled: false
 
