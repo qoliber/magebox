@@ -4,6 +4,7 @@
 package installer
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,11 +27,29 @@ type UbuntuInstaller struct {
 // (e.g. php8.5-opcache is built into php8.5-cli) or otherwise aren't yet
 // published for a given PHP version.
 func isAptPackageAvailable(pkg string) bool {
-	out, err := exec.Command("apt-cache", "show", pkg).Output()
+	cmd := exec.Command("apt-cache", "show", pkg)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+
+	// apt-cache cannot tell a genuinely missing package from one it could not
+	// look up, so a source file it may not read produces the same empty answer.
+	// Filtering packages out on that basis made bootstrap skip every PHP
+	// package and report success. Let apt decide instead: a real install either
+	// works or fails with a message worth reading.
+	if !aptCacheAnswerReliable(stderr.String()) {
+		return true
+	}
 	if err != nil {
 		return false
 	}
 	return len(strings.TrimSpace(string(out))) > 0
+}
+
+// aptCacheAnswerReliable reports whether apt-cache could see everything it
+// needed, judged by what it warned about.
+func aptCacheAnswerReliable(stderr string) bool {
+	return !strings.Contains(stderr, "Permission denied")
 }
 
 // NewUbuntuInstaller creates a new Ubuntu/Debian installer
