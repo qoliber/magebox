@@ -66,9 +66,13 @@ func (m *Manager) EnsureCAInstalled() error {
 		return fmt.Errorf("failed to get CA root: %w", err)
 	}
 
-	// Check if CA files exist
-	if _, err := os.Stat(filepath.Join(caRoot, "rootCA.pem")); os.IsNotExist(err) {
-		// Install the CA
+	// A CA file on disk proves nothing about trust. On a machine restored from
+	// another install the browser often trusts a different, stale authority, so
+	// every HTTPS site warns while MageBox reports the CA as installed.
+	_, statErr := os.Stat(filepath.Join(caRoot, "rootCA.pem"))
+	if os.IsNotExist(statErr) || !m.IsCATrustedByBrowsers() {
+		// mkcert -install is idempotent and adds the CA to the system and
+		// browser trust stores.
 		cmd := exec.Command("mkcert", "-install")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
