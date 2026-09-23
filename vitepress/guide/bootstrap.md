@@ -223,21 +223,26 @@ On Linux, MageBox uses a different approach than macOS for privileged ports and 
 
 - **Sudoers rules** are regenerated whenever the installed file is missing, rejected by the local sudo, or out of date. An existing file is never taken as proof of a working one.
 - **Vhost certificates** are checked against disk. nginx refuses to start when a single certificate is missing, which takes every project offline, so bootstrap regenerates the ones MageBox manages and names the file to remove for any it does not.
-- **The PHP repository** is pinned to a suite that actually publishes packages, as described below.
+- **The PHP repository** is pointed at a source that covers this release, as described below, and its apt source file is made readable so packages do not silently look unavailable.
+- **Half-configured packages** are finished with `dpkg --configure -a`. One of them makes every `apt install` fail, whatever it is asked for.
 
-Errors from `apt update` are reported as warnings rather than ending the run, because a repository that fails is usually the one the next step repairs.
+Errors from `apt update`, and failures installing the base tools, are reported as warnings rather than ending the run, because the thing that failed is usually what the next step repairs.
 
 ### PHP Packages on Ubuntu and Debian
 
-PHP comes from Ondrej Sury's PPA, which lags new Ubuntu releases by months. On a release it does not cover yet, such as 26.04, that PPA holds no packages at all, so PHP 8.1 through 8.4 cannot be installed and only the PHP version shipped by Ubuntu itself is available.
+PHP comes from a third-party repository, because Ubuntu ships a single version. Bootstrap picks the one that covers the running release:
 
-Bootstrap checks which suites the PPA publishes and pins the newest one it has, reporting what it did:
+- **Ondrej Sury's PPA**, while it publishes for that release.
+- **packages.sury.org**, for releases the PPA has not caught up with. The PPA is being merged into it, and it is the canonical source for Ubuntu 26.04.
+- **Neither**, with a warning that only the PHP version shipped by Ubuntu can be installed.
 
 ```
-The PHP PPA does not publish packages for resolute yet; using its noble packages instead.
+The PHP PPA does not cover resolute; using packages.sury.org instead.
 ```
 
-Those packages are built for the previous release. They normally install and run fine, but if a dependency has moved on, bootstrap reports the failure for that PHP version and continues with the rest.
+::: warning Do not pin an older suite
+Pointing the PPA at the newest suite it does publish looks like a fix and is not: those packages depend on library versions (`libxml2`, `libicu74`, `libzip4t64`) a newer Ubuntu no longer ships, so every install fails on unsatisfiable dependencies. Bootstrap therefore switches repository rather than suite.
+:::
 
 ### Nginx User Configuration
 
