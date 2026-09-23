@@ -69,6 +69,18 @@ func init() {
 func runBootstrap(cmd *cobra.Command, args []string) error {
 	verbose.Section("Bootstrap Starting")
 
+	// Run as root, bootstrap would build the whole environment under /root:
+	// the config, certificates, PHP-FPM pools and an nginx include pointing at
+	// a directory nginx cannot read, which stops nginx from starting at all.
+	if installer.ShouldRefuseRootBootstrap(os.Geteuid()) {
+		cli.PrintError("Do not run bootstrap as root.")
+		fmt.Println()
+		fmt.Println("  Run it as your own user; it asks for a sudo password where it needs one:")
+		fmt.Println("    magebox bootstrap")
+		fmt.Println()
+		return fmt.Errorf("bootstrap must not run as root")
+	}
+
 	p, err := getPlatform()
 	if err != nil {
 		verbose.Debug("Failed to detect platform: %v", err)

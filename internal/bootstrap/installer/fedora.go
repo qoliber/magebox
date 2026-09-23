@@ -204,14 +204,16 @@ func (f *FedoraInstaller) ConfigurePHPFPM(versions []string) error {
 			}
 		}
 
-		// Add MageBox pools include to php-fpm.conf if not already present
+		// Keep exactly one MageBox include. Appending on every run left
+		// duplicates, which define the same pool twice, and a run under a
+		// different user added an include matching nothing. Either stops
+		// PHP-FPM from starting.
 		if f.FileExists(fpmConfPath) {
-			// Check if include already exists
-			checkCmd := exec.Command("grep", "-q", mageboxPoolsInclude, fpmConfPath)
-			if checkCmd.Run() != nil {
-				// Include not found, add it
-				if err := f.RunSudo("sh", "-c", fmt.Sprintf("echo '%s' >> %s", mageboxPoolsInclude, fpmConfPath)); err != nil {
-					return fmt.Errorf("failed to add MageBox pools include to %s: %w", fpmConfPath, err)
+			if content, readErr := os.ReadFile(fpmConfPath); readErr == nil {
+				if updated, changed := NormalizeFPMIncludes(string(content), mageboxPoolsInclude); changed {
+					if err := f.WriteFile(fpmConfPath, updated); err != nil {
+						return fmt.Errorf("failed to update %s: %w", fpmConfPath, err)
+					}
 				}
 			}
 		}
