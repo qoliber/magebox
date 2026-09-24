@@ -5,10 +5,11 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.1] - 2026-09-23
+## [2.1.2] - 2026-09-24
 
 ### Fixed
 
+- **PHP 8.1 to 8.4 Still Could Not Be Installed on Ubuntu 26.04** - 2.1.1 pinned Ondrej Sury's PPA to the newest suite it publishes. That makes apt work but offers packages depending on library versions (`libxml2`, `libicu74`, `libzip4t64`) that 26.04 no longer ships, so every install failed on unsatisfiable dependencies. The PPA is being merged into packages.sury.org, which does publish for 26.04. Bootstrap now picks the repository that covers the running release, and warns plainly when none does.
 - **Bootstrap Never Repaired a Broken Sudoers File** - 2.1.1 generates valid rules, but `magebox bootstrap` skipped the whole step whenever `/etc/sudoers.d/magebox` already existed, so every machine upgrading from an older release kept its rejected wildcard rules and nothing improved. The step now always runs; the installer decides whether a rewrite is needed and leaves a correct file alone.
 - **Bootstrap Aborted Before It Could Fix the PHP Repository** - `InstallPrerequisites` ran `apt update` first and returned on any error. A PPA with no packages for the running release makes apt exit 100, so bootstrap gave up before reaching the code that repairs exactly that repository. Both `apt update` calls are now warnings rather than failures, and `add-apt-repository`'s own exit code is ignored for the same reason.
 - **One Missing Certificate Took Every Site Offline** - nginx refuses to start when a vhost references a certificate that is not on disk, so a single stale project stopped every other one. Bootstrap now checks the certificates every vhost references, regenerates the missing ones it manages, and names the file to remove for any it does not.
@@ -22,8 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bootstrap Ran as Root Broke the Machine** - Run with `sudo`, bootstrap built the whole environment under `/root`: the config, the certificate authority, PHP-FPM pools and an nginx include pointing into a directory nginx cannot read, which stopped nginx from starting at all. Bootstrap now refuses to run as root and says to run it as the normal user, which asks for a password where it needs one.
 - **php-fpm.conf Accumulated Includes Until PHP-FPM Would Not Start** - Every bootstrap run appended another MageBox pools include. Duplicates define the same pool twice, and an include left by a run under another user matches nothing; either stops PHP-FPM from starting, and a PHP-FPM that cannot start makes every later `dpkg` operation on the package fail, which cascaded into failed Blackfire and dnsmasq installs. Bootstrap now rewrites the file to hold exactly one include, dropping duplicates and includes naming another user's home.
 - **dnsmasq Reported as Installed When Only the Library Was** - Ubuntu's `dnsmasq-base` provides the binary without a systemd unit, so MageBox skipped the install and then failed to start the service with a bare exit code. Installation now also requires the service unit on systemd machines.
+
+## [2.1.1] - 2026-09-23
+
+### Fixed
+
 - **Passwordless Sudo Broken on Ubuntu 26.04** - Ubuntu 26.04 ships sudo-rs, which refuses to parse wildcards in command arguments. MageBox wrote rules such as `systemctl start php*-fpm`, `cp /tmp/magebox-* /etc/nginx/nginx.conf` and `apt install -y blackfire*`, so `/etc/sudoers.d/magebox` failed to parse entirely and every MageBox operation, including `sudo -s`, printed parse errors and asked for a password. Rules are now generated as complete commands, one line per PHP version and action, and are identical whether they come from the Go installers or the YAML installer definitions. Bootstrap validates the file with `visudo` before installing it and replaces an existing file that the local sudo rejects, so upgrading and re-running `magebox bootstrap` repairs a broken system.
-- **PHP 8.1 to 8.4 Could Not Be Installed on Ubuntu 26.04** - Ondrej Sury's PPA publishes nothing past Ubuntu 24.04 and is being folded into packages.sury.org, which does cover 26.04. Bootstrap now picks the repository that covers the running release: the PPA where it still does, packages.sury.org where it does not, and neither with a clear warning when no repository covers the release at all. Pinning the PPA's older suite was tried first and is worse than useless, because those packages depend on library versions (libxml2, libicu74, libzip4t64) the newer release no longer ships, so every install fails on unsatisfiable dependencies.
+- **PHP 8.1 to 8.4 Could Not Be Installed on Ubuntu 26.04** - Ondrej Sury's PPA publishes nothing for Ubuntu releases it has not caught up with, so on 26.04 apt had no `php8.1` … `php8.4` packages and only Ubuntu's own PHP 8.5 could be installed. Bootstrap now checks which suites the PPA publishes, pins the newest one available, and says so. Packages built for the previous release normally install cleanly; a version that fails is reported and bootstrap continues.
+
+### Changed
+
 - **Ubuntu 26.04 is recognised as a supported release** - It no longer triggers the "not officially tested" warning.
 - **Passwordless sudo is limited to service control** - Only starting, stopping, reloading and restarting nginx, PHP-FPM and the Blackfire agent, plus `nginx -t` and `nginx -s reload`, run without a password. Commands that run during bootstrap or an explicit install ask for one, as do Xdebug and Blackfire configuration edits. This also removes the previous `sed -i *` and `ln -s *` rules, which allowed arbitrary arguments and amounted to unrestricted root for the MageBox user.
 
