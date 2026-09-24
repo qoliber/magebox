@@ -2,12 +2,39 @@
 
 This guide helps you migrate from [Laravel Valet](https://laravel.com/docs/valet) or [Valet+](https://github.com/weprovide/valet-plus) to MageBox.
 
-## Step 1: Export Your Database
+## Step 1: Move databases from Brew MySQL (optional)
+
+If you still have databases on Homebrew MySQL from the Valet era, MageBox ships a migration helper:
 
 ```bash
-# Using MySQL CLI
-mysqldump -u root your_database > database-backup.sql
+bash ./scripts/valet/setup.sh
+```
 
+This installs `valet-to-magebox` to `~/bin/`, saves Brew and MageBox MySQL credentials, and can update `app/etc/env.php`, Laravel `.env`, and WordPress `wp-config.php` for all projects in your Valet parked paths.
+
+To patch credentials, secure URLs, and add `.magebox.yaml` where missing:
+
+```bash
+valet-to-magebox --update-projects --dry-run
+valet-to-magebox --update-projects
+valet-to-magebox --start-projects
+```
+
+`--start-projects` runs `magebox start` in each parked project that has `.magebox.yaml`. You need this for HTTPS: without it, nginx has no per-site SSL vhost and Chrome may show `ERR_CERT_COMMON_NAME_INVALID` for every old Valet site except those you already started manually.
+
+List and move databases:
+
+```bash
+valet-to-magebox --list
+valet-to-magebox --move=your_database
+```
+
+See [scripts/valet/README.md](https://github.com/qoliber/magebox/blob/main/scripts/valet/README.md) for full usage.
+
+Alternatively, export manually:
+
+```bash
+mysqldump -u root your_database > database-backup.sql
 # Or with Valet+ (if available)
 valet db export your_database
 ```
@@ -48,7 +75,9 @@ domains:
 services:
   mysql: "8.0"
   redis: true          # or valkey: true
-  opensearch: "2.19"
+  opensearch:
+    version: "2.19"
+    memory: "2g"
   mailpit: true
 ```
 

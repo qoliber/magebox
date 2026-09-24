@@ -41,6 +41,37 @@ func TestVhostGenerator_VhostsDir(t *testing.T) {
 	}
 }
 
+func TestEnsureDefaultSSLCatchAll(t *testing.T) {
+	g, _ := setupTestGenerator(t)
+
+	if err := g.ensureDefaultSSLCatchAll(443, true); err != nil {
+		t.Fatalf("ensureDefaultSSLCatchAll failed: %v", err)
+	}
+
+	vhostFile := filepath.Join(g.vhostsDir, defaultSSLVhostFile)
+	content, err := os.ReadFile(vhostFile)
+	if err != nil {
+		t.Fatalf("default ssl vhost not written: %v", err)
+	}
+
+	contentStr := string(content)
+	for _, want := range []string{
+		"listen 443 ssl default_server",
+		"listen [::]:443 ssl default_server",
+		"ssl_reject_handshake on",
+		"server_name _",
+	} {
+		if !strings.Contains(contentStr, want) {
+			t.Errorf("default ssl vhost should contain %q", want)
+		}
+	}
+
+	// Idempotent: second call should not error
+	if err := g.ensureDefaultSSLCatchAll(443, true); err != nil {
+		t.Fatalf("second ensureDefaultSSLCatchAll failed: %v", err)
+	}
+}
+
 func TestVhostGenerator_Generate(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
@@ -56,6 +87,11 @@ func TestVhostGenerator_Generate(t *testing.T) {
 	err := g.Generate(cfg, projectPath)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Default SSL catch-all is created on every Generate
+	if _, err := os.Stat(filepath.Join(g.vhostsDir, defaultSSLVhostFile)); os.IsNotExist(err) {
+		t.Error("Default SSL vhost should have been created")
 	}
 
 	// Check that vhost file was created
