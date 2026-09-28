@@ -184,7 +184,7 @@ type Domain struct {
 	StoreCode string `yaml:"store_code,omitempty"` // Magento store/website code for multi-store setup
 	StoreType string `yaml:"store_type,omitempty"` // "store" or "website" (default: "store")
 
-	// MageRunCode and MageRunType are the names these settings had before 2.3.0.
+	// MageRunCode and MageRunType are the names these settings had before 2.2.0.
 	// They are still read, because the loader ignores unknown keys and a project
 	// written for an older release would otherwise lose its store code without
 	// any warning and serve the wrong store.
@@ -494,7 +494,7 @@ func (s *Services) GetSearchService() *ServiceConfig {
 // validStoreTypes are the values Magento understands for MAGE_RUN_TYPE.
 var validStoreTypes = map[string]bool{"": true, "store": true, "website": true}
 
-// MigrateDeprecatedKeys copies settings from the names they had before 2.3.0 and
+// MigrateDeprecatedKeys copies settings from the names they had before 2.2.0 and
 // returns a warning for each one found, so a project keeps working while its
 // owner is told what to rename.
 func (c *Config) MigrateDeprecatedKeys() []string {
