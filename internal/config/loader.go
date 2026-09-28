@@ -99,7 +99,7 @@ func (l *Loader) loadFileWithIncludes(path string, visited map[string]bool) (*Co
 		return nil, &ParseError{Path: path, Err: err}
 	}
 
-	// Settings renamed in 2.3.0 are migrated here rather than at each use, so a
+	// Settings renamed in 2.2.0 are migrated here rather than at each use, so a
 	// project written for an older release cannot silently lose them.
 	config.DeprecationWarnings = config.MigrateDeprecatedKeys()
 
