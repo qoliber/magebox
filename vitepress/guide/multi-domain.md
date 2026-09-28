@@ -91,9 +91,15 @@ In Magento Admin:
 
 ## Store Code Mapping
 
+### How it works
+
+Hosts that name a `store_code` go into `~/.magebox/nginx/vhosts/000-magebox-store-map.conf`, one file for every project, because nginx accepts only one map per variable. Matching is exact, so `admin.mystore.test` does not inherit the code of `mystore.test`. Domains without a code send nothing and let Magento resolve the store.
+
+Use `store_type: website` for a code that names a website rather than a store view. Both can appear in one project.
+
 ### Using store_code in Configuration (Recommended)
 
-MageBox supports `store_code` directly in domain configuration. This sets `MAGE_RUN_CODE` in nginx:
+MageBox supports `store_code` directly in domain configuration. Every domain that names one is added to a single nginx map shared by all projects, which sets `MAGE_RUN_CODE` and `MAGE_RUN_TYPE` for exactly that host:
 
 ```yaml
 name: mystore

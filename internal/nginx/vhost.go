@@ -29,16 +29,12 @@ var proxyTemplateEmbed string
 //go:embed templates/upstream.conf.tmpl
 var upstreamTemplateEmbed string
 
-//go:embed templates/map.conf.tmpl
-var mapTemplateEmbed string
-
 func init() {
 	// Register embedded templates as fallbacks
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "vhost.conf.tmpl", vhostTemplateEmbed)
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "vhost-laravel.conf.tmpl", vhostLaravelTemplateEmbed)
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "proxy.conf.tmpl", proxyTemplateEmbed)
 	lib.RegisterFallbackTemplate(lib.TemplateNginx, "upstream.conf.tmpl", upstreamTemplateEmbed)
-	lib.RegisterFallbackTemplate(lib.TemplateNginx, "map.conf.tmpl", mapTemplateEmbed)
 }
 
 // Template variables available in vhost.conf.tmpl:
@@ -82,12 +78,6 @@ type VhostConfig struct {
 	AccessLog      string // Path to access log file
 	ErrorLog       string // Path to error log file
 	CustomNginxDir string // Path to project-level custom nginx snippets directory (if it exists)
-}
-
-// MapConfig contains data needed to generate the multi-store map config
-type MapConfig struct {
-	ProjectName string
-	Domains     []config.Domain
 }
 
 // ProxyConfig contains data needed to generate a proxy vhost
@@ -141,17 +131,10 @@ func (g *VhostGenerator) Generate(cfg *config.Config, projectPath string) error 
 		return fmt.Errorf("failed to generate upstream config: %w", err)
 	}
 
-	// Generate or remove the multi-store map config depending on whether any domain has a store_code
+	// The host map is shared by every project and written by the caller, which
+	// is the only place that knows all of them. One map per project would give
+	// nginx a duplicate variable and stop it serving anything.
 	hasStoreCodes := cfg.HasMultiStore()
-	mapFile := filepath.Join(g.vhostsDir, fmt.Sprintf("%s-map.conf", cfg.Name))
-	if hasStoreCodes {
-		mapCfg := MapConfig{ProjectName: cfg.Name, Domains: cfg.Domains}
-		if err := g.generateMap(mapCfg, mapFile); err != nil {
-			return fmt.Errorf("failed to generate map config: %w", err)
-		}
-	} else {
-		os.Remove(mapFile) // clean up stale map file if store codes were removed
-	}
 
 	// Determine ports based on platform
 	// macOS uses port forwarding (80->8080, 443->8443), Linux uses standard ports
@@ -277,35 +260,6 @@ func (g *VhostGenerator) renderVhost(cfg VhostConfig) (string, error) {
 	}
 
 	tmpl, err := template.New("vhost").Parse(tmplContent)
-	if err != nil {
-		return "", err
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
-// generateMap generates the multi-store map config file
-func (g *VhostGenerator) generateMap(cfg MapConfig, destFile string) error {
-	content, err := g.renderMap(cfg)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(destFile, []byte(content), 0644)
-}
-
-// renderMap renders the map template
-func (g *VhostGenerator) renderMap(cfg MapConfig) (string, error) {
-	tmplContent, err := lib.GetTemplate(lib.TemplateNginx, "map.conf.tmpl")
-	if err != nil {
-		return "", err
-	}
-
-	tmpl, err := template.New("map").Parse(tmplContent)
 	if err != nil {
 		return "", err
 	}
