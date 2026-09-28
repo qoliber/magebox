@@ -1,0 +1,17 @@
+# MageBox multi-store map for {{.ProjectName}}
+# Generated from store_code settings in domains configuration
+# Do not edit manually - regenerated on magebox start
+
+map $host $MAGE_RUN_CODE {
+    hostnames;
+{{- range .Domains}}{{if .StoreCode}}
+    .{{.Host}}    {{.StoreCode}};
+{{- end}}{{end}}
+}
+
+map $host $MAGE_RUN_TYPE {
+    hostnames;
+{{- range .Domains}}{{if .StoreCode}}
+    .{{.Host}}    {{.GetStoreType}};
+{{- end}}{{end}}
+}
