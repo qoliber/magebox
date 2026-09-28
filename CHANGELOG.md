@@ -5,6 +5,23 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-09-28
+
+### Changed
+
+- **`MAGE_RUN_CODE` Is Only Sent When a Domain Names a Store** - MageBox injected `MAGE_RUN_CODE` and `MAGE_RUN_TYPE` into every vhost, so Magento looked for a store with that exact code even in single-store projects whose default code is not `default`, instead of resolving the store itself. A domain now contributes those variables only when it sets `store_code`, and one project can mix store and website codes. Thanks to Louis de Looze. ([#109](https://github.com/qoliber/magebox/pull/109), [#107](https://github.com/qoliber/magebox/issues/107))
+- **`mage_run_code` and `mage_run_type` Renamed to `store_code` and `store_type`** - The old names still work and print a deprecation warning on `magebox start`, because the config loader ignores unknown keys and a project written for an older release would otherwise lose its store codes silently and serve the wrong store.
+
+### Added
+
+- **`--store-type` on `magebox domain add`** - Declares whether a code names a store view or a website.
+
+### Fixed
+
+- **A Second Multistore Project Would Have Stopped nginx Entirely** - The store map was written per project into the shared vhosts directory, and nginx rejects a second `map` for the same variable with `duplicate "MAGE_RUN_CODE" variable`, which stops it serving every project on the machine. All projects now share one map file, rebuilt from every project on `magebox start`, and the per-project files an earlier build left behind are removed.
+- **Store Codes Leaked into Subdomains** - The map matched with a leading dot in nginx's `hostnames` mode, so a deliberately code-less `admin.mystore.test` inherited the code of `mystore.test`. Hosts are now matched exactly.
+- **An Invalid `store_type` Passed Silently** - Anything other than `store` or `website` was sent to Magento as `MAGE_RUN_TYPE`. A typo now fails validation.
+
 ## [2.1.2] - 2026-09-24
 
 ### Fixed
