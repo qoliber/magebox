@@ -29,6 +29,10 @@ type Config struct {
 	ComposeFile   string             `yaml:"compose_file,omitempty"` // Path to project-specific docker-compose.yml
 	Sandbox       *SandboxConfig     `yaml:"sandbox,omitempty"`
 	IncludeConfig []string           `yaml:"include_config,omitempty"` // Paths to additional config files or directories to merge
+
+	// DeprecationWarnings are filled by the loader for settings that still work
+	// under an old name. Not part of the file itself.
+	DeprecationWarnings []string `yaml:"-"`
 }
 
 // GetType returns the project type, defaulting to "magento"
@@ -179,6 +183,13 @@ type Domain struct {
 	SSL       *bool  `yaml:"ssl,omitempty"`
 	StoreCode string `yaml:"store_code,omitempty"` // Magento store/website code for multi-store setup
 	StoreType string `yaml:"store_type,omitempty"` // "store" or "website" (default: "store")
+
+	// MageRunCode and MageRunType are the names these settings had before 2.3.0.
+	// They are still read, because the loader ignores unknown keys and a project
+	// written for an older release would otherwise lose its store code without
+	// any warning and serve the wrong store.
+	MageRunCode string `yaml:"mage_run_code,omitempty"`
+	MageRunType string `yaml:"mage_run_type,omitempty"`
 }
 
 // Services represents the services configuration
@@ -355,6 +366,15 @@ func (c *Config) Validate() error {
 	if c.PHP == "" {
 		return &ValidationError{Field: "php", Message: "php version is required"}
 	}
+	for i, d := range c.Domains {
+		if !validStoreTypes[d.StoreType] {
+			return &ValidationError{
+				Field:   "domains",
+				Message: fmt.Sprintf("store_type %q is not valid, expected \"store\" or \"website\"", d.StoreType),
+				Index:   i,
+			}
+		}
+	}
 	return nil
 }
 
@@ -469,4 +489,26 @@ func (s *Services) GetSearchService() *ServiceConfig {
 		return s.Elasticsearch
 	}
 	return nil
+}
+
+// validStoreTypes are the values Magento understands for MAGE_RUN_TYPE.
+var validStoreTypes = map[string]bool{"": true, "store": true, "website": true}
+
+// MigrateDeprecatedKeys copies settings from the names they had before 2.3.0 and
+// returns a warning for each one found, so a project keeps working while its
+// owner is told what to rename.
+func (c *Config) MigrateDeprecatedKeys() []string {
+	var warnings []string
+	for i := range c.Domains {
+		domain := &c.Domains[i]
+		if domain.MageRunCode != "" && domain.StoreCode == "" {
+			domain.StoreCode = domain.MageRunCode
+			warnings = append(warnings, fmt.Sprintf("domain %s: 'mage_run_code' is deprecated, rename it to 'store_code'", domain.Host))
+		}
+		if domain.MageRunType != "" && domain.StoreType == "" {
+			domain.StoreType = domain.MageRunType
+			warnings = append(warnings, fmt.Sprintf("domain %s: 'mage_run_type' is deprecated, rename it to 'store_type'", domain.Host))
+		}
+	}
+	return warnings
 }

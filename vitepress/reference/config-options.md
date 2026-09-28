@@ -57,7 +57,14 @@ domains:
 | `host` | string | required | Domain name |
 | `root` | string | `pub` | Document root relative to project |
 | `ssl` | boolean | `true` | Enable HTTPS |
-| `store_code` | string | `default` | Magento store code (sets `MAGE_RUN_CODE`) |
+| `store_code` | string | *(none)* | Magento store or website code. Sets `MAGE_RUN_CODE` for this host only when given |
+| `store_type` | string | `store` | What the code refers to: `store` or `website`. Sets `MAGE_RUN_TYPE` |
+
+Leave `store_code` out for a single-store project. MageBox then sends no `MAGE_RUN_CODE` at all and Magento resolves the store itself, which is what a project whose default store code is not `default` needs.
+
+::: tip Renamed in 2.3.0
+`mage_run_code` and `mage_run_type` are the former names. They still work and print a deprecation warning on `magebox start`; rename them to `store_code` and `store_type`.
+:::
 
 ---
 

@@ -347,53 +347,12 @@ func TestRenderVhost_WithStoreCodes(t *testing.T) {
 	}
 }
 
-func TestRenderMap(t *testing.T) {
-	g, _ := setupTestGenerator(t)
-
-	cfg := MapConfig{
-		ProjectName: "mystore",
-		Domains: []config.Domain{
-			{Host: "mystore.test", StoreCode: "default"},
-			{Host: "de.mystore.test", StoreCode: "german"},
-			{Host: "fr.mystore.test", StoreCode: "french", StoreType: "website"},
-			{Host: "admin.mystore.test"}, // no store code — should be omitted
-		},
-	}
-
-	content, err := g.renderMap(cfg)
-	if err != nil {
-		t.Fatalf("renderMap failed: %v", err)
-	}
-
-	checks := []string{
-		"map $host $MAGE_RUN_CODE",
-		"map $host $MAGE_RUN_TYPE",
-		"hostnames;",
-		".mystore.test    default",
-		".de.mystore.test    german",
-		".fr.mystore.test    french",
-		".fr.mystore.test    website",
-	}
-	for _, check := range checks {
-		if !strings.Contains(content, check) {
-			t.Errorf("Map content should contain %q\nGot:\n%s", check, content)
-		}
-	}
-
-	// Domains without store code should not appear in the map
-	if strings.Contains(content, "admin.mystore.test") {
-		t.Error("Domain without store code should not appear in map")
-	}
-	// Default store type should be "store"
-	if !strings.Contains(content, ".mystore.test    store") {
-		t.Error("Domain with no store_type should default to store in MAGE_RUN_TYPE map")
-	}
-}
-
-func TestGenerate_CreatesMapFileWhenStoreCodesPresent(t *testing.T) {
+// The host map is shared by every project (see storemap_test.go). Generate must
+// not write a per-project one, because nginx rejects a duplicate map variable
+// and then serves no project at all.
+func TestGenerateWritesNoPerProjectMap(t *testing.T) {
 	g, tmpDir := setupTestGenerator(t)
 
-	projectPath := filepath.Join(tmpDir, "projects", "mystore")
 	cfg := &config.Config{
 		Name: "mystore",
 		Domains: []config.Domain{
@@ -403,40 +362,18 @@ func TestGenerate_CreatesMapFileWhenStoreCodesPresent(t *testing.T) {
 		PHP: "8.2",
 	}
 
-	if err := g.Generate(cfg, projectPath); err != nil {
+	if err := g.Generate(cfg, filepath.Join(tmpDir, "projects", "mystore")); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	mapFile := filepath.Join(g.vhostsDir, "mystore-map.conf")
-	if _, err := os.Stat(mapFile); os.IsNotExist(err) {
-		t.Error("Map file should have been created when store codes are present")
+	matches, err := filepath.Glob(filepath.Join(g.vhostsDir, "*-map.conf"))
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	content, _ := os.ReadFile(mapFile)
-	if !strings.Contains(string(content), "map $host $MAGE_RUN_CODE") {
-		t.Error("Map file should contain MAGE_RUN_CODE map block")
-	}
-}
-
-func TestGenerate_NoMapFileWithoutStoreCodes(t *testing.T) {
-	g, tmpDir := setupTestGenerator(t)
-
-	projectPath := filepath.Join(tmpDir, "projects", "mystore")
-	cfg := &config.Config{
-		Name: "mystore",
-		Domains: []config.Domain{
-			{Host: "mystore.test", Root: "pub"},
-		},
-		PHP: "8.2",
-	}
-
-	if err := g.Generate(cfg, projectPath); err != nil {
-		t.Fatalf("Generate failed: %v", err)
-	}
-
-	mapFile := filepath.Join(g.vhostsDir, "mystore-map.conf")
-	if _, err := os.Stat(mapFile); !os.IsNotExist(err) {
-		t.Error("Map file should NOT be created when no store codes are configured")
+	for _, match := range matches {
+		if filepath.Base(match) != StoreMapFile {
+			t.Errorf("Generate wrote a per-project map file: %s", match)
+		}
 	}
 }
 

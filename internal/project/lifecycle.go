@@ -167,6 +167,14 @@ func (m *Manager) Start(projectPath string) (*StartResult, error) {
 		result.Errors = append(result.Errors, fmt.Errorf("nginx vhost: %w", err))
 	}
 
+	// The host to store map is shared by every project, so it is rebuilt from
+	// all of them: nginx accepts only one map per variable.
+	if err := m.vhostGenerator.EnsureStoreMap(m.collectAllProjectConfigs(cfg)); err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("store map: %w", err))
+	}
+
+	result.Warnings = append(result.Warnings, cfg.DeprecationWarnings...)
+
 	// Reload Nginx to pick up new vhost
 	nginxController := nginx.NewController(m.platform)
 	if err := nginxController.Reload(); err != nil {

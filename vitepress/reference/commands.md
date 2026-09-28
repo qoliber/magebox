@@ -1410,11 +1410,13 @@ Add a domain to the project.
 ```bash
 magebox domain add store.test
 magebox domain add de.store.test --store-code=german
+magebox domain add fr.store.test --store-code=french --store-type=website
 magebox domain add api.store.test --root=pub --ssl=false
 ```
 
 **Options:**
-- `--store-code` - Magento store code (sets `MAGE_RUN_CODE`)
+- `--store-code` - Magento store or website code (sets `MAGE_RUN_CODE` for this host)
+- `--store-type` - What the code refers to: `store` (default) or `website` (sets `MAGE_RUN_TYPE`)
 - `--root` - Document root relative to project (default: `pub`)
 - `--ssl` - Enable SSL for the domain (default: `true`)
 

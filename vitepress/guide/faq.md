@@ -296,7 +296,7 @@ Magento\Framework\Exception\NoSuchEntityException: The store that was requested 
 Verify the store and try again.
 ```
 
-This happens because MageBox sets `MAGE_RUN_CODE` to `default` when no store code is configured for a domain. If your Magento installation's default store code is not `default`, you need to specify the correct store code:
+Up to 2.2 MageBox set `MAGE_RUN_CODE` to `default` for every domain, so Magento looked for a store with that exact code. From 2.3.0 it sends nothing unless the domain names a `store_code`, and Magento resolves the store itself. On an older release, or when you do want a specific store per domain, set the code:
 
 ```bash
 magebox domain add mystore.test --store-code=my_store_code
