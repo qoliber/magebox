@@ -71,6 +71,9 @@ magento:
     - version: "2.4.7"
       name: "Magento 2.4.7"
       php: ["8.3", "8.2"]
+    - version: "2.4.6-p15"
+      name: "Magento 2.4.6-p15"
+      php: ["8.2", "8.1"]
     - version: "2.4.6-p14"
       name: "Magento 2.4.6-p14"
       php: ["8.2", "8.1"]
@@ -116,6 +119,10 @@ mageos:
       base: "2.4.9"
     - version: "3.2.0"
       name: "MageOS 3.2.0"
+      php: ["8.5", "8.4", "8.3"]
+      base: "2.4.9"
+    - version: "3.1.0"
+      name: "MageOS 3.1.0"
       php: ["8.5", "8.4", "8.3"]
       base: "2.4.9"
     - version: "2.2.2"
