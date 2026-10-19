@@ -71,6 +71,9 @@ magento:
     - version: "2.4.7"
       name: "Magento 2.4.7"
       php: ["8.3", "8.2"]
+    - version: "2.4.6-p15"
+      name: "Magento 2.4.6-p15"
+      php: ["8.2", "8.1"]
     - version: "2.4.6-p14"
       name: "Magento 2.4.6-p14"
       php: ["8.2", "8.1"]
@@ -101,10 +104,14 @@ magento:
 mageos:
   package: "mage-os/project-community-edition"
   versions:
-    - version: "3.5.0"
-      name: "MageOS 3.5.0 (Latest)"
+    - version: "3.6.0"
+      name: "MageOS 3.6.0 (Latest)"
       php: ["8.5", "8.4", "8.3"]
       default: true
+      base: "2.4.9"
+    - version: "3.5.0"
+      name: "MageOS 3.5.0"
+      php: ["8.5", "8.4", "8.3"]
       base: "2.4.9"
     - version: "3.4.0"
       name: "MageOS 3.4.0"
