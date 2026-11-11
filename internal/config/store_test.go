@@ -63,3 +63,48 @@ func TestMigrateDeprecatedStoreKeys(t *testing.T) {
 		t.Errorf("a domain without either key must stay empty: %+v", cfg.Domains[2])
 	}
 }
+
+// Host and store_code are written verbatim into the nginx store map that every
+// project shares. A value with whitespace, a semicolon or a brace closes the map
+// block and injects directives, and even an honest typo takes nginx down for
+// every project on the machine, so both must fail validation.
+func TestConfigValidatesStoreMapValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      string
+		storeCode string
+		wantError bool
+	}{
+		{name: "plain host and code", host: "mystore.test", storeCode: "nl", wantError: false},
+		{name: "subdomain with hyphen", host: "de-shop.my-store.test", storeCode: "de_store", wantError: false},
+		{name: "uppercase host", host: "MyStore.test", storeCode: "NL", wantError: false},
+		{name: "wildcard host", host: "*.mystore.test", storeCode: "", wantError: false},
+		{name: "no store code", host: "mystore.test", storeCode: "", wantError: false},
+		{name: "code closes the map block", host: "mystore.test", storeCode: "x; } server { listen 9999; }", wantError: true},
+		{name: "code with space", host: "mystore.test", storeCode: "my store", wantError: true},
+		{name: "code with quote", host: "mystore.test", storeCode: `nl"`, wantError: true},
+		{name: "code with hyphen", host: "mystore.test", storeCode: "nl-be", wantError: true},
+		{name: "code starting with a digit", host: "mystore.test", storeCode: "1nl", wantError: true},
+		{name: "host closes the map block", host: "a.test x; }", storeCode: "nl", wantError: true},
+		{name: "host with semicolon", host: "a.test;", storeCode: "nl", wantError: true},
+		{name: "host with newline", host: "a.test\nb.test", storeCode: "nl", wantError: true},
+		{name: "host with port", host: "a.test:8080", storeCode: "nl", wantError: true},
+		{name: "host with empty label", host: "a..test", storeCode: "nl", wantError: true},
+		{name: "host starting with hyphen", host: "-a.test", storeCode: "nl", wantError: true},
+		{name: "wildcard in the middle", host: "a.*.test", storeCode: "nl", wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Name:    "mystore",
+				PHP:     "8.3",
+				Domains: []Domain{{Host: tt.host, StoreCode: tt.storeCode}},
+			}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantError {
+				t.Errorf("Validate() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}

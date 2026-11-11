@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **Domain Hosts and Store Codes Are Validated Before They Reach nginx** - `host` and `store_code` were written unquoted into the nginx store map that every project shares. A value with a space, semicolon or brace closed the `map` block and injected directives into the `http` context. Even a typo took nginx down for every project on the machine. `magebox start` and `magebox domain add` now reject a host that is not a valid hostname, and a store code that does not follow Magento's own rule (letters, digits and underscores, starting with a letter). The store map also refuses to render an unsafe entry.
+
 ## [2.2.0] - 2026-09-28
 
 ### Changed

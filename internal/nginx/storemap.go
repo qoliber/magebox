@@ -73,7 +73,16 @@ func StoreMapEntries(projects []*config.Config) []StoreMapEntry {
 }
 
 // RenderStoreMap renders the shared map file.
+//
+// Every value is checked again here because the file is shared by all projects:
+// a value that closes the map block would inject directives into the http
+// context and, at the least, stop nginx from serving any project.
 func RenderStoreMap(entries []StoreMapEntry) (string, error) {
+	for _, e := range entries {
+		if !config.ValidHost(e.Host) || !config.ValidStoreCode(e.Code) || (e.Type != "store" && e.Type != "website") {
+			return "", fmt.Errorf("refusing to write unsafe store map entry for host %q", e.Host)
+		}
+	}
 	tmpl, err := template.New("storemap").Parse(storeMapTemplate)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse the store map template: %w", err)

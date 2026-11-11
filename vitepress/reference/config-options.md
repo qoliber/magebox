@@ -54,10 +54,10 @@ domains:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `host` | string | required | Domain name |
+| `host` | string | required | Domain name. Letters, digits, hyphens and dots, optionally starting with `*.` |
 | `root` | string | `pub` | Document root relative to project |
 | `ssl` | boolean | `true` | Enable HTTPS |
-| `store_code` | string | *(none)* | Magento store or website code. Sets `MAGE_RUN_CODE` for this host only when given |
+| `store_code` | string | *(none)* | Magento store or website code. Sets `MAGE_RUN_CODE` for this host only when given. Letters, digits and underscores, starting with a letter, as Magento requires |
 | `store_type` | string | `store` | What the code refers to: `store` or `website`. Sets `MAGE_RUN_TYPE` |
 
 Leave `store_code` out for a single-store project. MageBox then sends no `MAGE_RUN_CODE` at all and Magento resolves the store itself, which is what a project whose default store code is not `default` needs.
