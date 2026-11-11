@@ -881,7 +881,7 @@ func TestComposeGenerator_collectRequiredServices(t *testing.T) {
 func TestComposeService_PhpMyAdmin(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
-	svc := g.getPhpMyAdminService("magebox-mysql-8.0", 8036)
+	svc := g.getPhpMyAdminService([]string{"magebox-mysql-8.0"}, 8036)
 
 	if svc.Image != "phpmyadmin:latest" {
 		t.Errorf("Image = %v, want phpmyadmin:latest", svc.Image)
@@ -895,8 +895,8 @@ func TestComposeService_PhpMyAdmin(t *testing.T) {
 	if svc.Environment["PMA_ARBITRARY"] != "1" {
 		t.Error("PMA_ARBITRARY should be 1")
 	}
-	if svc.Environment["PMA_HOST"] != "magebox-mysql-8.0" {
-		t.Errorf("PMA_HOST = %v, want magebox-mysql-8.0", svc.Environment["PMA_HOST"])
+	if svc.Environment["PMA_HOSTS"] != "magebox-mysql-8.0" {
+		t.Errorf("PMA_HOSTS = %v, want magebox-mysql-8.0", svc.Environment["PMA_HOSTS"])
 	}
 	if svc.Environment["PMA_USER"] != "root" {
 		t.Error("PMA_USER should be root")
@@ -912,10 +912,12 @@ func TestComposeService_PhpMyAdmin(t *testing.T) {
 func TestComposeService_PhpMyAdmin_NoDBHost(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
-	svc := g.getPhpMyAdminService("", 8036)
+	svc := g.getPhpMyAdminService(nil, 8036)
 
-	if _, ok := svc.Environment["PMA_HOST"]; ok {
-		t.Error("PMA_HOST should not be set when dbHost is empty")
+	for _, key := range []string{"PMA_HOST", "PMA_HOSTS", "PMA_VERBOSES"} {
+		if _, ok := svc.Environment[key]; ok {
+			t.Errorf("%s should not be set without a database", key)
+		}
 	}
 	if svc.Environment["PMA_ARBITRARY"] != "1" {
 		t.Error("PMA_ARBITRARY should still be 1")
@@ -925,75 +927,10 @@ func TestComposeService_PhpMyAdmin_NoDBHost(t *testing.T) {
 func TestComposeService_PhpMyAdmin_CustomPort(t *testing.T) {
 	g, _ := setupTestComposeGenerator(t)
 
-	svc := g.getPhpMyAdminService("magebox-mysql-8.0", 9090)
+	svc := g.getPhpMyAdminService([]string{"magebox-mysql-8.0"}, 9090)
 
 	if len(svc.Ports) != 1 || svc.Ports[0] != "9090:80" {
 		t.Errorf("Ports = %v, want [9090:80]", svc.Ports)
-	}
-}
-
-func TestRequiredServices_firstDBHost(t *testing.T) {
-	tests := []struct {
-		name           string
-		rs             requiredServices
-		defaultMySQL   string
-		defaultMariaDB string
-		want           string
-	}{
-		{
-			name: "prefers default MySQL version",
-			rs: requiredServices{
-				mysql:   map[string]*config.ServiceConfig{"5.7": {}, "8.0": {}},
-				mariadb: map[string]*config.ServiceConfig{},
-			},
-			defaultMySQL: "8.0",
-			want:         "magebox-mysql-8.0",
-		},
-		{
-			name: "falls back to any MySQL when default not present",
-			rs: requiredServices{
-				mysql:   map[string]*config.ServiceConfig{"5.7": {}},
-				mariadb: map[string]*config.ServiceConfig{},
-			},
-			defaultMySQL: "8.0",
-			want:         "magebox-mysql-5.7",
-		},
-		{
-			name: "prefers default MariaDB version",
-			rs: requiredServices{
-				mysql:   map[string]*config.ServiceConfig{},
-				mariadb: map[string]*config.ServiceConfig{"10.4": {}, "10.6": {}},
-			},
-			defaultMariaDB: "10.6",
-			want:           "magebox-mariadb-10.6",
-		},
-		{
-			name: "MySQL takes priority over MariaDB",
-			rs: requiredServices{
-				mysql:   map[string]*config.ServiceConfig{"8.0": {}},
-				mariadb: map[string]*config.ServiceConfig{"10.6": {}},
-			},
-			defaultMySQL:   "8.0",
-			defaultMariaDB: "10.6",
-			want:           "magebox-mysql-8.0",
-		},
-		{
-			name: "returns empty when no databases",
-			rs: requiredServices{
-				mysql:   map[string]*config.ServiceConfig{},
-				mariadb: map[string]*config.ServiceConfig{},
-			},
-			want: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.rs.firstDBHost(tt.defaultMySQL, tt.defaultMariaDB)
-			if got != tt.want {
-				t.Errorf("firstDBHost() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }
 
@@ -1434,6 +1371,72 @@ func TestDBDumpBin(t *testing.T) {
 			got := DBDumpBin(tt.dbType, tt.version)
 			if got != tt.want {
 				t.Errorf("DBDumpBin(%q, %q) = %q, want %q", tt.dbType, tt.version, got, tt.want)
+			}
+		})
+	}
+}
+
+// One phpMyAdmin serves every project, so it must know every database
+// container. With only PMA_HOST set it shows the default server, and a project
+// on another MySQL or MariaDB version opens the wrong database.
+func TestComposeService_PhpMyAdminListsEveryDatabase(t *testing.T) {
+	g, _ := setupTestComposeGenerator(t)
+
+	svc := g.getPhpMyAdminService([]string{"magebox-mysql-8.0", "magebox-mariadb-12.3"}, 8036)
+
+	if got := svc.Environment["PMA_HOSTS"]; got != "magebox-mysql-8.0,magebox-mariadb-12.3" {
+		t.Errorf("PMA_HOSTS = %q", got)
+	}
+	if got := svc.Environment["PMA_VERBOSES"]; got != "MySQL 8.0,MariaDB 12.3" {
+		t.Errorf("PMA_VERBOSES = %q", got)
+	}
+	if _, ok := svc.Environment["PMA_HOST"]; ok {
+		t.Error("PMA_HOST takes precedence over PMA_HOSTS in the phpMyAdmin image and must not be set")
+	}
+}
+
+// The server number in a phpMyAdmin URL is the position in PMA_HOSTS, so the
+// order must be stable between runs. The default goes first so server 1 stays
+// the database phpMyAdmin showed before.
+func TestRequiredServicesDBHosts(t *testing.T) {
+	rs := &requiredServices{
+		mysql: map[string]*config.ServiceConfig{
+			"8.4": {Enabled: true},
+			"8.0": {Enabled: true},
+		},
+		mariadb: map[string]*config.ServiceConfig{
+			"12.3":  {Enabled: true},
+			"10.11": {Enabled: true},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		defaultMySQL   string
+		defaultMariaDB string
+		want           []string
+	}{
+		{
+			name:         "mysql default first",
+			defaultMySQL: "8.4",
+			want:         []string{"magebox-mysql-8.4", "magebox-mysql-8.0", "magebox-mariadb-10.11", "magebox-mariadb-12.3"},
+		},
+		{
+			name:           "mariadb default first when mysql default is not used",
+			defaultMySQL:   "5.7",
+			defaultMariaDB: "12.3",
+			want:           []string{"magebox-mariadb-12.3", "magebox-mysql-8.0", "magebox-mysql-8.4", "magebox-mariadb-10.11"},
+		},
+		{
+			name: "no default",
+			want: []string{"magebox-mysql-8.0", "magebox-mysql-8.4", "magebox-mariadb-10.11", "magebox-mariadb-12.3"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rs.dbHosts(tt.defaultMySQL, tt.defaultMariaDB)
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("dbHosts() = %v, want %v", got, tt.want)
 			}
 		})
 	}

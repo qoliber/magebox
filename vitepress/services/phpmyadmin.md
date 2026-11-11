@@ -66,13 +66,20 @@ services:
    magebox phpmyadmin enable
    ```
 
-2. Open **http://localhost:8036** in your browser
+2. In your project directory, run:
+   ```bash
+   magebox phpmyadmin open
+   ```
 
-3. phpMyAdmin auto-connects to your default MySQL/MariaDB instance with root credentials
+3. phpMyAdmin opens the project's database, logged in as root
 
 ## Connecting to Multiple Databases
 
-phpMyAdmin runs with **arbitrary server mode** enabled, which means you can connect to any MySQL or MariaDB instance from the login screen. Use the container name as the server host:
+One phpMyAdmin serves every project. Each MySQL and MariaDB container that a project uses is listed as its own server, labelled with its version (e.g. "MariaDB 12.3"), and you can switch between them with the server selector. The default database version is server 1.
+
+`magebox phpmyadmin open` in a project directory selects the right server and database for that project.
+
+**Arbitrary server mode** is also enabled, so you can connect to any other MySQL or MariaDB instance from the login screen. Use the container name as the server host:
 
 | Database | Server Host |
 |----------|-------------|
@@ -91,7 +98,7 @@ phpMyAdmin runs with **arbitrary server mode** enabled, which means you can conn
 magebox phpmyadmin open
 ```
 
-Opens the phpMyAdmin web UI in your default browser.
+Opens the phpMyAdmin web UI in your default browser. In a project directory it opens that project's database on the matching server.
 
 ### Check Status
 
