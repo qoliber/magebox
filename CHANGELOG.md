@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **Sury Keyring No Longer Downloaded to a Fixed `/tmp` Path** - On Ubuntu releases that use packages.sury.org, bootstrap downloaded the keyring package to `/tmp/magebox-sury-keyring.deb` and then installed it with `sudo dpkg -i`. Another local user could create or replace that file first and have their own package installed as root. The package is now downloaded into a fresh directory only the current user can enter, and removed afterwards.
+
 ## [2.2.0] - 2026-09-28
 
 ### Changed
