@@ -122,3 +122,23 @@ func TestWriteStoreMapRemovesFileWhenNoStoreCodes(t *testing.T) {
 		t.Error("the shared map file should be removed when nothing uses store codes")
 	}
 }
+
+// The map is shared by every project, so a value that could close the map block
+// must never reach it, even if it slipped past config validation.
+func TestRenderStoreMapRejectsUnsafeValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry StoreMapEntry
+	}{
+		{name: "code closes the block", entry: StoreMapEntry{Host: "a.test", Code: "x; } server { }", Type: "store"}},
+		{name: "host closes the block", entry: StoreMapEntry{Host: "a.test x; }", Code: "nl", Type: "store"}},
+		{name: "unknown type", entry: StoreMapEntry{Host: "a.test", Code: "nl", Type: "store; }"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if out, err := RenderStoreMap([]StoreMapEntry{tt.entry}); err == nil {
+				t.Errorf("expected an error, rendered:\n%s", out)
+			}
+		})
+	}
+}

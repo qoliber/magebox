@@ -108,6 +108,13 @@ func runDomainAdd(cmd *cobra.Command, args []string) error {
 
 	cfg.Domains = append(cfg.Domains, newDomain)
 
+	// Validate before saving, so a host or store code that would break the
+	// shared nginx configuration never reaches .magebox.yaml.
+	if err := cfg.Validate(); err != nil {
+		cli.PrintError("Invalid domain: %v", err)
+		return nil
+	}
+
 	// Save config
 	if err := config.SaveToPath(cfg, cwd); err != nil {
 		cli.PrintError("Failed to save config: %v", err)

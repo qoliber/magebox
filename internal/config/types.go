@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -362,6 +363,20 @@ func (c *Config) Validate() error {
 		if d.Host == "" {
 			return &ValidationError{Field: "domains", Message: "domain host is required", Index: i}
 		}
+		if !ValidHost(d.Host) {
+			return &ValidationError{
+				Field:   "domains",
+				Message: fmt.Sprintf("host %q is not a valid hostname", d.Host),
+				Index:   i,
+			}
+		}
+		if d.StoreCode != "" && !ValidStoreCode(d.StoreCode) {
+			return &ValidationError{
+				Field:   "domains",
+				Message: fmt.Sprintf("store_code %q is not valid, it may only contain letters, digits and underscores and must start with a letter", d.StoreCode),
+				Index:   i,
+			}
+		}
 	}
 	if c.PHP == "" {
 		return &ValidationError{Field: "php", Message: "php version is required"}
@@ -489,6 +504,28 @@ func (s *Services) GetSearchService() *ServiceConfig {
 		return s.Elasticsearch
 	}
 	return nil
+}
+
+// hostLabel is one DNS label: letters, digits and inner hyphens.
+const hostLabel = `[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?`
+
+// hostPattern accepts a hostname, optionally with a leading wildcard label.
+var hostPattern = regexp.MustCompile(`^(\*\.)?` + hostLabel + `(\.` + hostLabel + `)*$`)
+
+// storeCodePattern is the rule Magento itself applies to store and website codes.
+var storeCodePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
+
+// ValidHost reports whether host is a hostname that is safe to write into nginx
+// and certificate configuration. Hosts end up unquoted in shared nginx files,
+// so anything else could change the meaning of the configuration.
+func ValidHost(host string) bool {
+	return len(host) <= 253 && hostPattern.MatchString(host)
+}
+
+// ValidStoreCode reports whether code is a Magento store or website code. Codes
+// are written into the nginx store map shared by every project.
+func ValidStoreCode(code string) bool {
+	return storeCodePattern.MatchString(code)
 }
 
 // validStoreTypes are the values Magento understands for MAGE_RUN_TYPE.

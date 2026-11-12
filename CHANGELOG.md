@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Sury Keyring No Longer Downloaded to a Fixed `/tmp` Path** - On Ubuntu releases that use packages.sury.org, bootstrap downloaded the keyring package to `/tmp/magebox-sury-keyring.deb` and then installed it with `sudo dpkg -i`. Another local user could create or replace that file first and have their own package installed as root. The package is now downloaded into a fresh directory only the current user can enter, and removed afterwards.
+- **Domain Hosts and Store Codes Are Validated Before They Reach nginx** - `host` and `store_code` were written unquoted into the nginx store map that every project shares. A value with a space, semicolon or brace closed the `map` block and injected directives into the `http` context. Even a typo took nginx down for every project on the machine. `magebox start` and `magebox domain add` now reject a host that is not a valid hostname, and a store code that does not follow Magento's own rule (letters, digits and underscores, starting with a letter). The store map also refuses to render an unsafe entry.
 
 ## [2.2.0] - 2026-09-28
 
