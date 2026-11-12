@@ -3,7 +3,6 @@ package installer
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -34,6 +33,8 @@ const (
 	surySourceFile = "/etc/apt/sources.list.d/magebox-php.list"
 	// suryKeyring is installed by sury's own keyring package.
 	suryKeyring = "/usr/share/keyrings/deb.sury.org-php.gpg"
+	// suryKeyringDebURL is the package that installs suryKeyring.
+	suryKeyringDebURL = "https://packages.sury.org/debsuryorg-archive-keyring.deb"
 )
 
 // PickPHPRepository chooses where PHP packages should come from.
@@ -85,11 +86,13 @@ func SurySuitePublished(suite string) bool { return suiteAvailable(suryDistsURL,
 // configureSuryRepository installs sury's keyring and apt source, and removes
 // the PPA source so apt cannot pull packages built for an older release.
 func (u *UbuntuInstaller) configureSuryRepository(codename string) error {
-	keyringDeb := "/tmp/magebox-sury-keyring.deb"
-	if err := u.RunCommand(fmt.Sprintf("curl -fsSL -o %s https://packages.sury.org/debsuryorg-archive-keyring.deb", keyringDeb)); err != nil {
+	// dpkg runs as root on this file, so it must not sit at a path another
+	// local user could claim or replace first.
+	keyringDeb, cleanup, err := downloadToPrivateFile(suryKeyringDebURL, "debsuryorg-archive-keyring.deb")
+	if err != nil {
 		return fmt.Errorf("failed to download the sury keyring: %w", err)
 	}
-	defer func() { _ = os.Remove(keyringDeb) }()
+	defer cleanup()
 
 	if err := u.RunSudo("dpkg", "-i", keyringDeb); err != nil {
 		return fmt.Errorf("failed to install the sury keyring: %w", err)
