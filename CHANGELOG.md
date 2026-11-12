@@ -5,6 +5,12 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`magebox phpmyadmin open` Opens the Project's Own Database** - The shared phpMyAdmin container knew only one server: the default MySQL version, or another version chosen by map order. It opened the start page there, so a project on another MySQL or MariaDB version showed the wrong server and none of its own data. phpMyAdmin now lists every MySQL and MariaDB container as a server, in a fixed order with the default first. `open` in a project directory selects that project's server and database. If the running container does not know the project's database server yet, it is recreated first.
+
 ## [2.2.0] - 2026-09-28
 
 ### Changed

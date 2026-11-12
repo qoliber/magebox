@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -306,7 +307,7 @@ func (g *ComposeGenerator) GenerateGlobalServices(configs []*config.Config) erro
 		if requiredServices.phpmyadmin != nil && requiredServices.phpmyadmin.Port > 0 {
 			port = requiredServices.phpmyadmin.Port
 		}
-		compose.Services["phpmyadmin"] = g.getPhpMyAdminService(requiredServices.firstDBHost(defaultMySQL, defaultMariaDB), port)
+		compose.Services["phpmyadmin"] = g.getPhpMyAdminService(requiredServices.dbHosts(defaultMySQL, defaultMariaDB), port)
 	}
 
 	// Add Varnish if needed
@@ -347,30 +348,39 @@ type requiredServices struct {
 	// Note: Mailpit is always enabled for local dev safety, not tracked here
 }
 
-// firstDBHost returns the container name of the first available database service.
-// It prefers the default version from global config for deterministic results.
-func (rs *requiredServices) firstDBHost(defaultMySQL, defaultMariaDB string) string {
-	// Prefer the default MySQL version if available
-	if defaultMySQL != "" {
-		if _, ok := rs.mysql[defaultMySQL]; ok {
-			return fmt.Sprintf("magebox-mysql-%s", defaultMySQL)
+// dbHosts returns the container name of every database service, for
+// phpMyAdmin's server list.
+//
+// phpMyAdmin addresses a server by its position in that list, so the order must
+// not depend on map iteration: the default MySQL version comes first, else the
+// default MariaDB version, then MySQL and MariaDB each in version order.
+func (rs *requiredServices) dbHosts(defaultMySQL, defaultMariaDB string) []string {
+	var hosts []string
+	first := ""
+	if _, ok := rs.mysql[defaultMySQL]; ok && defaultMySQL != "" {
+		first = "magebox-mysql-" + defaultMySQL
+	} else if _, ok := rs.mariadb[defaultMariaDB]; ok && defaultMariaDB != "" {
+		first = "magebox-mariadb-" + defaultMariaDB
+	}
+	if first != "" {
+		hosts = append(hosts, first)
+	}
+	for _, engine := range []struct {
+		name     string
+		versions map[string]*config.ServiceConfig
+	}{{"mysql", rs.mysql}, {"mariadb", rs.mariadb}} {
+		versions := make([]string, 0, len(engine.versions))
+		for v := range engine.versions {
+			versions = append(versions, v)
+		}
+		sort.Slice(versions, func(i, j int) bool { return compareVersionStrings(versions[i], versions[j]) < 0 })
+		for _, v := range versions {
+			if host := fmt.Sprintf("magebox-%s-%s", engine.name, v); host != first {
+				hosts = append(hosts, host)
+			}
 		}
 	}
-	// Then try any MySQL version
-	for version := range rs.mysql {
-		return fmt.Sprintf("magebox-mysql-%s", version)
-	}
-	// Prefer the default MariaDB version if available
-	if defaultMariaDB != "" {
-		if _, ok := rs.mariadb[defaultMariaDB]; ok {
-			return fmt.Sprintf("magebox-mariadb-%s", defaultMariaDB)
-		}
-	}
-	// Then try any MariaDB version
-	for version := range rs.mariadb {
-		return fmt.Sprintf("magebox-mariadb-%s", version)
-	}
-	return ""
+	return hosts
 }
 
 // collectRequiredServices collects all required services from configs
@@ -727,15 +737,24 @@ func (g *ComposeGenerator) getElasticvueService() ComposeService {
 	}
 }
 
-// getPhpMyAdminService returns a phpMyAdmin service configuration
-func (g *ComposeGenerator) getPhpMyAdminService(dbHost string, port int) ComposeService {
+// getPhpMyAdminService returns a phpMyAdmin service configuration.
+//
+// Every database container is listed as its own server, so `magebox phpmyadmin
+// open` can select the one the current project uses. PMA_HOST must stay unset:
+// the image ignores PMA_HOSTS whenever it is present.
+func (g *ComposeGenerator) getPhpMyAdminService(dbHosts []string, port int) ComposeService {
 	env := map[string]string{
 		"PMA_ARBITRARY": "1",
 		"PMA_USER":      "root",
 		"PMA_PASSWORD":  DefaultDBRootPassword,
 	}
-	if dbHost != "" {
-		env["PMA_HOST"] = dbHost
+	if len(dbHosts) > 0 {
+		labels := make([]string, len(dbHosts))
+		for i, host := range dbHosts {
+			labels[i] = dbHostLabel(host)
+		}
+		env["PMA_HOSTS"] = strings.Join(dbHosts, ",")
+		env["PMA_VERBOSES"] = strings.Join(labels, ",")
 	}
 	return ComposeService{
 		ContainerName: "magebox-phpmyadmin",
@@ -745,6 +764,18 @@ func (g *ComposeGenerator) getPhpMyAdminService(dbHost string, port int) Compose
 		Networks:      []string{"magebox"},
 		Restart:       "unless-stopped",
 	}
+}
+
+// dbHostLabel turns magebox-mariadb-12.3 into "MariaDB 12.3" for phpMyAdmin's
+// server list.
+func dbHostLabel(host string) string {
+	if v, ok := strings.CutPrefix(host, "magebox-mysql-"); ok {
+		return "MySQL " + v
+	}
+	if v, ok := strings.CutPrefix(host, "magebox-mariadb-"); ok {
+		return "MariaDB " + v
+	}
+	return host
 }
 
 // getVarnishService returns a Varnish service configuration
@@ -1118,13 +1149,13 @@ func (g *ComposeGenerator) GenerateDefaultServices(globalCfg *config.GlobalConfi
 
 	// Add phpMyAdmin if enabled
 	if globalCfg.PhpMyAdmin {
-		dbHost := ""
+		var dbHosts []string
 		if globalCfg.DefaultServices.MySQL != "" {
-			dbHost = fmt.Sprintf("magebox-mysql-%s", globalCfg.DefaultServices.MySQL)
+			dbHosts = []string{fmt.Sprintf("magebox-mysql-%s", globalCfg.DefaultServices.MySQL)}
 		} else if globalCfg.DefaultServices.MariaDB != "" {
-			dbHost = fmt.Sprintf("magebox-mariadb-%s", globalCfg.DefaultServices.MariaDB)
+			dbHosts = []string{fmt.Sprintf("magebox-mariadb-%s", globalCfg.DefaultServices.MariaDB)}
 		}
-		compose.Services["phpmyadmin"] = g.getPhpMyAdminService(dbHost, 8036)
+		compose.Services["phpmyadmin"] = g.getPhpMyAdminService(dbHosts, 8036)
 	}
 
 	// Write compose file

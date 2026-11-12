@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -10,6 +12,7 @@ import (
 	"qoliber/magebox/internal/cli"
 	"qoliber/magebox/internal/config"
 	"qoliber/magebox/internal/docker"
+	"qoliber/magebox/internal/platform"
 )
 
 const (
@@ -250,7 +253,81 @@ func runPhpMyAdminOpen(cmd *cobra.Command, args []string) error {
 		fmt.Println(cli.Success("done"))
 	}
 
-	url := getPhpMyAdminURL()
-	cli.PrintInfo("Opening %s", cli.URL(url))
-	return openInBrowser(url)
+	target := projectPhpMyAdminURL(p, getPhpMyAdminURL())
+	cli.PrintInfo("Opening %s", cli.URL(target))
+	return openInBrowser(target)
+}
+
+// projectPhpMyAdminURL points phpMyAdmin at the current project's database.
+//
+// One phpMyAdmin serves every project, and each MySQL or MariaDB version is a
+// separate server in it, so without this the browser lands on server 1 even
+// when the project uses another version. Outside a project, or when the server
+// cannot be found, it returns base unchanged.
+func projectPhpMyAdminURL(p *platform.Platform, base string) string {
+	cwd, err := getCwd()
+	if err != nil {
+		return base
+	}
+	cfg, err := config.LoadFromPath(cwd)
+	if err != nil {
+		return base
+	}
+	db, err := getDbInfo(cfg)
+	if err != nil {
+		return base
+	}
+
+	server := phpMyAdminServerIndex(phpMyAdminEnv(), db.ContainerName)
+	if server == 0 {
+		// The container predates this database (or this release), so its
+		// server list is stale. Regenerating the compose file changes the
+		// environment, and compose recreates the container.
+		if err := ensureGlobalServiceRunning(p, phpmyadminService); err == nil {
+			server = phpMyAdminServerIndex(phpMyAdminEnv(), db.ContainerName)
+		}
+	}
+	if server == 0 {
+		cli.PrintWarning("phpMyAdmin does not know %s yet; run 'magebox start' in this project first", db.ContainerName)
+		return base
+	}
+	if !isContainerRunning(db.ContainerName) {
+		cli.PrintWarning("%s is not running; start it with 'magebox start'", db.ContainerName)
+	}
+	return phpMyAdminDatabaseURL(base, server, cfg.DatabaseName())
+}
+
+// phpMyAdminEnv returns the environment of the running phpMyAdmin container.
+func phpMyAdminEnv() []string {
+	out, err := exec.Command("docker", "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", phpmyadminContainer).Output()
+	if err != nil {
+		return nil
+	}
+	return strings.Split(strings.TrimSpace(string(out)), "\n")
+}
+
+// phpMyAdminServerIndex returns host's 1-based server number in the container's
+// PMA_HOSTS, which is how phpMyAdmin numbers its servers, or 0 when absent.
+func phpMyAdminServerIndex(env []string, host string) int {
+	for _, kv := range env {
+		hosts, ok := strings.CutPrefix(kv, "PMA_HOSTS=")
+		if !ok {
+			continue
+		}
+		for i, h := range strings.Split(hosts, ",") {
+			if strings.TrimSpace(h) == host {
+				return i + 1
+			}
+		}
+	}
+	return 0
+}
+
+// phpMyAdminDatabaseURL opens a database's structure page on a given server.
+func phpMyAdminDatabaseURL(base string, server int, database string) string {
+	q := url.Values{}
+	q.Set("route", "/database/structure")
+	q.Set("server", strconv.Itoa(server))
+	q.Set("db", database)
+	return strings.TrimSuffix(base, "/") + "/index.php?" + q.Encode()
 }

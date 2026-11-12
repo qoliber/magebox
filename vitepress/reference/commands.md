@@ -1119,7 +1119,7 @@ Enable the phpMyAdmin web UI.
 magebox phpmyadmin enable
 ```
 
-Sets `phpmyadmin: true` in the global config, starts the container, and prints the URL (default port 8036). Uses arbitrary server mode — connect to any database container by name (e.g. `magebox-mysql-8.0`).
+Sets `phpmyadmin: true` in the global config, starts the container, and prints the URL (default port 8036). Every MySQL and MariaDB container is listed as a server, and arbitrary server mode stays on to connect to anything else by name (e.g. `magebox-mysql-8.0`).
 
 This command is idempotent and self-healing: if phpMyAdmin is already enabled but its container is stopped (for example after a Docker or machine restart), it starts the container again instead of doing nothing.
 
@@ -1158,6 +1158,8 @@ magebox phpmyadmin open
 ```
 
 Requires phpMyAdmin to be enabled (otherwise it tells you to run `magebox phpmyadmin enable`). If it is enabled but the container is stopped, it starts the container first and then opens the browser. Returns a clear message if Docker itself is not running.
+
+Run inside a project, it opens that project's database on the server that matches the project's MySQL or MariaDB version. If the phpMyAdmin container does not know that database server yet, for example because it was created before the project was started, it is recreated first. Outside a project it opens the start page.
 
 ## Expose Commands
 
