@@ -15,7 +15,9 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "MageBox configuration",
-	Long:  "View and modify MageBox global configuration",
+	Long:  "View and modify MageBox global configuration, or print the resolved project configuration as JSON.",
+	Args:  cobra.NoArgs,
+	RunE:  runConfigProject,
 }
 
 var configShowCmd = &cobra.Command{
@@ -49,6 +51,7 @@ var configInitCmd = &cobra.Command{
 }
 
 func init() {
+	configCmd.Flags().Bool("json", false, "Print the resolved project configuration as JSON")
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configSetCmd)
 	configCmd.AddCommand(configInitCmd)

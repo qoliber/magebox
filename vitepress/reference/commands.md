@@ -1450,6 +1450,33 @@ Shows URL, root, store code, and SSL status for each domain.
 
 ## Configuration Commands
 
+### `magebox config --json`
+
+Print the current project's merged configuration and derived values as JSON:
+
+```bash
+magebox config --json | jq '.derived.database'
+```
+
+`config` contains the merged project configuration, including local overrides
+and included files, using the project configuration's field names. It may
+contain sensitive values such as environment variables; treat the output as
+you would the configuration files.
+
+`derived` contains `database_name`, `database`, `cache`, `search`, and
+`domains`. Each enabled service endpoint has `service`, `host`, `port`, and,
+when configured, `version`; absent services are `null`. Domains include the
+resolved `root`, `ssl`, `store_code`, and `store_type`. The database, cache,
+and search selections follow MageBox's usual service precedence. Ports are the
+host ports used by MageBox's shared services, not a check that a service is
+running. A custom Compose file or an already configured Magento installation
+may use different endpoints.
+
+The command reads the current directory and exits with an error if its project
+configuration cannot be loaded. It writes JSON only to standard output.
+
+---
+
 ### `magebox config show`
 
 Display global configuration.
