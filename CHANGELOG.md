@@ -5,6 +5,13 @@ All notable changes to MageBox will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2026-11-16
+
+### Added
+
+- **`magebox config --json`** - Prints the resolved project configuration as JSON. Integrations no longer need to parse `.magebox.yaml` and copy the MageBox merge and service rules to get connection details. The `config` key holds the merged configuration, with local overrides and included files. The `derived` key holds the database name and the database, cache, search and domain endpoints that MageBox uses. Standard output contains only the JSON. If MageBox cannot load the project configuration, the command exits with an error. The output can contain sensitive values, such as environment variables. ([#165](https://github.com/qoliber/magebox/pull/165), [#164](https://github.com/qoliber/magebox/issues/164))
+- **Magento 2.4.6-p15, MageOS 4.0.0 and MageOS 3.6.0** - Added to the version registry. MageOS 4.0.0 is now the default MageOS version offered by `magebox new`. ([#160](https://github.com/qoliber/magebox/pull/160), [#166](https://github.com/qoliber/magebox/pull/166))
+
 ## [2.2.1] - 2026-11-12
 
 ### Fixed
