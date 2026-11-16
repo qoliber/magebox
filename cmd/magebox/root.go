@@ -73,6 +73,9 @@ It uses native PHP-FPM and Nginx for maximum performance,
 with Docker for services like MySQL, Redis, OpenSearch, and Varnish.`,
 	Version: version,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if isProjectConfigJSON(cmd) {
+			return
+		}
 		// Set verbosity level based on -v count
 		verbose.SetLevel(verbose.Level(verbosity))
 
@@ -91,6 +94,9 @@ with Docker for services like MySQL, Redis, OpenSearch, and Varnish.`,
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if isProjectConfigJSON(cmd) {
+			return
+		}
 		if versionChecker != nil {
 			if msg := versionChecker.Result(); msg != "" {
 				fmt.Println()
