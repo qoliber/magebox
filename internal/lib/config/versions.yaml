@@ -109,6 +109,10 @@ mageos:
       php: ["8.5", "8.4", "8.3"]
       default: true
       base: "2.4.9"
+    - version: "3.6.0"
+      name: "MageOS 3.6.0"
+      php: ["8.5", "8.4", "8.3"]
+      base: "2.4.9"
     - version: "3.5.0"
       name: "MageOS 3.5.0"
       php: ["8.5", "8.4", "8.3"]
